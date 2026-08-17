@@ -3,6 +3,7 @@
 
 import {
   Button,
+  Container,
   Checkbox,
   GroupBox,
   HStack,
@@ -20,6 +21,7 @@ import {
   VStack,
   View,
   Window,
+  checkLayout,
   describeViewTree,
   snapshotWindow,
 } from "../src/ui/index.ts";
@@ -240,6 +242,81 @@ const H = 500;
     `${detail.contentStack.frame.height} vs ${detail.frame.height}`);
   check("log did not swallow the window", log.frame.height < 200, log.frame.height);
   w.close();
+}
+
+// ---------------------------------------------------------------------------
+// 6. Nothing spills out of its container, at any window width
+//
+// This is the regression guard for the bug where a row of fixed-width controls
+// inside a group box drew straight over the box border once the window was
+// narrowed: Auto Layout broke the weakest constraint and the overflow was
+// silent.
+// ---------------------------------------------------------------------------
+{
+  for (const width of [900, 828, 760, 720]) {
+    const slider = new Slider({ min: 0, max: 100, value: 50, width: 220 });
+    const scoreRow = new HStack({ spacing: 8, align: "center" }, [
+      new Label({ text: "Score", width: 52 }),
+      slider,
+      new Label({ text: "50", width: 34, align: "right" }),
+    ]);
+    const detail = new GroupBox({ title: "Details", padding: 12 }, [
+      new HStack({ spacing: 8, align: "center" }, [
+        new Label({ text: "Name", width: 52 }),
+        new TextField({ placeholder: "Name", width: 220 }),
+      ]),
+      scoreRow,
+    ]);
+    const controls = new GroupBox({ title: "Controls", padding: 12 }, [
+      new HStack({ spacing: 10, align: "center" }, [
+        new Checkbox({ title: "Checkbox", checked: true }),
+        new Switch({ on: true }),
+        new Select({ items: ["Alpha"], width: 110 }),
+        new Segmented({ items: ["List", "Grid", "Cards"] }),
+      ]),
+      new HStack({ spacing: 10, align: "center" }, [
+        new Progress({ max: 100, value: 40, width: 180 }),
+        new Spacer(),
+        new Button({ title: "Ask…" }),
+      ]),
+    ]);
+    const stack = new VStack({ spacing: 12, padding: 16 }, [
+      new HStack({ spacing: 12, align: "fill" }, [detail, controls]),
+    ]);
+    const w = new Window({ title: `spill-${width}`, size: { width, height: 420 }, content: stack, show: false });
+    settle(w);
+
+    const inner = detail.contentStack.frame;
+    const row = scoreRow.frame;
+    const left = row.x;
+    const right = inner.width - (row.x + row.width);
+    check(
+      `@${width}pt the score row keeps its padding`,
+      left >= 11.5 && right >= 11.5,
+      `padding ${left.toFixed(1)}/${right.toFixed(1)}, want 12/12`,
+    );
+
+    const violations = checkLayout(w);
+    check(`@${width}pt nothing draws outside its parent`, violations.length === 0,
+      violations.slice(0, 3).map((v) => `${v.view} in ${v.parent}: ${v.detail}`).join("; "));
+    w.close();
+  }
+
+  // A detector that cannot fire is worth nothing, so make it fire: a Required
+  // width larger than its container is exactly the shape of the original bug.
+  {
+    const oversized = new Label({ text: "far too wide" });
+    oversized.constrain("width", "==", 600);           // Required, unlike ViewOptions
+    const box = new Container({ width: 200, height: 60 });
+    box.add(oversized);
+    const w = new Window({ title: "spill-probe", size: { width: 300, height: 160 },
+      content: new VStack({ padding: 8 }, [box]), show: false });
+    settle(w);
+    const found = checkLayout(w);
+    check("checkLayout detects a real overflow", found.length > 0,
+      found.map((v) => v.detail).join("; ") || "detector never fires — it is vacuous");
+    w.close();
+  }
 }
 
 console.log(failures === 0 ? "\nALL LAYOUT TESTS PASSED" : `\n${failures} LAYOUT FAILURE(S)`);

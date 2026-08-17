@@ -9,6 +9,8 @@ import { ACTION_SELECTOR, actionTarget, View, type ViewOptions } from "./view.ts
 import { makeFont, type FontSpec } from "./controls.ts";
 import {
   BorderType,
+  LayoutAttribute,
+  LayoutRelation,
   LineBreakMode,
   TableColumnResizing,
   TableViewColumnAutoresizingStyle,
@@ -142,23 +144,44 @@ export class Table<Row = any> extends View {
 
           let cell = self.tableView.makeViewWithIdentifier_owner_(colId, self.#dataSource);
           if (!cell) {
-            cell = objc.NSTextField.labelWithString_("");
+            // An NSTextField handed straight back as the cell view draws its
+            // text at the top of the row rather than the middle — a 26pt row
+            // with a 13pt font leaves the glyphs 10pt above centre. The fix is
+            // the structure AppKit expects: an NSTableCellView whose textField
+            // is pinned to the vertical centre.
+            cell = objc.NSTableCellView.alloc().init();
             cell.setIdentifier_(colId);
-            cell.setLineBreakMode_(LineBreakMode.TruncatingTail);
-            cell.setBordered_(false);
-            cell.setDrawsBackground_(false);
-            if (self.#font) cell.setFont_(self.#font);
+
+            const text = objc.NSTextField.labelWithString_("");
+            text.setTranslatesAutoresizingMaskIntoConstraints_(false);
+            text.setLineBreakMode_(LineBreakMode.TruncatingTail);
+            text.setBordered_(false);
+            text.setDrawsBackground_(false);
+            if (self.#font) text.setFont_(self.#font);
             if (spec.align) {
-              cell.setAlignment_(
+              text.setAlignment_(
                 spec.align === "center" ? TextAlignment.Center
                 : spec.align === "right" ? TextAlignment.Right
                 : TextAlignment.Left,
               );
             }
+            cell.addSubview_(text);
+            cell.setTextField_(text);
+
+            for (const [attr, constant] of [
+              [LayoutAttribute.Leading, 0],
+              [LayoutAttribute.Trailing, 0],
+              [LayoutAttribute.CenterY, 0],
+            ] as Array<[number, number]>) {
+              const c = objc.NSLayoutConstraint.constraintWithItem_attribute_relatedBy_toItem_attribute_multiplier_constant_(
+                text, attr, LayoutRelation.Equal, cell, attr, 1.0, constant,
+              );
+              c.setActive_(true);
+            }
             self.#cellViews.add(cell);
           }
           const text = spec.value ? spec.value(data, index) : String((data as any)?.[colId] ?? "");
-          cell.setStringValue_(text ?? "");
+          cell.textField().setStringValue_(text ?? "");
           return cell;
         },
 

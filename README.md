@@ -129,6 +129,11 @@ Two layout rules are worth knowing, because they are the ones AppKit does not gi
 - **Growth along the main axis is opt-in** (`grow: 1`). Otherwise whichever view happens to
   have the lowest built-in hugging priority silently swallows all the spare space, which is
   impossible to reason about. A column packs to the top; a row shares its slack.
+- **Sizes in `ViewOptions` are strong preferences, not promises.** `width: 220` is applied
+  just below Required, and a `fill` stack clamps its children to the padded area at
+  Required. So content that no longer fits compresses instead of drawing over its
+  container's border — which is what Auto Layout does by default when it breaks the
+  weakest constraint. `checkLayout(window)` reports anything that still escapes.
 
 Anything not covered drops through: every wrapper has `.native`, and `objc.AnyClass` reaches
 the rest of AppKit.

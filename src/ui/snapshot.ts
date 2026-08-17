@@ -58,3 +58,72 @@ export function describeViewTree(root: View | any, depth = 0): string {
   for (let i = 0; i < n; i++) out += describeViewTree(subs.objectAtIndex_(i), depth + 1);
   return out;
 }
+
+export interface LayoutViolation {
+  view: string;
+  parent: string;
+  detail: string;
+}
+
+/**
+ * Find views drawing outside their parent.
+ *
+ * Auto Layout resolves an over-constrained layout by breaking a constraint, and
+ * the visible result is a view quietly spilling past its container rather than
+ * an error — so this is the check that catches it. Walk a window after layout
+ * and assert the result is empty.
+ */
+export function checkLayout(
+  root: View | Window | any,
+  options: { tolerance?: number; includePrivate?: boolean } = {},
+): LayoutViolation[] {
+  const tolerance = options.tolerance ?? 0.5;
+  const out: LayoutViolation[] = [];
+
+  // AppKit's own internals overdraw on purpose — NSScrollPocket's blur and mask
+  // in macOS 26 sit 28pt outside their parent so the scroll edge can fade. They
+  // are not yours to fix, so they are not reported unless asked for.
+  // Overlay scrollers legitimately hang outside the clip view too.
+  const isFrameworkInternal = (name: string) =>
+    name.startsWith("_") || name.includes("_TtC") || name === "NSScroller" ||
+    name.startsWith("NSScrollPocket");
+  const walk = (view: any, insideInternal: boolean) => {
+    const bounds = view.bounds();
+    const subs = view.subviews();
+    const n = subs ? Number(subs.count()) : 0;
+    for (let i = 0; i < n; i++) {
+      const child = subs.objectAtIndex_(i);
+      // Compare alignment rects, not frames. Controls like NSTextField and
+      // NSButton deliberately draw a couple of points outside the rectangle
+      // Auto Layout positions, so frames would report every label as a
+      // violation.
+      const f = child.alignmentRectForFrame_(child.frame());
+      const over = [
+        f.x < -tolerance ? `${(-f.x).toFixed(1)}pt past the left` : "",
+        f.y < -tolerance ? `${(-f.y).toFixed(1)}pt past the bottom` : "",
+        f.x + f.width > bounds.width + tolerance
+          ? `${(f.x + f.width - bounds.width).toFixed(1)}pt past the right` : "",
+        f.y + f.height > bounds.height + tolerance
+          ? `${(f.y + f.height - bounds.height).toFixed(1)}pt past the top` : "",
+      ].filter(Boolean);
+      const name = String(child.className);
+      const internal = insideInternal || isFrameworkInternal(name);
+      if (over.length && (options.includePrivate || !internal)) {
+        out.push({ view: name, parent: String(view.className), detail: over.join(", ") });
+      }
+      // Everything below a framework-internal view is framework-internal too.
+      walk(child, internal);
+    }
+  };
+  walk(viewOf(root), false);
+  return out;
+}
+
+/** Accept a Window, a Layer 3 View, or a bare NSView/NSWindow. */
+function viewOf(root: any): any {
+  const native = nativeOf(root);
+  // NSWindow answers -contentView; NSView does not, and only NSView has -bounds.
+  return native.respondsTo?.("contentView") && !native.respondsTo("bounds")
+    ? native.contentView()
+    : native;
+}

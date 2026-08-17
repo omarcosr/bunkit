@@ -26,6 +26,16 @@ export function actionTarget(fn: (sender: any) => void): ObjCObject {
 export const ACTION_SELECTOR = "brAction:";
 
 /**
+ * Priority for sizes given in ViewOptions.
+ *
+ * Just below Required, deliberately. A `width: 220` is a strong preference, not
+ * a promise the layout can keep at every window size — and when it cannot be
+ * kept, compressing the view is right and letting it spill outside its
+ * container is not. Call `constrain()` yourself if you truly need Required.
+ */
+export const SIZE_PRIORITY = LayoutPriority.Required - 1;
+
+/**
  * Get the underlying NSView/NSWindow from either a Layer 3 wrapper or a Layer 2
  * object. Note the instanceof check: an ObjCObject is a Proxy that answers
  * *every* property with a selector dispatcher, so `x.native ?? x` would happily
@@ -77,10 +87,10 @@ export class View {
   protected applyViewOptions(o: ViewOptions) {
     if (o.width !== undefined) this.setWidth(o.width);
     if (o.height !== undefined) this.setHeight(o.height);
-    if (o.minWidth !== undefined) this.constrain("width", ">=", o.minWidth);
-    if (o.minHeight !== undefined) this.constrain("height", ">=", o.minHeight);
-    if (o.maxWidth !== undefined) this.constrain("width", "<=", o.maxWidth);
-    if (o.maxHeight !== undefined) this.constrain("height", "<=", o.maxHeight);
+    if (o.minWidth !== undefined) this.constrain("width", ">=", o.minWidth, SIZE_PRIORITY);
+    if (o.minHeight !== undefined) this.constrain("height", ">=", o.minHeight, SIZE_PRIORITY);
+    if (o.maxWidth !== undefined) this.constrain("width", "<=", o.maxWidth, SIZE_PRIORITY);
+    if (o.maxHeight !== undefined) this.constrain("height", "<=", o.maxHeight, SIZE_PRIORITY);
     if (o.grow !== undefined) this.grow = o.grow;
     if (o.hidden !== undefined) this.hidden = o.hidden;
     if (o.tooltip !== undefined) this.native.setToolTip_(o.tooltip);
@@ -182,13 +192,13 @@ export class View {
     return c;
   }
 
-  setWidth(w: number): this {
-    this.constrain("width", "==", w);
+  setWidth(w: number, priority = SIZE_PRIORITY): this {
+    this.constrain("width", "==", w, priority);
     return this;
   }
 
-  setHeight(h: number): this {
-    this.constrain("height", "==", h);
+  setHeight(h: number, priority = SIZE_PRIORITY): this {
+    this.constrain("height", "==", h, priority);
     return this;
   }
 

@@ -74,9 +74,9 @@ const table = new Table<Person>({
 
 // --- right pane: the detail form -------------------------------------------
 
-const nameField = new TextField({ placeholder: "Name", width: 220 });
-const roleField = new TextField({ placeholder: "Role", width: 220 });
-const scoreSlider = new Slider({ min: 0, max: 100, value: 50, width: 220 });
+const nameField = new TextField({ placeholder: "Name", grow: 1 });
+const roleField = new TextField({ placeholder: "Role", grow: 1 });
+const scoreSlider = new Slider({ min: 0, max: 100, value: 50, grow: 1 });
 const scoreLabel = new Label({ text: "50", width: 34, align: "right" });
 scoreSlider.onChange((v) => {
   scoreLabel.text = String(Math.round(v));
