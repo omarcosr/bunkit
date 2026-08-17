@@ -116,6 +116,10 @@ issues and prs welcome. run `./native/build.sh && bun run typecheck && bun test`
 
 like carder, a lot of this gets written by claude. if you want to take on something substantial, hit me up on discord (@hiett) first so we're not doing the same work twice.
 
+### the name
+
+bunkit is not affiliated with bun, or with oven, the company behind it. the name is descriptive: bun is the only runtime it runs on. `bun:ffi` is what crosses into the dylib, and bun's event loop is what the pump hands the thread back to between slices, so it won't run under node or deno.
+
 ### license
 
 bunkit is licensed under the [Apache License 2.0](LICENSE). you're free to use, modify, and distribute it — including in commercial and closed-source products — provided you keep the license and attribution notices intact. the Apache license also carries an explicit patent grant. see [LICENSE](LICENSE) and [NOTICE](NOTICE) for the full terms.

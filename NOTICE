@@ -6,3 +6,7 @@ Licensed under the Apache License, Version 2.0.
 BunKit calls into Apple's AppKit, Foundation and CoreGraphics frameworks,
 and links against the libffi shipped with the macOS SDK. Those remain
 subject to their own licences.
+
+BunKit is not affiliated with, endorsed by, or sponsored by Bun or Oven.
+The name refers to the runtime BunKit targets. Bun and any related marks
+belong to their respective owners.
