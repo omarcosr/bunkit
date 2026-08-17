@@ -10,7 +10,7 @@ Real AppKit apps for macOS, written in TypeScript on Bun.
 
 ![the demo app](docs/demo.png)
 
-no webview, no html, no electron. that's a real `NSTableView`, real `NSTextField`s and a real menu bar, driven entirely from typescript.
+bunkit builds mac apps out of actual appkit — windows, tables, menus, sheets — with all of the app logic sitting in typescript. there's no webview anywhere, so the screenshot above is a real `NSTableView` with real `NSTextField`s in it.
 
 ```ts
 import { Application, Window, VStack, HStack, Label, Button, TextField } from "bunkit";
@@ -37,22 +37,24 @@ new Window({
 await app.run();
 ```
 
+### why?
+
+i wanted to know if you could write a proper mac app without shipping a browser to draw it. turns out you can, and it's a lot less work than you'd think, because the objective-c runtime hands you everything you need to call it at runtime. this is also just fun.
+
 ### let me try it
 
-needs macos on apple silicon, [bun](https://bun.sh), and the xcode command line tools (`xcode-select --install`).
+you'll need macos on apple silicon, [bun](https://bun.sh), and the xcode command line tools (`xcode-select --install`).
 
 ```shell
 git clone https://github.com/scarletindustries/bunkit
 cd bunkit
 bun install
 ./native/build.sh
-
-bun run hello    # 20 lines
-bun run tour     # a task list — the whole api on one screen
-bun run demo     # the screenshot above
 ```
 
-and to ship it as a real `.app`:
+`bun run hello` is about twenty lines. `bun run tour` is a task list that covers most of the api on one screen. `bun run demo` is the screenshot up top.
+
+to turn something into an actual `.app`:
 
 ```shell
 bun run bundle examples/demo.ts --name "My App" --id com.example.myapp --icon icon.png
@@ -61,7 +63,7 @@ open "dist/My App.app"
 
 ### how?
 
-the objective-c runtime can hand you the complete type signature of any method — argument types, return type, struct layouts — at runtime:
+ask the objective-c runtime about any method and it'll give you the whole signature back:
 
 ```c
 method_getTypeEncoding(class_getInstanceMethod(objc_lookUpClass("NSWindow"),
@@ -69,51 +71,48 @@ method_getTypeEncoding(class_getInstanceMethod(objc_lookUpClass("NSWindow"),
 // -> "@68@0:8{CGRect={CGPoint=dd}{CGSize=dd}}16Q48Q56B64"
 ```
 
-so instead of hand-writing a c wrapper per appkit method, there's **one** generic bridge that parses that encoding, builds an `ffi_cif`, and calls `objc_msgSend` through libffi. 1,300 lines, 54 exported symbols, and it never grows when you want a new appkit class.
+argument types, return type, struct layouts, all of it, with no headers to parse. so rather than writing a c wrapper per appkit method (and there are tens of thousands of them) there's one bridge that reads that encoding, builds an `ffi_cif` and calls `objc_msgSend` through libffi. it's around 1300 lines and it doesn't need to change when you want a class it's never heard of.
 
-three layers sit on top of it:
+three layers sit on top:
 
 | | | |
 |---|---|---|
-| `src/ui/` | layer 3 | `Window`, `VStack`, `Button`, `Table` — about 30 classes |
+| `src/ui/` | layer 3 | `Window`, `VStack`, `Button`, `Table`, about 30 classes |
 | `src/objc.ts` | layer 2 | `objc.NSWindow.alloc().init…()`, marshalling, delegates, blocks |
-| `src/bridge.ts` | layer 1 | dlopen, argument packing |
+| `src/bridge.ts` | layer 1 | dlopen, packing arguments into buffers |
 
-anything layer 3 doesn't wrap drops through — every wrapper has `.native`, and `objc.AnyClass` reaches the rest of appkit.
+layer 3 is the pleasant one. when it doesn't cover what you need you drop to layer 2, which reaches all of appkit — every layer 3 wrapper has a `.native` on it for exactly that.
 
-libffi rather than `bun:ffi` directly because `bun:ffi` needs a fixed signature at dlopen time: it can't build a call signature at runtime, can't pass structs by value, and can't mint function pointers with arbitrary signatures. all three are needed here.
+it goes through libffi instead of using `bun:ffi` on its own because `bun:ffi` wants the signature up front at dlopen time. it can't build one at runtime, can't pass a struct by value, and can't make a function pointer with an arbitrary signature. all three of those are needed here.
 
-### things that will bite you
+### the annoying parts
 
-**appkit spins its own nested run loop** during modal dialogs, menu tracking, live window resize and drag sessions — and javascript is frozen for the duration. dialogs are the big one, so layer 3 never exposes `runModal*`: `alert`, `confirm`, `prompt`, `openFile` and `saveFile` are all sheets that return promises, and the pump keeps running. menu tracking and live resize are bounded by human interaction.
+appkit runs its own nested run loop for modal dialogs, menu tracking, live resize and drags, and js is frozen the whole time it's in there. dialogs were the worst of it, so layer 3 doesn't expose `runModal*` at all: `alert`, `confirm`, `prompt`, `openFile` and `saveFile` are sheets that hand you a promise, and the pump keeps ticking underneath. menu tracking and live resize you just live with. they're bounded by someone letting go of the mouse.
 
-**objective-c pointers are `bigint`, never `number`.** apple packs short strings, small numbers and dates directly into the pointer, which puts them past 2^53. compare against `0n`.
+pointers are `bigint`, not `number`. apple packs short strings and small numbers into the pointer itself, which pushes the value past 2^53. compare against `0n`.
 
-**arm64 only, on purpose.** on arm64 every struct return goes through plain `objc_msgSend` with `x8` as the indirect result register, so the whole `objc_msgSend_stret` family doesn't exist in the dispatcher. the build script and the bundler both refuse anything else rather than silently returning structs wrongly.
+arm64 only. struct returns there go through plain `objc_msgSend` with x8 holding the result pointer, so the whole `objc_msgSend_stret` family doesn't exist in the dispatcher. the build script and the bundler both refuse an intel target rather than build you something that returns structs wrong.
 
-**enum values are generated, not typed in.** `NSTextAlignment` on arm64 uses the ios ordering (left, center, right) rather than appkit's historical (left, right, center) — get that wrong by hand and everything you right-align silently centres. `tools/gen-constants.ts` recovers 5,521 values by asking clang; `tools/gen-types.ts` walks the live runtime for 3,035 classes and 465 protocols so layer 2 autocompletes.
+enum values come out of a generator rather than out of my head. `NSTextAlignment` on arm64 uses the ios ordering (left, center, right) and not appkit's older one (left, right, center), which i typed in by hand and then spent a while wondering why everything i right-aligned was centred. `tools/gen-constants.ts` recovers 5521 of them by compiling a probe against the sdk, and `tools/gen-types.ts` walks the live runtime for the classes and protocols so layer 2 autocompletes.
 
 ### where it's at
 
-| | |
-|---|---|
-| `msgSend` | 229 ns (263 ns returning a struct) |
-| obj-c → js callback | 870 ns |
-| idle cpu, window open | 1.3% |
-| 60s soak, 9.8M calls | flat memory |
+it works, and there's a decent amount of test coverage — marshalling, layout geometry, synthetic mouse and keyboard events, run loop behaviour, and a soak test for leaks.
 
 ```shell
-bun test         # 9 suites: marshalling, layout, synthetic input, run loop, soak
+bun test
 bun run typecheck
 ```
 
-not done yet: notarization (ad-hoc signing only), no npm package (the dylib has to be compiled first), no swiftui hosting.
+a `msgSend` costs about 230ns, a callback from obj-c into js about 870ns, and idle cpu with a window open sits around 1.3%. a sixty second soak of 9.8 million calls holds flat.
+
+still missing: notarization (it only ad-hoc signs), an npm package (the dylib has to be compiled, so that needs prebuilt binaries), and swiftui hosting.
 
 ### contributing
 
-issues and prs welcome. run `./native/build.sh && bun run typecheck && bun test` first. `CLAUDE.md` has the conventions and the traps.
+issues and prs welcome. run `./native/build.sh && bun run typecheck && bun test` before you open one. `CLAUDE.md` has the conventions and the traps in it.
 
-like carder, a lot of this gets written by claude — if you want to take on something substantial, hit me up on discord (@hiett) first so we're not doing the same work twice.
+like carder, a lot of this gets written by claude. if you want to take on something substantial, hit me up on discord (@hiett) first so we're not doing the same work twice.
 
 ### license
 

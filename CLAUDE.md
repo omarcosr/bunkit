@@ -22,7 +22,7 @@ bun test                   # all suites
 Changing anything under `native/` means rebuilding the dylib before the TypeScript
 side will even load — `dlopen` fails on a missing symbol, not at the call site.
 
-## Things that will bite you
+## The annoying parts
 
 - **arm64 only, on purpose.** The dispatcher is written to the arm64 ABI, where
   struct returns use `x8` and `objc_msgSend_stret` does not exist. Do not add

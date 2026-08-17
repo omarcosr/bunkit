@@ -1,10 +1,8 @@
 BunKit
-Copyright 2026 The BunKit Authors
+Copyright 2026 Scott Hiett
 
-This product includes software developed at Scarlet Industries
-(https://github.com/scarletindustries/bunkit).
+Licensed under the Apache License, Version 2.0.
 
-Portions of this software call into Apple's AppKit, Foundation and
-CoreGraphics frameworks, and link against the libffi implementation
-distributed with the macOS SDK. Those components remain subject to
-their own licences.
+BunKit calls into Apple's AppKit, Foundation and CoreGraphics frameworks,
+and links against the libffi shipped with the macOS SDK. Those remain
+subject to their own licences.
