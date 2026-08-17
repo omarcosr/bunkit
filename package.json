@@ -41,13 +41,15 @@
     "./constants": "./src/generated/constants.ts",
     "./runtime": "./src/runtime.ts",
     "./structs": "./src/structs.ts",
-    "./types": "./src/generated/appkit.d.ts"
+    "./types": "./src/generated/appkit.d.ts",
+    "./metal": "./src/metal/index.ts"
   },
   "scripts": {
     "build": "./native/build.sh",
     "hello": "bun run examples/hello.ts",
     "tour": "bun run examples/tour.ts",
     "demo": "bun run examples/demo.ts",
+    "scene": "bun run examples/scene3d.ts",
     "test": "bun run test/all.ts",
     "typecheck": "tsc -p .",
     "gen": "bun run tools/gen-constants.ts && bun run tools/gen-types.ts",

@@ -52,7 +52,7 @@ bun install
 ./native/build.sh
 ```
 
-`bun run hello` is about twenty lines. `bun run tour` is a task list that covers most of the api on one screen. `bun run demo` is the screenshot up top.
+`bun run hello` is about twenty lines. `bun run tour` is a task list that covers most of the api on one screen. `bun run demo` is the screenshot up top, and `bun run scene` is the 3d one.
 
 to turn something into an actual `.app`:
 
@@ -86,6 +86,27 @@ layer 3 is the pleasant one. when it doesn't cover what you need you drop to lay
 it goes through libffi instead of using `bun:ffi` on its own because `bun:ffi` wants the signature up front at dlopen time. it can't build one at runtime, can't pass a struct by value, and can't make a function pointer with an arbitrary signature. all three of those are needed here.
 
 the encoding reader, the dispatcher, the closure trampolines, the memory model and the pump are all written up in [the bridge](https://scarlet.industries/docs/bunkit/bridge).
+
+### 3d
+
+there's a metal renderer in the box. `Scene3D` is a view like any other, so it drops into a stack next to the labels and buttons.
+
+![a metal scene](docs/scene3d.png)
+
+```ts
+const scene = new Scene3D({ grow: 1, camera: { position: [4, 2.6, 5] } });
+
+scene.add(plane({ size: 40, color: "#20202a" }));
+const cube = scene.add(box({ size: 1.1, position: [0, 0.55, 0], color: "#aa091b" }));
+
+scene.onFrame(({ dt }) => { cube.rotation.y += dt; });
+```
+
+`box`, `sphere` and `plane`, or your own vertex data through `geometry()`. one directional light, a depth buffer, a camera you can move, and `scene.capture()` / `scene.snapshot()` to read the framebuffer back — which is how the renderer is tested, since nobody is watching.
+
+it's a `CAMetalLayer` rather than an `MTKView`, so the frames come from bunkit's own run loop instead of a second one. if you'd rather write your own shaders, `scene.device` and `scene.layer` are right there; the built-in msl is about 40 lines in `src/metal/device.ts`.
+
+`bun run scene` is the example.
 
 ### the annoying parts
 

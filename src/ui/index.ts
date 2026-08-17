@@ -16,6 +16,9 @@ export * from "./dialogs.ts";
 export * from "./app.ts";
 export * from "./snapshot.ts";
 
+// Metal. Scene3D is a View, so it belongs with the rest of the layout classes.
+export * from "../metal/index.ts";
+
 // The escape hatch, re-exported so an app only needs one import.
 export {
   objc,

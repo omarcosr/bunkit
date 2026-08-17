@@ -5,8 +5,15 @@
 // launch, let AppKit settle, then check the process is alive and quiet.
 
 import { spawn } from "bun";
+import { metalAvailable } from "../src/metal/index.ts";
 
-const EXAMPLES = ["examples/hello.ts", "examples/tour.ts", "examples/demo.ts", "examples/raw-objc.ts"];
+const EXAMPLES = [
+  "examples/hello.ts",
+  "examples/tour.ts",
+  "examples/demo.ts",
+  "examples/raw-objc.ts",
+  "examples/scene3d.ts",
+];
 
 let failures = 0;
 function check(name: string, cond: any, extra?: any) {
@@ -18,6 +25,12 @@ function check(name: string, cond: any, extra?: any) {
 }
 
 for (const example of EXAMPLES) {
+  // scene3d needs a GPU. A CI runner without one is not a failing example.
+  if (example.includes("scene3d") && !metalAvailable()) {
+    console.log(`  skip ${example} (no Metal device)`);
+    continue;
+  }
+
   const proc = spawn({
     cmd: ["bun", "run", example],
     stdout: "pipe",

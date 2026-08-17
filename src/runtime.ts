@@ -59,6 +59,35 @@ export function initApp(policy: number = ActivationPolicy.Regular): void {
   lib.br_autorelease_pool_push();
 }
 
+/*
+ * Per-frame callbacks.
+ *
+ * AppKit has no equivalent of requestAnimationFrame, and a CVDisplayLink fires
+ * on its own thread, which is the wrong place to re-enter JavaScript from. So
+ * anything that animates is driven from the run loop itself: one call per
+ * iteration, on the main thread, in the same slice as everything else.
+ */
+const frameCallbacks = new Set<(now: number) => void>();
+
+/** Run `fn` once per run-loop iteration. Returns a function that stops it. */
+export function onFrame(fn: (now: number) => void): () => void {
+  frameCallbacks.add(fn);
+  return () => frameCallbacks.delete(fn);
+}
+
+/** Invoke the frame callbacks. Called by the run loop and by pumpOnce. */
+export function tickFrames(): void {
+  if (frameCallbacks.size === 0) return;
+  const now = lib.br_now();
+  for (const fn of [...frameCallbacks]) {
+    try {
+      fn(now);
+    } catch (e) {
+      console.error("[runtime] frame callback failed:", e);
+    }
+  }
+}
+
 export function onQuit(fn: () => void | Promise<void>): void {
   quitHandlers.push(fn);
 }
@@ -87,7 +116,9 @@ export function isRunning(): boolean {
  */
 export function pumpOnce(seconds = 0): number {
   lib.br_autorelease_pool_recycle();
-  return lib.br_pump(seconds);
+  const handled = lib.br_pump(seconds);
+  tickFrames();
+  return handled;
 }
 
 /**
@@ -122,6 +153,7 @@ export async function run(options: RunOptions = {}): Promise<void> {
       try {
         const handled = lib.br_pump(idle ? idlePump : activePump);
         quiet = handled > 0 ? 0 : quiet + 1;
+        tickFrames();
       } finally {
         // Yield to Bun. Anything Bun runs here is still inside the pool, so
         // JS-created temporaries drain on the same tick. While idle we do the

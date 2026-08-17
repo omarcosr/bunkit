@@ -584,12 +584,22 @@ function writeArg(
         def.write(dv, o, v);
         return;
       }
-      if (v instanceof Uint8Array) {
-        new Uint8Array(dv.buffer, dv.byteOffset + o, info.size).set(v.subarray(0, info.size));
+      // Anonymous structs have no name to look up — Metal encodes MTLClearColor
+      // as "{?=dddd}" — so raw bytes are the only way to pass one. Any view
+      // works, not just Uint8Array: a Float64Array is the natural way to write
+      // four doubles.
+      if (ArrayBuffer.isView(v)) {
+        const bytes = new Uint8Array(v.buffer, v.byteOffset, v.byteLength);
+        if (bytes.length < info.size) {
+          throw new TypeError(
+            `${what}: ${enc} needs ${info.size} bytes, got ${bytes.length}`,
+          );
+        }
+        new Uint8Array(dv.buffer, dv.byteOffset + o, info.size).set(bytes.subarray(0, info.size));
         return;
       }
       throw new TypeError(
-        `no struct converter for ${enc} (${what}); pass a Uint8Array of ${info.size} bytes`,
+        `no struct converter for ${enc} (${what}); pass a typed array of ${info.size} bytes`,
       );
     }
     case K.VOID:
