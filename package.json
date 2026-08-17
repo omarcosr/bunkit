@@ -40,7 +40,8 @@
     "./bridge": "./src/bridge.ts",
     "./constants": "./src/generated/constants.ts",
     "./runtime": "./src/runtime.ts",
-    "./structs": "./src/structs.ts"
+    "./structs": "./src/structs.ts",
+    "./types": "./src/generated/appkit.d.ts"
   },
   "scripts": {
     "build": "./native/build.sh",

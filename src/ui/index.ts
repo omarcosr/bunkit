@@ -19,6 +19,7 @@ export * from "./snapshot.ts";
 // The escape hatch, re-exported so an app only needs one import.
 export {
   objc,
+  tryClass,
   createDelegate,
   createBlock,
   cfunction,
