@@ -1,0 +1,11 @@
+# Build output — the dylib is compiled locally by native/build.sh
+build/
+dist/
+*.dylib
+*.dSYM/
+
+# Dependencies
+node_modules/
+
+# macOS
+.DS_Store

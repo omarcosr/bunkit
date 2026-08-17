@@ -1,0 +1,599 @@
+// .app bundle builder.
+//
+//   bun run tools/bundle.ts examples/raw-objc.ts --name "Hello" --id com.example.hello
+//
+// A macOS process that is not inside a bundle gets the wrong menu-bar title, odd
+// Dock behaviour, and no bundle identifier — which several system APIs
+// (notifications, defaults, entitlements) quietly need. So shipping anything
+// means producing this directory layout:
+//
+//   MyApp.app/Contents/Info.plist
+//   MyApp.app/Contents/PkgInfo
+//   MyApp.app/Contents/MacOS/MyApp            compiled Bun binary
+//   MyApp.app/Contents/Frameworks/libobjcbridge.dylib
+//   MyApp.app/Contents/Resources/AppIcon.icns
+//
+// The one genuinely tricky part is making the compiled binary find the dylib —
+// see makeLauncher() below.
+
+import { existsSync, mkdirSync, rmSync, cpSync, chmodSync, writeFileSync, statSync } from "node:fs";
+import { basename, dirname, extname, join, resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { parseArgs } from "node:util";
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+const REPO_ROOT = resolve(HERE, "..");
+
+// ---------------------------------------------------------------------------
+// Options
+// ---------------------------------------------------------------------------
+
+export interface BundleOptions {
+  /** TypeScript entry point. Relative paths resolve against the cwd. */
+  entry: string;
+  /** App name: the .app directory, CFBundleName and the executable. */
+  name?: string;
+  /** CFBundleIdentifier, e.g. "com.example.myapp". */
+  identifier?: string;
+  /** CFBundleShortVersionString — the human version, e.g. "1.2.0". */
+  version?: string;
+  /** CFBundleVersion — the build number. Defaults to `version`. */
+  build?: string;
+  /** Icon source: a .png (converted with sips + iconutil) or a ready .icns. */
+  icon?: string;
+  /** Directory the .app is written into. Default "dist". */
+  out?: string;
+  /** LSMinimumSystemVersion. Default "11.0". */
+  minimumSystemVersion?: string;
+  /** Extra files or directories copied into Contents/Resources. */
+  resources?: string[];
+  /** Path to libobjcbridge.dylib. Defaults to <repo>/build/libobjcbridge.dylib. */
+  dylib?: string;
+  /** bun build --compile target triple. Default "bun-darwin-arm64". */
+  target?: string;
+  /** Minify the compiled bundle. */
+  minify?: boolean;
+  /**
+   * Codesign identity. "-" (the default) is an ad-hoc signature, which is all
+   * that is needed to run locally. Pass a "Developer ID Application: ..." string
+   * for a distributable build.
+   */
+  sign?: string | false;
+  /** Hardened runtime. Forced on for a non-ad-hoc identity; see signBundle(). */
+  hardenedRuntime?: boolean;
+  /** Entitlements plist. One suitable for Bun's JIT is generated if omitted. */
+  entitlements?: string;
+  /** LSApplicationCategoryType, e.g. "public.app-category.developer-tools". */
+  category?: string;
+  /** NSHumanReadableCopyright. */
+  copyright?: string;
+  /** LSUIElement — a menu-bar-only app with no Dock icon. */
+  agent?: boolean;
+  /** Extra Info.plist keys, merged last so they can override anything above. */
+  plist?: Record<string, PlistValue>;
+  /** Print each step. Default true from the CLI. */
+  verbose?: boolean;
+}
+
+export interface BundleResult {
+  appPath: string;
+  executable: string;
+  infoPlist: string;
+  dylib: string;
+  icon: string | null;
+  identifier: string;
+  name: string;
+  bytes: number;
+}
+
+// ---------------------------------------------------------------------------
+// Small helpers
+// ---------------------------------------------------------------------------
+
+function log(on: boolean, ...args: unknown[]) {
+  if (on) console.log(...args);
+}
+
+function run(cmd: string[], what: string): string {
+  const p = Bun.spawnSync(cmd, { stdout: "pipe", stderr: "pipe" });
+  if (p.exitCode !== 0) {
+    const err = p.stderr.toString().trim() || p.stdout.toString().trim();
+    throw new Error(`${what} failed (exit ${p.exitCode})\n  ${cmd.join(" ")}\n${err}`);
+  }
+  return p.stdout.toString();
+}
+
+/** "raw-objc" -> "RawObjc"; already-cased names are left alone. */
+function titleCase(s: string): string {
+  return s
+    .split(/[-_\s.]+/)
+    .filter(Boolean)
+    .map((w) => (/^[A-Z]/.test(w) ? w : w[0]!.toUpperCase() + w.slice(1)))
+    .join("");
+}
+
+/** Bundle identifiers may only contain alphanumerics, hyphen and dot. */
+function idSafe(s: string): string {
+  return s.replace(/[^A-Za-z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "").toLowerCase();
+}
+
+function dirSize(path: string): number {
+  const out = run(["du", "-sk", path], "du");
+  return parseInt(out.trim().split(/\s+/)[0]!, 10) * 1024;
+}
+
+// ---------------------------------------------------------------------------
+// Property lists
+// ---------------------------------------------------------------------------
+
+export type PlistValue = string | number | boolean | PlistValue[] | { [k: string]: PlistValue };
+
+function xmlEscape(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function plistBody(v: PlistValue, indent: string): string {
+  if (typeof v === "string") return `${indent}<string>${xmlEscape(v)}</string>`;
+  if (typeof v === "boolean") return `${indent}<${v}/>`;
+  if (typeof v === "number") {
+    return Number.isInteger(v)
+      ? `${indent}<integer>${v}</integer>`
+      : `${indent}<real>${v}</real>`;
+  }
+  if (Array.isArray(v)) {
+    if (v.length === 0) return `${indent}<array/>`;
+    const items = v.map((x) => plistBody(x, indent + "\t")).join("\n");
+    return `${indent}<array>\n${items}\n${indent}</array>`;
+  }
+  const keys = Object.keys(v);
+  if (keys.length === 0) return `${indent}<dict/>`;
+  const items = keys
+    .map((k) => `${indent}\t<key>${xmlEscape(k)}</key>\n${plistBody(v[k]!, indent + "\t")}`)
+    .join("\n");
+  return `${indent}<dict>\n${items}\n${indent}</dict>`;
+}
+
+export function plist(dict: Record<string, PlistValue>): string {
+  return [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">',
+    '<plist version="1.0">',
+    plistBody(dict, ""),
+    "</plist>",
+    "",
+  ].join("\n");
+}
+
+// ---------------------------------------------------------------------------
+// The launcher shim
+// ---------------------------------------------------------------------------
+
+// bridge.ts locates the dylib relative to its own source directory — which does
+// not exist once `bun build --compile` has folded every module into one binary
+// (import.meta.url becomes file:///$bunfs/root/...). The env var it checks first
+// is the reliable route, so the real entry point is wrapped in a shim that sets
+// OBJCBRIDGE_DYLIB from process.execPath, which *is* the path of the binary
+// inside Contents/MacOS.
+//
+// The entry is imported dynamically on purpose: a static import would be hoisted
+// above the assignment and bridge.ts would dlopen before the env var was set.
+function launcherSource(entryFile: string): string {
+  return `// Generated by tools/bundle.ts. Deleted when the build finishes.
+import { existsSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+
+const explicit = process.env.OBJCBRIDGE_DYLIB;
+if (!explicit || !existsSync(explicit)) {
+  const exeDir = dirname(process.execPath);
+  const candidates = [
+    resolve(exeDir, "../Frameworks/libobjcbridge.dylib"), // Contents/Frameworks
+    resolve(exeDir, "libobjcbridge.dylib"),               // next to the binary
+    resolve(exeDir, "../Resources/libobjcbridge.dylib"),
+  ];
+  for (const c of candidates) {
+    if (existsSync(c)) {
+      process.env.OBJCBRIDGE_DYLIB = c;
+      break;
+    }
+  }
+}
+
+await import(${JSON.stringify("./" + entryFile)});
+`;
+}
+
+// ---------------------------------------------------------------------------
+// Icons
+// ---------------------------------------------------------------------------
+
+// The sizes Finder, the Dock and Get Info actually ask for. iconutil rejects an
+// iconset that is missing any of them.
+const ICON_SIZES: Array<[name: string, px: number]> = [
+  ["icon_16x16", 16],
+  ["icon_16x16@2x", 32],
+  ["icon_32x32", 32],
+  ["icon_32x32@2x", 64],
+  ["icon_128x128", 128],
+  ["icon_128x128@2x", 256],
+  ["icon_256x256", 256],
+  ["icon_256x256@2x", 512],
+  ["icon_512x512", 512],
+  ["icon_512x512@2x", 1024],
+];
+
+function makeIcns(png: string, outIcns: string, verbose: boolean): void {
+  const iconset = outIcns.replace(/\.icns$/, "") + ".iconset";
+  rmSync(iconset, { recursive: true, force: true });
+  mkdirSync(iconset, { recursive: true });
+  for (const [name, px] of ICON_SIZES) {
+    run(
+      ["sips", "-z", String(px), String(px), png, "--out", join(iconset, `${name}.png`)],
+      `sips ${px}x${px}`,
+    );
+  }
+  run(["iconutil", "-c", "icns", iconset, "-o", outIcns], "iconutil");
+  rmSync(iconset, { recursive: true, force: true });
+  log(verbose, `  icon      ${basename(png)} -> ${basename(outIcns)} (10 sizes)`);
+}
+
+// ---------------------------------------------------------------------------
+// Codesigning
+// ---------------------------------------------------------------------------
+
+// Bun JITs, so a hardened-runtime build dies at launch without these. Library
+// validation is disabled because libobjcbridge.dylib is signed by us rather than
+// by Apple — with a real Developer ID it would pass either way, but an ad-hoc or
+// mixed-identity build would not.
+const JIT_ENTITLEMENTS: Record<string, PlistValue> = {
+  "com.apple.security.cs.allow-jit": true,
+  "com.apple.security.cs.allow-unsigned-executable-memory": true,
+  "com.apple.security.cs.disable-library-validation": true,
+};
+
+function signBundle(
+  appPath: string,
+  dylibPath: string,
+  identity: string,
+  opts: { hardened: boolean; entitlements?: string; identifier: string; verbose: boolean },
+): void {
+  // Nested code first: signing the bundle seals whatever is inside it, so a
+  // dylib signed afterwards would invalidate the enclosing signature.
+  // A loose dylib has no Info.plist to take an identifier from, and codesign's
+  // generated fallback is a filename plus a UUID hash — name it explicitly.
+  const inner = [
+    "codesign", "--force", "--timestamp=none",
+    "--identifier", `${opts.identifier}.objcbridge`,
+    "--sign", identity,
+  ];
+  if (opts.hardened) inner.push("--options", "runtime");
+  run([...inner, dylibPath], "codesign (dylib)");
+  log(opts.verbose, `  sign      Frameworks/${basename(dylibPath)}`);
+
+  const outer = ["codesign", "--force", "--timestamp=none", "--sign", identity];
+  if (opts.hardened) outer.push("--options", "runtime");
+  if (opts.entitlements) outer.push("--entitlements", opts.entitlements);
+  run([...outer, appPath], "codesign (bundle)");
+  log(opts.verbose, `  sign      ${basename(appPath)} (${identity === "-" ? "ad-hoc" : identity})`);
+
+  run(["codesign", "--verify", "--deep", "--strict", appPath], "codesign --verify");
+}
+
+// ---------------------------------------------------------------------------
+// The build
+// ---------------------------------------------------------------------------
+
+export async function bundle(options: BundleOptions): Promise<BundleResult> {
+  const verbose = options.verbose !== false;
+
+  const entry = resolve(options.entry);
+  if (!existsSync(entry)) throw new Error(`entry point not found: ${entry}`);
+
+  const name = options.name ?? titleCase(basename(entry, extname(entry)));
+  const identifier = options.identifier ?? `com.example.${idSafe(name)}`;
+  const version = options.version ?? "1.0.0";
+  const buildVersion = options.build ?? version;
+  const outDir = resolve(options.out ?? "dist");
+  const target = options.target ?? "bun-darwin-arm64";
+
+  const dylib = resolve(options.dylib ?? join(REPO_ROOT, "build", "libobjcbridge.dylib"));
+  if (!existsSync(dylib)) {
+    throw new Error(`libobjcbridge.dylib not found at ${dylib}. Run ./native/build.sh first.`);
+  }
+
+  const appPath = join(outDir, `${name}.app`);
+  const contents = join(appPath, "Contents");
+  const macOS = join(contents, "MacOS");
+  const frameworks = join(contents, "Frameworks");
+  const resourcesDir = join(contents, "Resources");
+
+  log(verbose, `building ${name}.app`);
+  log(verbose, `  entry     ${entry}`);
+  checkArch(dylib, target, verbose);
+
+  rmSync(appPath, { recursive: true, force: true });
+  for (const d of [macOS, frameworks, resourcesDir]) mkdirSync(d, { recursive: true });
+
+  // --- compile -------------------------------------------------------------
+  // The launcher lives next to the entry so that relative imports and
+  // node_modules resolution behave exactly as they do for the entry itself.
+  const launcher = join(dirname(entry), `.bundle-launcher-${process.pid}.ts`);
+  writeFileSync(launcher, launcherSource(basename(entry)));
+  // Compiling 60-odd MB takes a moment; Ctrl-C in the middle must not leave a
+  // generated file sitting in someone's source directory.
+  const SIGNALS = ["SIGINT", "SIGTERM", "SIGHUP"] as const;
+  const sweep = () => rmSync(launcher, { force: true });
+  const onSignal = () => {
+    sweep();
+    process.exit(130);
+  };
+  for (const sig of SIGNALS) process.on(sig, onSignal);
+
+  const exePath = join(macOS, name);
+  try {
+    const cmd = [
+      "bun",
+      "build",
+      "--compile",
+      `--target=${target}`,
+      launcher,
+      "--outfile",
+      exePath,
+    ];
+    if (options.minify) cmd.push("--minify");
+    run(cmd, "bun build --compile");
+  } finally {
+    sweep();
+    for (const sig of SIGNALS) process.off(sig, onSignal);
+  }
+  chmodSync(exePath, 0o755);
+  log(verbose, `  compile   MacOS/${name} (${(statSync(exePath).size / 1e6).toFixed(1)} MB, ${target})`);
+
+  // --- dylib ---------------------------------------------------------------
+  const bundledDylib = join(frameworks, basename(dylib));
+  cpSync(dylib, bundledDylib);
+  chmodSync(bundledDylib, 0o755);
+  log(verbose, `  embed     Frameworks/${basename(dylib)}`);
+
+  // --- icon ----------------------------------------------------------------
+  let iconFile: string | null = null;
+  if (options.icon) {
+    const src = resolve(options.icon);
+    if (!existsSync(src)) throw new Error(`icon not found: ${src}`);
+    const ext = extname(src).toLowerCase();
+    iconFile = join(resourcesDir, "AppIcon.icns");
+    if (ext === ".icns") {
+      cpSync(src, iconFile);
+      log(verbose, `  icon      ${basename(src)} (copied)`);
+    } else if (ext === ".png") {
+      makeIcns(src, iconFile, verbose);
+    } else {
+      throw new Error(`icon must be a .png or .icns, got ${ext || "no extension"}`);
+    }
+  }
+
+  // --- extra resources -----------------------------------------------------
+  for (const r of options.resources ?? []) {
+    const src = resolve(r);
+    if (!existsSync(src)) throw new Error(`resource not found: ${src}`);
+    cpSync(src, join(resourcesDir, basename(src)), { recursive: true });
+    log(verbose, `  resource  Resources/${basename(src)}`);
+  }
+
+  // --- Info.plist ----------------------------------------------------------
+  const info: Record<string, PlistValue> = {
+    CFBundleDevelopmentRegion: "en",
+    CFBundleDisplayName: name,
+    CFBundleExecutable: name,
+    CFBundleIdentifier: identifier,
+    CFBundleInfoDictionaryVersion: "6.0",
+    CFBundleName: name,
+    CFBundlePackageType: "APPL",
+    CFBundleShortVersionString: version,
+    CFBundleSignature: "????",
+    CFBundleVersion: buildVersion,
+    LSMinimumSystemVersion: options.minimumSystemVersion ?? "11.0",
+    NSHighResolutionCapable: true,
+    // Without this AppKit will not treat the process as a real app: no menu bar
+    // ownership, no proper activation.
+    NSPrincipalClass: "NSApplication",
+  };
+  if (iconFile) info.CFBundleIconFile = "AppIcon";
+  if (options.category) info.LSApplicationCategoryType = options.category;
+  if (options.copyright) info.NSHumanReadableCopyright = options.copyright;
+  if (options.agent) info.LSUIElement = true;
+  Object.assign(info, options.plist ?? {});
+
+  const infoPlist = join(contents, "Info.plist");
+  writeFileSync(infoPlist, plist(info));
+  writeFileSync(join(contents, "PkgInfo"), "APPL????");
+  log(verbose, `  plist     Contents/Info.plist (${identifier} ${version}/${buildVersion})`);
+
+  // --- codesign ------------------------------------------------------------
+  if (options.sign !== false) {
+    const identity = options.sign ?? "-";
+    const adhoc = identity === "-";
+    // Hardened runtime plus an ad-hoc signature is rejected by Gatekeeper, so it
+    // is only meaningful (and only defaulted on) for a real identity.
+    const hardened = options.hardenedRuntime ?? !adhoc;
+    let entitlements = options.entitlements ? resolve(options.entitlements) : undefined;
+    if (hardened && !entitlements) {
+      // Kept on disk rather than in a temp dir so it can be inspected, and so a
+      // later notarytool run can be pointed at the exact file that was used.
+      entitlements = join(outDir, `.${name}.entitlements`);
+      writeFileSync(entitlements, plist(JIT_ENTITLEMENTS));
+      log(verbose, `  entitle   ${entitlements} (generated: JIT for Bun)`);
+    }
+    signBundle(appPath, bundledDylib, identity, { hardened, entitlements, identifier, verbose });
+  } else {
+    log(verbose, "  sign      skipped (--no-sign)");
+  }
+
+  const bytes = dirSize(appPath);
+  log(verbose, `done      ${appPath} (${(bytes / 1e6).toFixed(1)} MB)`);
+
+  return {
+    appPath,
+    executable: exePath,
+    infoPlist,
+    dylib: bundledDylib,
+    icon: iconFile,
+    identifier,
+    name,
+    bytes,
+  };
+}
+
+/** Warn (don't fail) when the dylib has no slice for the compile target. */
+function checkArch(dylib: string, target: string, verbose: boolean): void {
+  const want = target.includes("x64") || target.includes("x86_64") ? "x86_64" : "arm64";
+  let have: string;
+  try {
+    have = run(["lipo", "-archs", dylib], "lipo -archs").trim();
+  } catch {
+    return;
+  }
+  if (!have.split(/\s+/).includes(want)) {
+    log(
+      verbose,
+      `  warning   ${basename(dylib)} has [${have}] but the target needs ${want};` +
+        ` rebuild with ./native/build.sh universal`,
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// CLI
+// ---------------------------------------------------------------------------
+
+const USAGE = `bundle — build a macOS .app around a Bun entry point
+
+  bun run tools/bundle.ts <entry.ts> [options]
+
+  --name <s>          app name (default: derived from the entry filename)
+  --id <s>            CFBundleIdentifier (default: com.example.<name>)
+  --version <s>       CFBundleShortVersionString (default: 1.0.0)
+  --build <s>         CFBundleVersion (default: same as --version)
+  --icon <path>       .png (converted with sips/iconutil) or .icns
+  --out <dir>         output directory (default: dist)
+  --min-os <s>        LSMinimumSystemVersion (default: 11.0)
+  --resource <path>   extra file/dir copied into Resources (repeatable)
+  --dylib <path>      libobjcbridge.dylib (default: <repo>/build/)
+  --target <triple>   bun build target (default: bun-darwin-arm64)
+  --category <s>      LSApplicationCategoryType
+  --copyright <s>     NSHumanReadableCopyright
+  --agent             menu-bar-only app (LSUIElement)
+  --minify            minify the compiled JS
+  --sign <identity>   codesign identity; default "-" (ad-hoc)
+                      e.g. --sign "Developer ID Application: Acme (TEAMID)"
+  --no-sign           do not codesign at all
+  --hardened          force --options runtime (default: on for a real identity)
+  --no-hardened       force it off
+  --entitlements <p>  entitlements plist for signing
+                      (one granting Bun's JIT is generated if omitted)
+  --config <file.ts>  load options from a module's default export
+  --quiet             no progress output
+  --help
+
+Notarization is out of scope: sign, then run notarytool yourself.
+`;
+
+async function main(argv: string[]): Promise<number> {
+  let parsed;
+  try {
+    parsed = parseArgs({
+      args: argv,
+      allowPositionals: true,
+      options: {
+        name: { type: "string" },
+        id: { type: "string" },
+        version: { type: "string" },
+        build: { type: "string" },
+        icon: { type: "string" },
+        out: { type: "string", short: "o" },
+        "min-os": { type: "string" },
+        resource: { type: "string", multiple: true },
+        dylib: { type: "string" },
+        target: { type: "string" },
+        category: { type: "string" },
+        copyright: { type: "string" },
+        agent: { type: "boolean" },
+        minify: { type: "boolean" },
+        sign: { type: "string" },
+        "no-sign": { type: "boolean" },
+        hardened: { type: "boolean" },
+        "no-hardened": { type: "boolean" },
+        entitlements: { type: "string" },
+        config: { type: "string" },
+        quiet: { type: "boolean" },
+        help: { type: "boolean", short: "h" },
+      },
+    });
+  } catch (e: any) {
+    console.error(`bundle: ${e.message}\n`);
+    console.error(USAGE);
+    return 2;
+  }
+
+  const { values: v, positionals } = parsed;
+  if (v.help) {
+    console.log(USAGE);
+    return 0;
+  }
+
+  // Config file first; explicit flags win over it. Paths inside a config are
+  // relative to that file rather than the cwd, so it can be run from anywhere.
+  let cfg: Partial<BundleOptions> = {};
+  if (v.config) {
+    const configPath = resolve(v.config);
+    const mod = await import(pathToFileURL(configPath).href);
+    cfg = { ...((mod.default ?? mod) as Partial<BundleOptions>) };
+    const base = dirname(configPath);
+    for (const k of ["entry", "out", "icon", "dylib", "entitlements"] as const) {
+      if (cfg[k]) (cfg as Record<string, unknown>)[k] = resolve(base, cfg[k] as string);
+    }
+    if (cfg.resources) cfg.resources = cfg.resources.map((r) => resolve(base, r));
+  }
+
+  // A positional entry is relative to the cwd; one from a config was rebased above.
+  const entry = positionals[0] ?? cfg.entry;
+  if (!entry) {
+    console.error("bundle: no entry point given\n");
+    console.error(USAGE);
+    return 2;
+  }
+
+  const options: BundleOptions = {
+    ...cfg,
+    entry,
+    name: v.name ?? cfg.name,
+    identifier: v.id ?? cfg.identifier,
+    version: v.version ?? cfg.version,
+    build: v.build ?? cfg.build,
+    icon: v.icon ?? cfg.icon,
+    out: v.out ?? cfg.out,
+    minimumSystemVersion: v["min-os"] ?? cfg.minimumSystemVersion,
+    resources: v.resource ?? cfg.resources,
+    dylib: v.dylib ?? cfg.dylib,
+    target: v.target ?? cfg.target,
+    category: v.category ?? cfg.category,
+    copyright: v.copyright ?? cfg.copyright,
+    agent: v.agent ?? cfg.agent,
+    minify: v.minify ?? cfg.minify,
+    sign: v["no-sign"] ? false : (v.sign ?? cfg.sign),
+    hardenedRuntime: v.hardened ? true : v["no-hardened"] ? false : cfg.hardenedRuntime,
+    entitlements: v.entitlements ?? cfg.entitlements,
+    verbose: v.quiet ? false : (cfg.verbose ?? true),
+  };
+
+  try {
+    await bundle(options);
+    return 0;
+  } catch (e: any) {
+    console.error(`bundle: ${e.message}`);
+    return 1;
+  }
+}
+
+if (import.meta.main) {
+  process.exit(await main(process.argv.slice(2)));
+}

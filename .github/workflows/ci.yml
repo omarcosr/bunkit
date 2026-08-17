@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    # AppKit, clang and the macOS SDK are all required, so this only runs here.
+    runs-on: macos-15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Show toolchain
+        run: |
+          bun --version
+          clang --version | head -2
+          xcrun --show-sdk-version
+
+      - run: bun install --frozen-lockfile
+
+      - name: Build the bridge
+        run: ./native/build.sh
+
+      - name: Type-check
+        run: bun run typecheck
+
+      # The suites drive a real NSApplication, which needs a window server. GitHub's
+      # macOS runners provide one, but there is no logged-in user to see it.
+      - name: Test
+        run: bun run test
+
+      - name: Check for over-releases
+        run: NSZombieEnabled=YES MallocScribble=1 bun run test/soak.ts
+
+      - name: Build a .app
+        run: bun run bundle examples/demo.ts --name "BunKit Demo" --id com.example.bunkitdemo

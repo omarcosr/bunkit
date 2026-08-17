@@ -1,0 +1,27 @@
+{
+  // Bun runs TypeScript directly, so nothing here ever emits: tsc is used as a
+  // checker only, by the editor and by `bunx tsc -p .`.
+  "compilerOptions": {
+    "target": "ESNext",
+    "lib": ["ESNext"],
+    "types": ["bun"],
+
+    // Bun's own resolution: real ESM, imports that keep their .ts extension,
+    // and no transformation of the module syntax.
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "moduleDetection": "force",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+
+    "strict": true,
+    "noFallthroughCasesInSwitch": true,
+
+    // src/generated/appkit.d.ts is a source file here, not a dependency, so it
+    // is checked like everything else.
+    "skipLibCheck": false
+  },
+  "include": ["src", "test", "tools", "examples"]
+}

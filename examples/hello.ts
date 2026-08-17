@@ -1,0 +1,37 @@
+// The smallest useful app.
+//
+//   bun run examples/hello.ts
+
+import {
+  Application,
+  Button,
+  HStack,
+  Label,
+  TextField,
+  VStack,
+  Window,
+} from "bunkit";
+
+const app = new Application({ name: "Hello" });
+
+const name = new TextField({ placeholder: "Your name", grow: 1 });
+const greeting = new Label({ text: "Type a name and press Greet.", color: "secondaryLabel" });
+
+const greet = () => {
+  greeting.text = name.value ? `Hello, ${name.value}!` : "Type a name first.";
+};
+
+new Window({
+  title: "Hello",
+  size: { width: 380, height: 160 },
+  content: new VStack({ spacing: 14, padding: 20 }, [
+    new Label({ text: "Greeter", font: { style: "title", weight: "semibold" } }),
+    new HStack({ spacing: 8 }, [
+      name,
+      new Button({ title: "Greet", primary: true, onClick: greet }),
+    ]),
+    greeting,
+  ]),
+}).quitOnClose();
+
+await app.run();

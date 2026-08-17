@@ -1,0 +1,10 @@
+BunKit
+Copyright 2026 The BunKit Authors
+
+This product includes software developed at Scarlet Industries
+(https://github.com/scarletindustries/bunkit).
+
+Portions of this software call into Apple's AppKit, Foundation and
+CoreGraphics frameworks, and link against the libffi implementation
+distributed with the macOS SDK. Those components remain subject to
+their own licences.
