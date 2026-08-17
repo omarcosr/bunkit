@@ -47,7 +47,13 @@ const liveSDK = new TextDecoder()
   .decode(Bun.spawnSync(["xcrun", "--show-sdk-version"], { stdout: "pipe" }).stdout)
   .trim();
 
-eq("SDK_VERSION matches the installed SDK", C.SDK_VERSION, liveSDK);
+// Major only, matching checkSDK: a point release does not renumber enums, and
+// CI runs on whatever SDK the runner image ships.
+eq(
+  "SDK_VERSION matches the installed SDK major",
+  C.SDK_VERSION.split(".")[0],
+  liveSDK.split(".")[0],
+);
 
 const sdk = C.checkSDK({ warn: false });
 eq("checkSDK reports the generated version", sdk.generated, C.SDK_VERSION);

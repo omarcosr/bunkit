@@ -62,7 +62,11 @@ export function checkSDK(options: { warn?: boolean } = {}): SDKCheck {
       // No xcrun: no Command Line Tools, or not macOS. Nothing to compare against.
     }
   }
-  const ok = probedSDK === null || probedSDK === SDK_VERSION;
+  // Compare the major version only. Apple does not renumber enums within a
+  // major SDK, so 26.0 against 26.2 is not a reason to fail a build; 26 against
+  // 15 is exactly what this exists to catch.
+  const major = (v: string) => v.split(".")[0];
+  const ok = probedSDK === null || major(probedSDK) === major(SDK_VERSION);
   const message = ok
     ? null
     : [

@@ -8,7 +8,10 @@ on:
 jobs:
   test:
     # AppKit, clang and the macOS SDK are all required, so this only runs here.
-    runs-on: macos-15
+    # macos-26 rather than macos-15: BunKit targets macOS 26, src/generated is
+    # built against its SDK, and the layout tests assert against AppKit 26's
+    # control metrics. macos-15 ships SDK 15.5 and fails all three.
+    runs-on: macos-26
 
     steps:
       - uses: actions/checkout@v4
