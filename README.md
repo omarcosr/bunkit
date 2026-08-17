@@ -4,7 +4,7 @@
 
 Real AppKit apps for macOS, written in TypeScript on Bun.
 
-[Documentation](https://scarlet.industries)
+[Documentation](https://scarlet.industries/docs/bunkit)
 
 ---
 
@@ -77,7 +77,7 @@ three layers sit on top:
 
 | | | |
 |---|---|---|
-| `src/ui/` | layer 3 | `Window`, `VStack`, `Button`, `Table`, about 30 classes |
+| `src/ui/` | layer 3 | `Window`, `VStack`, `Button`, `Table`, 26 classes |
 | `src/objc.ts` | layer 2 | `objc.NSWindow.alloc().init…()`, marshalling, delegates, blocks |
 | `src/bridge.ts` | layer 1 | dlopen, packing arguments into buffers |
 
@@ -85,9 +85,11 @@ layer 3 is the pleasant one. when it doesn't cover what you need you drop to lay
 
 it goes through libffi instead of using `bun:ffi` on its own because `bun:ffi` wants the signature up front at dlopen time. it can't build one at runtime, can't pass a struct by value, and can't make a function pointer with an arbitrary signature. all three of those are needed here.
 
+the encoding reader, the dispatcher, the closure trampolines, the memory model and the pump are all written up in [the bridge](https://scarlet.industries/docs/bunkit/bridge).
+
 ### the annoying parts
 
-appkit runs its own nested run loop for modal dialogs, menu tracking, live resize and drags, and js is frozen the whole time it's in there. dialogs were the worst of it, so layer 3 doesn't expose `runModal*` at all: `alert`, `confirm`, `prompt`, `openFile` and `saveFile` are sheets that hand you a promise, and the pump keeps ticking underneath. menu tracking and live resize you just live with. they're bounded by someone letting go of the mouse.
+appkit runs its own nested run loop for modal dialogs, menu tracking, live resize and drags, and js is frozen the whole time it's in there. dialogs were the worst of it, so layer 3 gives you sheets instead: `alert`, `confirm`, `prompt`, `openFile` and `saveFile` all hand you a promise and the pump keeps ticking underneath. `alert` and `prompt` fall back to a blocking modal when there's no window to hang a sheet on, which is the only place `runModal` gets reached. menu tracking and live resize you just live with. they're bounded by someone letting go of the mouse.
 
 pointers are `bigint`, not `number`. apple packs short strings and small numbers into the pointer itself, which pushes the value past 2^53. compare against `0n`.
 
@@ -104,7 +106,7 @@ bun test
 bun run typecheck
 ```
 
-a `msgSend` costs about 230ns, a callback from obj-c into js about 870ns, and idle cpu with a window open sits around 1.3%. a sixty second soak of 9.8 million calls holds flat.
+a `msgSend` costs about 230ns, a callback from obj-c into js about 870ns, and idle cpu with a window open sits around 1.3%. a sixty second soak of several million calls holds flat.
 
 still missing: notarization (it only ad-hoc signs), an npm package (the dylib has to be compiled, so that needs prebuilt binaries), and swiftui hosting.
 
