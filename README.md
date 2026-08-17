@@ -43,7 +43,7 @@ i wanted to know if you could write a proper mac app without shipping a browser 
 
 ### let me try it
 
-you'll need macos on apple silicon, [bun](https://bun.sh), and the xcode command line tools (`xcode-select --install`).
+you'll need macos on apple silicon, [bun](https://bun.sh) 1.4 or newer, and the xcode command line tools (`xcode-select --install`).
 
 ```shell
 git clone https://github.com/scarletindustries/bunkit
