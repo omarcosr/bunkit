@@ -8,8 +8,6 @@ Real AppKit apps for macOS, written in TypeScript on Bun.
 
 ---
 
-> this is an experimental project. the mass majority of the code was written by claude. no promises made. it works and it's tested, but it's early — don't put anything load-bearing on it yet.
-
 ![the demo app](docs/demo.png)
 
 no webview, no html, no electron. that's a real `NSTableView`, real `NSTextField`s and a real menu bar, driven entirely from typescript.
