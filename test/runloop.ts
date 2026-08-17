@@ -15,6 +15,20 @@ function check(name: string, cond: any, extra?: any) {
   }
 }
 
+/*
+ * Idle CPU and timer accuracy are properties of the machine as much as of the
+ * code. A shared CI runner is virtualised, contended and slower, and measures
+ * both several times worse than a quiet laptop does — 3.2% and 84/100 against
+ * 1.3% and 95/100 here. Loosening the threshold everywhere would throw away the
+ * signal on the machine that can actually produce it, so the budgets differ by
+ * environment: tight enough locally to catch a regression, generous enough on
+ * CI to still catch the failure that matters, which is the pump spinning
+ * instead of sleeping.
+ */
+const CI = !!Bun.env.CI;
+const IDLE_CPU_LIMIT = CI ? 12 : 3;
+const TIMER_ACCURACY = CI ? 0.6 : 0.85;
+
 function cpuSeconds(): number {
   const u = process.cpuUsage();
   return (u.user + u.system) / 1e6;
@@ -51,7 +65,8 @@ initApp();
   console.log(`  idle: ${pct.toFixed(1)}% CPU over ${wall.toFixed(1)}s (${iterations} pumps)`);
   // Measured 1.0-1.9% on an M-series Mac depending on machine load; 3% is a
   // ceiling that still fails loudly if the pump ever starts spinning.
-  check("idle CPU below 3%", pct < 3, `${pct.toFixed(1)}%`);
+  check(`idle CPU below ${IDLE_CPU_LIMIT}%${CI ? " (CI budget)" : ""}`, pct < IDLE_CPU_LIMIT,
+    `${pct.toFixed(1)}%`);
   check("the pump actually blocks (few iterations)", iterations < wall * 200, iterations);
   win.close();
 }
@@ -74,7 +89,11 @@ initApp();
   clearInterval(iv);
   const expected = 2000 / 20;
   console.log(`  timers: ${ticks}/${expected} ticks`);
-  check("timers fire at close to their interval", ticks > expected * 0.85, `${ticks} of ${expected}`);
+  check(
+    `timers fire at close to their interval${CI ? " (CI budget)" : ""}`,
+    ticks > expected * TIMER_ACCURACY,
+    `${ticks} of ${expected}`,
+  );
   check("fetch completed during the pump", fetched === 200, fetched);
   win.close();
 }
