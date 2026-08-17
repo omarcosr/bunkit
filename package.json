@@ -28,6 +28,9 @@
   "os": [
     "darwin"
   ],
+  "cpu": [
+    "arm64"
+  ],
   "engines": {
     "bun": ">=1.1.0"
   },
@@ -41,7 +44,6 @@
   },
   "scripts": {
     "build": "./native/build.sh",
-    "build:universal": "./native/build.sh universal",
     "hello": "bun run examples/hello.ts",
     "tour": "bun run examples/tour.ts",
     "demo": "bun run examples/demo.ts",

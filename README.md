@@ -39,7 +39,7 @@ await app.run();
 
 ## Getting started
 
-Requires macOS, [Bun](https://bun.sh), and the Xcode command-line tools
+Requires macOS on Apple silicon, [Bun](https://bun.sh), and the Xcode command-line tools
 (`xcode-select --install`) for clang and the SDK.
 
 ```bash
@@ -98,8 +98,8 @@ never has to grow when you want to use a new AppKit class.
 
 **Why libffi and not `bun:ffi` directly:** `bun:ffi` needs a fixed signature at `dlopen`
 time. It cannot build a call signature at runtime, cannot pass structs by value (an
-`NSRect` is four doubles in registers under the arm64 HFA rules), and cannot mint function
-pointers with arbitrary signatures — all three of which this needs. `bun:ffi`'s job is just
+`NSRect` is four doubles passed in registers under the arm64 HFA rules), and cannot mint
+function pointers with arbitrary signatures — all three of which this needs. `bun:ffi`'s job is just
 to call the shim's handful of stable entry points.
 
 ---
@@ -377,14 +377,20 @@ so without that, the window would disappear and the process would hang. Put shut
 
 ## Status
 
-Working and tested end to end on macOS 26 / SDK 26.0 / arm64. What is *not* done, so you
-know before you invest:
+Working and tested end to end on macOS 26 / SDK 26.0.
+
+**Apple silicon only.** This is a deliberate simplification rather than a gap: on arm64
+every struct return goes through plain `objc_msgSend` with `x8` as the indirect result
+register, so the whole `objc_msgSend_stret` / `_fpret` family and the SysV return
+classification simply do not exist in the dispatcher. Intel is not coming back. The build
+script and the bundler both refuse a non-arm64 target rather than producing something that
+would return structs wrongly.
+
+What is *not* done, so you know before you invest:
 
 - **Notarization.** The bundler ad-hoc signs, which is enough to run locally and enough as
   the basis for a `--sign`'d Developer ID build. Stapling and the notary service are not
   wired up.
-- **x86_64 is untested.** `./native/build.sh universal` produces a fat dylib and the
-  `objc_msgSend_stret` / SysV paths are written, but nothing here has run on Intel.
 - **No npm package yet.** The dylib has to be compiled, which means either a build step on
   install or prebuilt binaries per architecture. Clone it for now.
 - **Idle CPU is 1.3%**, not the sub-1% that would be ideal. The knob to reach 1.0% exists

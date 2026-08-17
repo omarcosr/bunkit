@@ -101,14 +101,8 @@ static ffi_type* prim(char c, int32_t* kind) {
     case 'Q': *kind = BR_K_UINT64; return &ffi_type_uint64;
     case 'f': *kind = BR_K_FLOAT;  return &ffi_type_float;
     case 'd': *kind = BR_K_DOUBLE; return &ffi_type_double;
-    // 'D' is `long double`. On arm64 it is an alias for double (8 bytes);
-    // on x86_64 it is the 80-bit x87 type.
-    case 'D':
-#if defined(__aarch64__)
-      *kind = BR_K_DOUBLE; return &ffi_type_double;
-#else
-      *kind = BR_K_DOUBLE; return &ffi_type_longdouble;
-#endif
+    // 'D' is `long double`, which on arm64 is just another name for double.
+    case 'D': *kind = BR_K_DOUBLE; return &ffi_type_double;
     case 'B': *kind = BR_K_BOOL;   return &ffi_type_uint8;
     case 'v': *kind = BR_K_VOID;   return &ffi_type_void;
     case '*': *kind = BR_K_CHARPTR;return &ffi_type_pointer;
@@ -360,15 +354,6 @@ br_sig* br_sig_get(const char* encoding) {
     free(s->encoding); free(atypes); free(ainfo); free(s);
     return NULL;
   }
-
-#if defined(__x86_64__)
-  // SysV: aggregates larger than 16 bytes are returned via hidden pointer, which
-  // on x86_64 means objc_msgSend_stret. long double returns use _fpret.
-  if ((rinfo.kind == BR_K_STRUCT || rinfo.kind == BR_K_UNION ||
-       rinfo.kind == BR_K_ARRAY) && rinfo.size > 16) {
-    s->stret = 1;
-  }
-#endif
 
   s->next = g_sig_buckets[h];
   g_sig_buckets[h] = s;

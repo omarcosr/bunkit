@@ -50,6 +50,15 @@ function findLib(): string {
   );
 }
 
+// The dispatcher is written to the arm64 ABI. On any other architecture the
+// struct-return convention differs, and the failure mode would be silently
+// wrong geometry rather than a crash — so refuse up front.
+if (process.platform !== "darwin" || process.arch !== "arm64") {
+  throw new Error(
+    `BunKit requires macOS on Apple silicon; this is ${process.platform}/${process.arch}.`,
+  );
+}
+
 export const LIB_PATH = findLib();
 
 const OBJ = FFIType.u64; // an Obj-C pointer (may be tagged)

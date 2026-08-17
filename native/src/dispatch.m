@@ -168,16 +168,10 @@ int br_msgsend(void* target, void* sel, const char* types,
 
   if (s->ret.size > 0) memset(retbuf, 0, (size_t)s->retbuf_size);
 
-  void* fn = (void*)objc_msgSend;
-#if defined(__x86_64__)
-  extern void objc_msgSend_stret(void);
-  extern void objc_msgSend_fpret(void);
-  if (s->stret) fn = (void*)objc_msgSend_stret;
-  else if (s->fpret) fn = (void*)objc_msgSend_fpret;
-#endif
-
+  // arm64 has no objc_msgSend_stret or _fpret: struct returns use x8 and libffi
+  // handles them, so there is exactly one entry point.
   @try {
-    ffi_call(&s->cif, FFI_FN(fn), retbuf, argptrs);
+    ffi_call(&s->cif, FFI_FN(objc_msgSend), retbuf, argptrs);
   } @catch (NSException* e) {
     if (err) *err = describe_exception(e);
     return BR_ERR_EXCEPTION;
@@ -206,14 +200,8 @@ int br_msgsend_super(void* target, void* superclass, void* sel, const char* type
   build_argptrs(s, argbuf, argptrs);
   if (s->ret.size > 0) memset(retbuf, 0, (size_t)s->retbuf_size);
 
-  void* fn = (void*)objc_msgSendSuper;
-#if defined(__x86_64__)
-  extern void objc_msgSendSuper_stret(void);
-  if (s->stret) fn = (void*)objc_msgSendSuper_stret;
-#endif
-
   @try {
-    ffi_call(&s->cif, FFI_FN(fn), retbuf, argptrs);
+    ffi_call(&s->cif, FFI_FN(objc_msgSendSuper), retbuf, argptrs);
   } @catch (NSException* e) {
     if (err) *err = describe_exception(e);
     return BR_ERR_EXCEPTION;

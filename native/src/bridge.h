@@ -3,6 +3,11 @@
 // The entire exported C surface is declared here. It is intentionally small and
 // permanently stable: adding support for a new AppKit class must never require a
 // change to this file.
+//
+// arm64 only. That is a simplification, not an omission: on arm64 every struct
+// return goes through plain objc_msgSend with x8 as the indirect result
+// register, so none of the objc_msgSend_stret / _fpret variants that x86_64
+// needs exist here at all.
 #ifndef BR_BRIDGE_H
 #define BR_BRIDGE_H
 
@@ -74,8 +79,6 @@ typedef struct br_sig {
   br_arg*    args;
   int32_t    argbuf_size;
   int32_t    retbuf_size;
-  int        stret;        // x86_64 only: use objc_msgSend_stret
-  int        fpret;        // x86_64 only: use objc_msgSend_fpret
   struct br_sig* next;     // hash-bucket chain
 } br_sig;
 

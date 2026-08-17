@@ -49,7 +49,7 @@ export interface BundleOptions {
   resources?: string[];
   /** Path to libobjcbridge.dylib. Defaults to <repo>/build/libobjcbridge.dylib. */
   dylib?: string;
-  /** bun build --compile target triple. Default "bun-darwin-arm64". */
+  /** bun build --compile target triple. arm64 only; overriding is unsupported. */
   target?: string;
   /** Minify the compiled bundle. */
   minify?: boolean;
@@ -443,22 +443,31 @@ export async function bundle(options: BundleOptions): Promise<BundleResult> {
   };
 }
 
-/** Warn (don't fail) when the dylib has no slice for the compile target. */
+/**
+ * Refuse a target the bridge cannot serve.
+ *
+ * BunKit is arm64-only — the dispatcher is written to that ABI — so a
+ * bun-darwin-x64 build would produce an app that loads a dylib with no matching
+ * slice. Better to stop here than to ship it.
+ */
 function checkArch(dylib: string, target: string, verbose: boolean): void {
-  const want = target.includes("x64") || target.includes("x86_64") ? "x86_64" : "arm64";
+  if (target.includes("x64") || target.includes("x86_64")) {
+    throw new Error(
+      `target "${target}" is Intel, but BunKit is arm64-only. Use bun-darwin-arm64.`,
+    );
+  }
   let have: string;
   try {
     have = run(["lipo", "-archs", dylib], "lipo -archs").trim();
   } catch {
     return;
   }
-  if (!have.split(/\s+/).includes(want)) {
-    log(
-      verbose,
-      `  warning   ${basename(dylib)} has [${have}] but the target needs ${want};` +
-        ` rebuild with ./native/build.sh universal`,
+  if (!have.split(/\s+/).includes("arm64")) {
+    throw new Error(
+      `${basename(dylib)} has [${have}] but arm64 is required; run ./native/build.sh`,
     );
   }
+  log(verbose, `  arch      arm64`);
 }
 
 // ---------------------------------------------------------------------------
@@ -478,7 +487,6 @@ const USAGE = `bundle — build a macOS .app around a Bun entry point
   --min-os <s>        LSMinimumSystemVersion (default: 11.0)
   --resource <path>   extra file/dir copied into Resources (repeatable)
   --dylib <path>      libobjcbridge.dylib (default: <repo>/build/)
-  --target <triple>   bun build target (default: bun-darwin-arm64)
   --category <s>      LSApplicationCategoryType
   --copyright <s>     NSHumanReadableCopyright
   --agent             menu-bar-only app (LSUIElement)

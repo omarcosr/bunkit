@@ -91,8 +91,8 @@ const config: BundleOptions = {
   // --- build ---------------------------------------------------------------
 
   /**
-   * bun build --compile target triple. "bun-darwin-x64" needs an x86_64 slice in
-   * the dylib: build it with `./native/build.sh universal`.
+   * bun build --compile target triple. BunKit is arm64-only, so this exists to
+   * pin the value rather than to offer a choice.
    */
   target: "bun-darwin-arm64",
 

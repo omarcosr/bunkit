@@ -24,6 +24,11 @@ side will even load — `dlopen` fails on a missing symbol, not at the call site
 
 ## Things that will bite you
 
+- **arm64 only, on purpose.** The dispatcher is written to the arm64 ABI, where
+  struct returns use `x8` and `objc_msgSend_stret` does not exist. Do not add
+  architecture conditionals back; `native/build.sh`, `src/bridge.ts` and the
+  bundler all refuse anything else on purpose.
+
 - **Obj-C pointers are `bigint`, never `number`.** Tagged pointers (short strings,
   small numbers, dates) exceed 2^53. Compare against `0n`.
 - **Never add a `runModal*` call to `src/ui/`.** It spins a nested run loop that

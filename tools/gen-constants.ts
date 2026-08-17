@@ -66,7 +66,7 @@ const SDK = process.env.MACOS_SDK ?? sh(["xcrun", "--show-sdk-path"]);
 const SDK_VERSION = process.env.MACOS_SDK_VERSION ?? sh(["xcrun", "--show-sdk-version"]);
 if (!SDK || !existsSync(SDK)) throw new Error(`macOS SDK not found (got ${JSON.stringify(SDK)})`);
 
-const ARCH = process.arch === "arm64" ? "arm64" : "x86_64";
+const ARCH = "arm64";
 
 // Frameworks whose headers we sweep. Order decides attribution when the same
 // name turns up twice: first framework listed wins.
