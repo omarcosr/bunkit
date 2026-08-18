@@ -299,12 +299,26 @@ export class GPUView extends View {
    * drawn — which is how this is tested with nobody watching.
    */
   capture(width = 512, height = 384): { width: number; height: number; pixels: Uint8Array } {
-    const color = this.gpu.texture({
+    // Attachments have to match the pipelines the handlers will set, and those
+    // were built for this view's sample count. A multisampled pipeline drawing
+    // into single-sampled attachments is a validation error that only shows up
+    // when someone runs with Metal validation on.
+    const multisampled = this.sampleCount > 1;
+    const readable = this.gpu.texture({
       width, height, format: this.formatName,
       usage: ["renderTarget", "shaderRead"], storage: "shared", label: "capture",
     });
+    const color = multisampled
+      ? this.gpu.texture({
+          width, height, format: this.formatName, usage: ["renderTarget"],
+          sampleCount: this.sampleCount, label: "capture msaa",
+        })
+      : readable;
     const depth = this.#depthFormat
-      ? this.gpu.texture({ width, height, format: this.#depthFormat, usage: ["renderTarget"], label: "captureDepth" })
+      ? this.gpu.texture({
+          width, height, format: this.#depthFormat, usage: ["renderTarget"],
+          sampleCount: this.sampleCount, label: "capture depth",
+        })
       : null;
 
     this.gpu.submit((commands) => {
@@ -312,11 +326,12 @@ export class GPUView extends View {
         time: this.#last - this.#start, dt: 1 / 60, index: this.#frame, width, height,
       });
       frame.colorTexture = color.native;
+      frame.resolveTexture = multisampled ? readable.native : undefined;
       frame.depthTexture = depth?.native;
       for (const fn of this.#handlers) fn(frame, this);
     });
 
-    const bgra = color.read();
+    const bgra = readable.read();
     // BGRA on the GPU, RGBA for everyone else.
     const pixels = new Uint8Array(bgra.length);
     for (let i = 0; i < bgra.length; i += 4) {

@@ -436,7 +436,12 @@ export interface Scene3DOptions extends Omit<GPUViewOptions, "onFrame"> {
   background?: Color;
   camera?: CameraOptions | Camera;
   light?: LightOptions | Light;
-  /** Nodes per batch the instance buffers are sized for. Default 4096. */
+  /**
+   * Ceiling on nodes per batch. Default 100,000.
+   *
+   * Instance buffers start small and double as they fill, so this is a
+   * backstop against a runaway scene rather than a size to tune.
+   */
   maxInstances?: number;
   /** Render in HDR with a bloom chain and a tone mapper. Emissive needs it. */
   bloom?: boolean | BloomOptions;
@@ -485,7 +490,7 @@ export class Scene3D extends GPUView {
     this.camera = options.camera instanceof Camera ? options.camera : new Camera(options.camera);
     this.light = options.light instanceof Light ? options.light : new Light(options.light);
     this.background = parseColor(options.background ?? "#0b0b0f");
-    this.#maxInstances = options.maxInstances ?? 4096;
+    this.#maxInstances = options.maxInstances ?? 100_000;
     this.#uniforms = g.buffer(SceneUniforms, { label: "scene uniforms" });
 
     this.post = options.bloom
@@ -559,6 +564,32 @@ export class Scene3D extends GPUView {
     return id;
   }
 
+  #warned = new Set<string>();
+
+  /**
+   * Grow a batch's instance buffer to hold `needed`, doubling as it goes.
+   *
+   * The old buffer is dropped rather than copied: every instance is rewritten
+   * from the nodes on the very next line, so its contents are already stale.
+   */
+  #reserve(batch: Batch, needed: number): void {
+    if (needed <= batch.instances.capacity) return;
+    if (needed > this.#maxInstances) {
+      if (!this.#warned.has(batch.material.label)) {
+        this.#warned.add(batch.material.label);
+        console.warn(
+          `[Scene3D] ${needed} nodes in the "${batch.material.label}" batch exceeds ` +
+            `maxInstances (${this.#maxInstances}); the rest will not be drawn.`,
+        );
+      }
+      needed = this.#maxInstances;
+      if (needed <= batch.instances.capacity) return;
+    }
+    let capacity = Math.max(16, batch.instances.capacity);
+    while (capacity < needed) capacity *= 2;
+    batch.instances = gpu().array(InstanceData, capacity, { label: "instances" });
+  }
+
   #batchFor(node: Node): Batch {
     const material = node.material ?? this.#defaultMaterial;
     const key = `${this.#idOf(node.geometry)}:${this.#idOf(material)}`;
@@ -570,7 +601,10 @@ export class Scene3D extends GPUView {
         vertices: g.data(node.geometry.vertices, { label: "vertices" }),
         indices: g.data(node.geometry.indices, { label: "indices" }),
         indexCount: node.geometry.indices.length,
-        instances: g.array(InstanceData, this.#maxInstances, { label: "instances" }),
+        // Sized to what is actually drawn, not to the ceiling: a scene with
+        // fifty batches would otherwise reserve a megabyte each for buffers
+        // holding a handful of instances.
+        instances: g.array(InstanceData, 16, { label: "instances" }),
         nodes: [],
         depth: 0,
       };
@@ -612,6 +646,10 @@ export class Scene3D extends GPUView {
     // One instance-buffer fill and one draw per batch.
     const eye = this.camera.position;
     for (const batch of this.#batches.values()) {
+      let visible = 0;
+      for (const node of batch.nodes) if (node.visible) visible++;
+      this.#reserve(batch, visible);
+
       let n = 0;
       let depth = 0;
       for (const node of batch.nodes) {

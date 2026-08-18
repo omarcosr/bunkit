@@ -572,6 +572,45 @@ fragment float4 fs(V in [[stage_in]]) {
 }
 
 {
+  // Instance buffers start at 16 and double. A batch that silently stopped at
+  // its initial capacity would render the first sixteen nodes and drop the
+  // rest, which reads as "the scene is wrong" rather than as a buffer size.
+  const scene = new Scene3D({
+    animate: false, background: "#000000",
+    camera: { position: [0, 0, 26], target: [0, 0, 0], fov: 55 },
+    light: { direction: [0, 0, 1], ambientIntensity: 0 },
+  });
+  const GRID = 40;
+  for (let i = 0; i < GRID * GRID; i++) {
+    scene.add(box({
+      size: 0.18,
+      position: [(i % GRID) * 0.5 - 10, Math.floor(i / GRID) * 0.5 - 10, 0],
+      color: "#ffffff",
+    }));
+  }
+  check("1600 nodes are still one draw call", scene.batchCount === 1, scene.batchCount);
+
+  const lit = (c: { pixels: Uint8Array }) => {
+    let n = 0;
+    for (let i = 0; i < c.pixels.length; i += 4) if (c.pixels[i]! > 40) n++;
+    return n;
+  };
+  const all = lit(scene.capture(128, 128));
+  check("the buffer grew past its initial capacity", all > 400, all);
+
+  const again = lit(scene.capture(128, 128));
+  check("and a second frame at the same size is identical", again === all, `${all} then ${again}`);
+
+  scene.nodes.slice(64).forEach((n) => { n.visible = false; });
+  const some = lit(scene.capture(128, 128));
+  check("hiding most of them draws fewer", some > 0 && some < all / 3, `${some} of ${all}`);
+
+  scene.nodes.forEach((n) => { n.visible = true; });
+  check("and showing them again draws all of them", lit(scene.capture(128, 128)) === all);
+  scene.dispose();
+}
+
+{
   // Draw order must not depend on the order things were added. A blended
   // surface writes no depth, so an opaque one drawn afterwards erases it —
   // which looks like a shader bug and is an ordering bug.
@@ -671,6 +710,43 @@ fragment float4 fs(V in [[stage_in]]) {
     // More than a handful of distinct colours: a preset that compiles but
     // returns a constant is not doing what the preset claims.
     check(`the ${name} preset compiles and draws something`, colours > 20, error || colours);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Capture, across the combinations that change the attachments
+// ---------------------------------------------------------------------------
+
+{
+  // A multisampled pipeline drawing into single-sampled attachments is a
+  // validation error that renders fine until someone turns validation on, so
+  // capture has to build attachments matching the view's sample count.
+  for (const sampleCount of [1, 4]) {
+    for (const bloom of [false, true]) {
+      const scene = new Scene3D({
+        animate: false, sampleCount, bloom, background: "#000000",
+        camera: { position: [0, 0, 4], target: [0, 0, 0] },
+        light: { direction: [0, 0, 1], ambientIntensity: 0 },
+      });
+      scene.add(box({ size: 2, color: "#00ff00" }));
+      const c = scene.capture(64, 64);
+      const centre = (32 * 64 + 32) * 4;
+
+      // How many pixels along a row through the box sit between background and
+      // full green: with MSAA the silhouette is blended, without it is a step.
+      let blended = 0;
+      for (let x = 0; x < 64; x++) {
+        const g = c.pixels[(32 * 64 + x) * 4 + 1]!;
+        if (g > 20 && g < 235) blended++;
+      }
+
+      const label = `sampleCount ${sampleCount}, bloom ${bloom}`;
+      check(`capture works with ${label}`, c.pixels[centre + 1]! > 180, c.pixels[centre + 1]);
+      if (sampleCount > 1 && !bloom) {
+        check("and multisampling actually resolves an edge", blended >= 1, blended);
+      }
+      scene.dispose();
+    }
   }
 }
 
