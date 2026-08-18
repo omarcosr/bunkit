@@ -13,7 +13,7 @@ import {
   invert,
   lookAt,
   mat4,
-  metalAvailable,
+  gpuAvailable,
   multiply,
   normalMatrix,
   perspective,
@@ -131,7 +131,7 @@ initApp();
 // ---------------------------------------------------------------------------
 // Rendering
 // ---------------------------------------------------------------------------
-if (!metalAvailable()) {
+if (!gpuAvailable()) {
   console.log("\n  (no Metal device here — skipping the rendering checks)");
 } else {
   const pixel = (c: { width: number; pixels: Uint8Array }, x: number, y: number) => {

@@ -411,6 +411,35 @@ export function nsstring(s: string): ObjCObject {
   return wrap(makeStringRaw(s), true)!;
 }
 
+/**
+ * Unwrap a Layer 3 wrapper to the Obj-C object underneath.
+ *
+ * The instanceof check is the whole point. An ObjCObject is a Proxy that
+ * answers *every* property with a selector dispatcher, so the obvious
+ * `x.native ?? x` hands back a JS function when x is already an ObjCObject —
+ * and a function marshalled into an object argument becomes a block, which
+ * fails later and far away with "unrecognized selector sent to __NSGlobalBlock__".
+ */
+export function nativeOf(v: any): any {
+  if (v === null || v === undefined) return null;
+  if (v instanceof ObjCObject) return v;
+  return v.native ?? v;
+}
+
+/**
+ * Is this an Objective-C object rather than a plain JavaScript one?
+ *
+ * Ask before reading any property off a value that might be either. An
+ * ObjCObject is a proxy that turns *every* unknown property into a method
+ * closure, so `maybeNative.color ?? fallback` never reaches the fallback — it
+ * yields a function, which then marshals as a block and fails somewhere else
+ * entirely, with a message about __NSGlobalBlock__ that names neither the
+ * property nor the line.
+ */
+export function isObjC(v: unknown): boolean {
+  return v instanceof ObjCObject;
+}
+
 /** Convert an NSString (or anything with -description) to a JS string. */
 export function str(v: any): string {
   if (v === null || v === undefined) return "";

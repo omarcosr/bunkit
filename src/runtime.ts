@@ -69,6 +69,23 @@ export function initApp(policy: number = ActivationPolicy.Regular): void {
  */
 const frameCallbacks = new Set<(now: number) => void>();
 
+/*
+ * Animation cadence.
+ *
+ * The idle loop ticks at about 100 Hz, which caps a 120 Hz display. While
+ * anything is animating the loop shortens its sleep so vsync is reachable; the
+ * count is a refcount because several views may animate at once.
+ */
+let animators = 0;
+
+export function setAnimating(on: boolean): void {
+  animators = Math.max(0, animators + (on ? 1 : -1));
+}
+
+export function isAnimating(): boolean {
+  return animators > 0;
+}
+
 /** Run `fn` once per run-loop iteration. Returns a function that stops it. */
 export function onFrame(fn: (now: number) => void): () => void {
   frameCallbacks.add(fn);
@@ -144,8 +161,10 @@ export async function run(options: RunOptions = {}): Promise<void> {
 
   try {
     while (!stopRequested && !lib.br_should_stop()) {
-      const idle = quiet >= idleAfter;
-      const deep = quiet >= deepIdleAfter;
+      // An animating view needs the fast cadence even with no input events,
+      // or the run loop's idle sleep becomes the frame rate ceiling.
+      const idle = quiet >= idleAfter && animators === 0;
+      const deep = quiet >= deepIdleAfter && animators === 0;
       // Recycle the base pool (pushed by initApp) before nesting this
       // iteration's pool inside it, so work done outside run() drains too.
       lib.br_autorelease_pool_recycle();

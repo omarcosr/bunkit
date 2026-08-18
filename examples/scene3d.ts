@@ -19,12 +19,12 @@ import {
   plane,
   sphere,
   Scene3D,
-  metalAvailable,
+  gpuAvailable,
 } from "bunkit";
 
 const app = new Application({ name: "Scene3D" });
 
-if (!metalAvailable()) {
+if (!gpuAvailable()) {
   console.error("no Metal device on this machine");
   process.exit(1);
 }

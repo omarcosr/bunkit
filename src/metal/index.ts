@@ -1,24 +1,20 @@
-// Metal: 3D scenes rendered by the GPU, inside an ordinary BunKit view.
+// Metal: typed GPU programming, and a 3D scene built on it.
 //
-//   const scene = new Scene3D({ height: 320 });
-//   const cube = scene.add(box({ color: "#aa091b" }));
-//   scene.onFrame(({ time }) => { cube.rotation.y = time; });
+//   import { gpu, struct, vec4f, mat4x4f, msl, GPUView } from "bunkit/metal";
 //
-// Scene3D is a View, so it goes into a VStack next to labels and buttons like
-// anything else. For a renderer of your own, `scene.device`, `scene.layer` and
-// the helpers in ./device.ts are the way down to raw Metal.
+// Three layers, same as the rest of BunKit. `Scene3D` is the easy one: nodes,
+// a camera, a light. `GPUView` is the surface plus a frame loop, and you write
+// the passes. `gpu()` is the device, and everything it hands out — buffers,
+// shaders, pipelines, textures — carries `.native` for raw Objective-C.
 
+export * from "./types.ts";
+export * from "./reflect.ts";
+export * from "./gpu.ts";
+export * from "./effects.ts";
+export * from "./shaders.ts";
+export * from "./post.ts";
+export * from "./frame.ts";
+export * from "./view.ts";
 export * from "./math.ts";
 export * from "./geometry.ts";
 export * from "./scene.ts";
-export {
-  metalDevice,
-  metalAvailable,
-  compileLibrary,
-  makeBuffer,
-  makeDepthTexture,
-  buildPipeline,
-  outError,
-  SCENE_SHADER,
-  MTL,
-} from "./device.ts";

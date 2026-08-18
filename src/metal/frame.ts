@@ -1,0 +1,567 @@
+// Encoding a frame: render passes, compute passes, and the bindings they take.
+//
+// The shape is WebGPU's — set a pipeline, bind buffers by index, draw — because
+// that is what a port arrives already written against. Every call is one or two
+// Objective-C messages; a draw costs about 1.2 microseconds from JavaScript,
+// measured, which is the number that decides how a scene should be structured.
+// Thousands of individual draws will not fit in a frame. One instanced draw of
+// thousands of objects will, comfortably.
+
+import { isObjC, nativeOf, objc } from "../objc.ts";
+import { NIL, ptr } from "../bridge.ts";
+import {
+  clearColor,
+  MTL,
+  PixelFormat,
+  size3,
+  viewport as makeViewport,
+  type ComputePipeline,
+  type GPUArrayBuffer,
+  type GPUBuffer,
+  type MTLObject,
+  type RenderPipeline,
+  type Texture,
+  type Sampler,
+} from "./gpu.ts";
+import { gpu } from "./gpu.ts";
+import type { Binding, BindingTable, Stage } from "./reflect.ts";
+import type { Effect, EffectPassOptions, RenderTarget } from "./effects.ts";
+
+/** Anywhere a texture is wanted, a RenderTarget stands in for its colour. */
+type TextureLike = Texture | RenderTarget | MTLObject;
+
+function attachment(t: TextureLike): MTLObject {
+  // isObjC first: reading .color off a raw MTLTexture proxy would hand back a
+  // method closure rather than undefined, and bind it as a block.
+  if (isObjC(t)) return t;
+  const color = (t as { color?: Texture })?.color;
+  return nativeOf((color ?? t) as MTLObject);
+}
+
+/** Anything that can be bound to a buffer slot. */
+export type Bindable = GPUBuffer<any> | GPUArrayBuffer<any> | MTLObject;
+
+function nativeBuffer(b: Bindable): MTLObject {
+  return nativeOf(b);
+}
+
+// ---------------------------------------------------------------------------
+// Binding by name
+// ---------------------------------------------------------------------------
+
+/**
+ * What a named binding will accept.
+ *
+ * A buffer or texture object binds directly. A typed array is copied inline. A
+ * plain object is packed into the struct the shader declared, using the layout
+ * the compiler reported — so `{ time: 0.5, tint: [1, 0, 0, 1] }` is a complete
+ * uniform upload with nothing declared on this side.
+ */
+export type BindValue =
+  | GPUBuffer<any>
+  | GPUArrayBuffer<any>
+  | Texture
+  | Sampler
+  | MTLObject
+  | ArrayBufferView
+  | Record<string, unknown>
+  | readonly unknown[]
+  | number;
+
+/** Metal copies setBytes: data immediately, but only up to 4 KB of it. */
+const INLINE_LIMIT = 4096;
+
+const isWrapper = (v: any) => v != null && typeof v === "object" && !isObjC(v) && "native" in v;
+
+/**
+ * Set every binding in `values` on whichever stages declare it.
+ *
+ * This is the whole reason pipelines carry their reflection: the shader's own
+ * parameter names are the API, so renumbering `[[buffer(2)]]` to `[[buffer(5)]]`
+ * cannot quietly break the caller, and a typo is an error naming what does
+ * exist rather than a black frame.
+ */
+function applyBindings(
+  values: Record<string, BindValue>,
+  table: BindingTable | undefined,
+  label: string,
+  set: {
+    buffer(stage: Stage, index: number, buffer: MTLObject, offset: number): void;
+    bytes(stage: Stage, index: number, data: ArrayBufferView): void;
+    texture(stage: Stage, index: number, texture: MTLObject): void;
+    sampler(stage: Stage, index: number, sampler: MTLObject): void;
+  },
+): void {
+  for (const [name, value] of Object.entries(values)) {
+    if (value === undefined) continue;
+    const binding = table?.get(name);
+    if (!binding) {
+      throw new Error(
+        `${label}: the shader has no binding called "${name}".\n` +
+          `Bindings it does have:\n${table?.describe() ?? "  (none)"}`,
+      );
+    }
+    const stages = Object.entries(binding.slots) as Array<[Stage, number]>;
+
+    if (binding.kind === "texture" || binding.kind === "sampler") {
+      const native = nativeOf(value as MTLObject);
+      for (const [stage, index] of stages) {
+        if (binding.kind === "texture") set.texture(stage, index, native);
+        else set.sampler(stage, index, native);
+      }
+      continue;
+    }
+
+    // Buffers. A real buffer binds by reference; everything else is packed and
+    // copied inline, which for uniform-sized data is the faster path anyway.
+    if (isObjC(value) || isWrapper(value)) {
+      const native = nativeOf(value as MTLObject);
+      for (const [stage, index] of stages) set.buffer(stage, index, native, 0);
+      continue;
+    }
+
+    const data = ArrayBuffer.isView(value)
+      ? (value as ArrayBufferView)
+      : pack(value, binding, name, label);
+    if (data.byteLength > INLINE_LIMIT) {
+      throw new Error(
+        `${label}: "${name}" is ${data.byteLength} bytes, past the ${INLINE_LIMIT}-byte inline limit. ` +
+          `Put it in a buffer — gpu().array(Schema, count) — and bind that instead.`,
+      );
+    }
+    for (const [stage, index] of stages) set.bytes(stage, index, data);
+  }
+}
+
+/** Pack a plain value into the layout the compiler reported for this binding. */
+function pack(value: BindValue, binding: Binding, name: string, label: string): ArrayBufferView {
+  const layout = binding.layout;
+  if (!layout) {
+    throw new Error(
+      `${label}: "${name}" needs a buffer, not a plain value — the shader takes a pointer ` +
+        `there, so there is no struct layout to pack into. Use gpu().array(Schema, count).`,
+    );
+  }
+  // An array of objects against a struct binding is N elements; an array of
+  // numbers against a `float2&` is one value. The layout says which.
+  if (Array.isArray(value) && binding.struct) {
+    const stride = Math.ceil(layout.size / layout.alignment) * layout.alignment;
+    const bytes = new Uint8Array(stride * Math.max(1, value.length));
+    const view = new DataView(bytes.buffer);
+    value.forEach((item, i) => layout.write(view, i * stride, item as never));
+    return bytes;
+  }
+  const bytes = new Uint8Array(Math.max(binding.size, layout.size));
+  layout.write(new DataView(bytes.buffer), 0, value as never);
+  return bytes;
+}
+
+export interface ColorAttachment {
+  texture: TextureLike;
+  clear?: readonly number[] | false;
+  /** Multisample resolve target. Set when the attachment is multisampled. */
+  resolve?: TextureLike;
+  store?: boolean;
+}
+
+export interface RenderPassOptions {
+  /** Colour and depth from one RenderTarget. Shorthand for the two below. */
+  target?: RenderTarget;
+  color?: ColorAttachment | ColorAttachment[];
+  depth?: TextureLike | null;
+  clearDepth?: number;
+  /** Clear colour, when `target` is used instead of an explicit attachment. */
+  clear?: readonly number[] | false;
+  label?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Render pass
+// ---------------------------------------------------------------------------
+
+export class RenderPass {
+  readonly native: MTLObject;
+  #pipeline: RenderPipeline | null = null;
+  #draws = 0;
+
+  constructor(commands: MTLObject, o: RenderPassOptions) {
+    const descriptor = objc.MTLRenderPassDescriptor.renderPassDescriptor();
+    const colors: ColorAttachment[] =
+      o.color ? (Array.isArray(o.color) ? o.color : [o.color])
+      : o.target ? [{ texture: o.target.color, clear: o.clear }]
+      : [];
+    const depth = o.depth ?? o.target?.depth ?? null;
+
+    colors.forEach((c, i) => {
+      const a = descriptor.colorAttachments().objectAtIndexedSubscript_(i);
+      a.setTexture_(attachment(c.texture));
+      if (c.clear === false) {
+        a.setLoadAction_(MTL.LoadAction.load);
+      } else {
+        a.setLoadAction_(MTL.LoadAction.clear);
+        a.setClearColor_(clearColor(c.clear ?? [0, 0, 0, 1]));
+      }
+      if (c.resolve) {
+        a.setResolveTexture_(attachment(c.resolve));
+        a.setStoreAction_(MTL.StoreAction.multisampleResolve);
+      } else {
+        a.setStoreAction_(c.store === false ? MTL.StoreAction.dontCare : MTL.StoreAction.store);
+      }
+    });
+
+    if (depth) {
+      const d = descriptor.depthAttachment();
+      d.setTexture_(attachment(depth));
+      d.setLoadAction_(MTL.LoadAction.clear);
+      // Nothing reads depth after the pass, so discarding it saves the writeback.
+      d.setStoreAction_(MTL.StoreAction.dontCare);
+      d.setClearDepth_(o.clearDepth ?? 1);
+    }
+
+    const encoder = commands.renderCommandEncoderWithDescriptor_(descriptor);
+    if (!encoder || encoder.ptr === NIL) {
+      throw new Error(
+        "could not open a render pass. Every attachment texture needs " +
+          "usage: [\"renderTarget\"], and a depth attachment must be a depth format.",
+      );
+    }
+    if (o.label) encoder.setLabel_(o.label);
+    this.native = encoder;
+  }
+
+  pipeline(p: RenderPipeline): this {
+    this.native.setRenderPipelineState_(p.native);
+    if (p.depthState) this.native.setDepthStencilState_(p.depthState);
+    this.native.setCullMode_(p.cull);
+    this.native.setFrontFacingWinding_(p.winding);
+    this.#pipeline = p;
+    return this;
+  }
+
+  /**
+   * Bind by the names the shader uses.
+   *
+   *   pass.pipeline(pipe).bind({
+   *     globals: { viewProjection, time },   // packed into the shader's struct
+   *     instances: instanceBuffer,           // bound by reference
+   *     albedo: texture,
+   *     smp: sampler,
+   *   });
+   *
+   * Indices come from the compiled pipeline, so there are none to keep in sync.
+   * Call it after pipeline(), which is where the names come from.
+   */
+  bind(values: Record<string, BindValue>): this {
+    if (!this.#pipeline) throw new Error("bind() before pipeline(): the names come from the pipeline");
+    const encoder = this.native;
+    applyBindings(values, this.#pipeline.bindings, this.#pipeline.label, {
+      buffer: (stage, index, buffer, offset) => {
+        if (stage === "vertex") encoder.setVertexBuffer_offset_atIndex_(buffer, offset, index);
+        else encoder.setFragmentBuffer_offset_atIndex_(buffer, offset, index);
+      },
+      bytes: (stage, index, data) => {
+        if (stage === "vertex") encoder.setVertexBytes_length_atIndex_(ptr(data as never), data.byteLength, index);
+        else encoder.setFragmentBytes_length_atIndex_(ptr(data as never), data.byteLength, index);
+      },
+      texture: (stage, index, texture) => {
+        if (stage === "vertex") encoder.setVertexTexture_atIndex_(texture, index);
+        else encoder.setFragmentTexture_atIndex_(texture, index);
+      },
+      sampler: (stage, index, sampler) => {
+        if (stage === "vertex") encoder.setVertexSamplerState_atIndex_(sampler, index);
+        else encoder.setFragmentSamplerState_atIndex_(sampler, index);
+      },
+    });
+    return this;
+  }
+
+  /** Bind a buffer the vertex stage reads, at `[[buffer(index)]]`. */
+  vertex(index: number, buffer: Bindable, offset = 0): this {
+    this.native.setVertexBuffer_offset_atIndex_(nativeBuffer(buffer), offset, index);
+    return this;
+  }
+
+  /** Bind a buffer the fragment stage reads. */
+  fragment(index: number, buffer: Bindable, offset = 0): this {
+    this.native.setFragmentBuffer_offset_atIndex_(nativeBuffer(buffer), offset, index);
+    return this;
+  }
+
+  /** Bind the same buffer to both stages, which uniforms usually want. */
+  uniforms(index: number, buffer: Bindable, offset = 0): this {
+    return this.vertex(index, buffer, offset).fragment(index, buffer, offset);
+  }
+
+  /** Inline bytes, for data too small to deserve a buffer. Max 4 KB. */
+  vertexBytes(index: number, data: ArrayBufferView): this {
+    this.native.setVertexBytes_length_atIndex_(ptr(data as never), data.byteLength, index);
+    return this;
+  }
+
+  fragmentBytes(index: number, data: ArrayBufferView): this {
+    this.native.setFragmentBytes_length_atIndex_(ptr(data as never), data.byteLength, index);
+    return this;
+  }
+
+  texture(index: number, t: TextureLike, stage: "fragment" | "vertex" = "fragment"): this {
+    const native = attachment(t);
+    if (stage === "vertex") this.native.setVertexTexture_atIndex_(native, index);
+    else this.native.setFragmentTexture_atIndex_(native, index);
+    return this;
+  }
+
+  sampler(index: number, s: Sampler | MTLObject, stage: "fragment" | "vertex" = "fragment"): this {
+    const native = nativeOf(s);
+    if (stage === "vertex") this.native.setVertexSamplerState_atIndex_(native, index);
+    else this.native.setFragmentSamplerState_atIndex_(native, index);
+    return this;
+  }
+
+  viewport(x: number, y: number, width: number, height: number, near = 0, far = 1): this {
+    this.native.setViewport_(makeViewport(x, y, width, height, near, far));
+    return this;
+  }
+
+  /** Draw without an index buffer. */
+  draw(
+    vertexCount: number,
+    options: { instances?: number; first?: number; primitive?: keyof typeof MTL.PrimitiveType } = {},
+  ): this {
+    const type = MTL.PrimitiveType[options.primitive ?? "triangle"];
+    const instances = options.instances ?? 1;
+    if (instances === 1) {
+      this.native.drawPrimitives_vertexStart_vertexCount_(type, options.first ?? 0, vertexCount);
+    } else {
+      this.native.drawPrimitives_vertexStart_vertexCount_instanceCount_(
+        type, options.first ?? 0, vertexCount, instances,
+      );
+    }
+    this.#draws++;
+    return this;
+  }
+
+  /**
+   * Draw indexed geometry, optionally instanced.
+   *
+   * `instances` is the lever that matters: one call here drawing 5,000
+   * instances costs the same 1.2 microseconds as one drawing a single triangle.
+   */
+  drawIndexed(
+    indexBuffer: Bindable,
+    indexCount: number,
+    options: {
+      instances?: number;
+      indexType?: "uint16" | "uint32";
+      offset?: number;
+      primitive?: keyof typeof MTL.PrimitiveType;
+    } = {},
+  ): this {
+    const type = MTL.PrimitiveType[options.primitive ?? "triangle"];
+    const indexType = MTL.IndexType[options.indexType ?? "uint32"];
+    const instances = options.instances ?? 1;
+    if (instances === 1) {
+      this.native.drawIndexedPrimitives_indexCount_indexType_indexBuffer_indexBufferOffset_(
+        type, indexCount, indexType, nativeBuffer(indexBuffer), options.offset ?? 0,
+      );
+    } else {
+      this.native.drawIndexedPrimitives_indexCount_indexType_indexBuffer_indexBufferOffset_instanceCount_(
+        type, indexCount, indexType, nativeBuffer(indexBuffer), options.offset ?? 0, instances,
+      );
+    }
+    this.#draws++;
+    return this;
+  }
+
+  /** Draw calls recorded, for a frame-cost readout. */
+  get drawCount(): number {
+    return this.#draws;
+  }
+
+  end(): void {
+    this.native.endEncoding();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Compute pass
+// ---------------------------------------------------------------------------
+
+export class ComputePass {
+  readonly native: MTLObject;
+  #pipeline: ComputePipeline | null = null;
+
+  constructor(commands: MTLObject, label?: string) {
+    this.native = commands.computeCommandEncoder();
+    if (label) this.native.setLabel_(label);
+  }
+
+  pipeline(p: ComputePipeline): this {
+    this.native.setComputePipelineState_(p.native);
+    this.#pipeline = p;
+    return this;
+  }
+
+  /** Bind by the names the kernel uses. See RenderPass.bind. */
+  bind(values: Record<string, BindValue>): this {
+    if (!this.#pipeline) throw new Error("bind() before pipeline(): the names come from the pipeline");
+    const encoder = this.native;
+    applyBindings(values, this.#pipeline.bindings, this.#pipeline.label, {
+      buffer: (_s, index, buffer, offset) => encoder.setBuffer_offset_atIndex_(buffer, offset, index),
+      bytes: (_s, index, data) => encoder.setBytes_length_atIndex_(ptr(data as never), data.byteLength, index),
+      texture: (_s, index, texture) => encoder.setTexture_atIndex_(texture, index),
+      sampler: (_s, index, sampler) => encoder.setSamplerState_atIndex_(sampler, index),
+    });
+    return this;
+  }
+
+  buffer(index: number, b: Bindable, offset = 0): this {
+    this.native.setBuffer_offset_atIndex_(nativeBuffer(b), offset, index);
+    return this;
+  }
+
+  bytes(index: number, data: ArrayBufferView): this {
+    this.native.setBytes_length_atIndex_(ptr(data as never), data.byteLength, index);
+    return this;
+  }
+
+  texture(index: number, t: Texture | MTLObject): this {
+    this.native.setTexture_atIndex_(nativeOf(t), index);
+    return this;
+  }
+
+  /**
+   * Dispatch `items` threads, one per element.
+   *
+   * The threadgroup size defaults to the pipeline's own maximum, so the kernel
+   * decides rather than the caller guessing. Kernels must bounds-check their
+   * thread id, since the last group is usually partly out of range.
+   */
+  dispatch(items: number, options: { threadgroup?: number } = {}): this {
+    if (!this.#pipeline) throw new Error("dispatch() before pipeline()");
+    const width = Math.min(
+      options.threadgroup ?? this.#pipeline.maxThreads,
+      this.#pipeline.maxThreads,
+    );
+    const groups = Math.max(1, Math.ceil(items / width));
+    this.native.dispatchThreadgroups_threadsPerThreadgroup_(size3(groups), size3(width));
+    return this;
+  }
+
+  /** Dispatch an explicit 3D grid of threadgroups. */
+  dispatchGroups(x: number, y = 1, z = 1, threadgroup: [number, number, number] = [8, 8, 1]): this {
+    this.native.dispatchThreadgroups_threadsPerThreadgroup_(
+      size3(x, y, z), size3(threadgroup[0], threadgroup[1], threadgroup[2]),
+    );
+    return this;
+  }
+
+  end(): void {
+    this.native.endEncoding();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Frame
+// ---------------------------------------------------------------------------
+
+/**
+ * One command buffer's worth of work.
+ *
+ * A frame is created for you by the view's onFrame callback, or by
+ * `gpu.submit()` for work with no view attached.
+ */
+export class Frame {
+  readonly commands: MTLObject;
+  /** Seconds since the view started. */
+  readonly time: number;
+  /** Seconds since the previous frame. */
+  readonly dt: number;
+  readonly index: number;
+  /** Drawable size in pixels. */
+  readonly width: number;
+  readonly height: number;
+  #passes = 0;
+
+  constructor(
+    commands: MTLObject,
+    info: { time: number; dt: number; index: number; width: number; height: number },
+  ) {
+    this.commands = commands;
+    this.time = info.time;
+    this.dt = info.dt;
+    this.index = info.index;
+    this.width = info.width;
+    this.height = info.height;
+  }
+
+  /** Open a render pass. Ends automatically if you pass a body. */
+  render(o: RenderPassOptions): RenderPass;
+  render(o: RenderPassOptions, body: (pass: RenderPass) => void): void;
+  render(o: RenderPassOptions, body?: (pass: RenderPass) => void): RenderPass | void {
+    this.#passes++;
+    const pass = new RenderPass(this.commands, o);
+    if (!body) return pass;
+    try {
+      body(pass);
+    } finally {
+      pass.end();
+    }
+  }
+
+  /** Open a compute pass. Ends automatically if you pass a body. */
+  compute(body: (pass: ComputePass) => void, label?: string): void;
+  compute(): ComputePass;
+  compute(body?: (pass: ComputePass) => void, label?: string): ComputePass | void {
+    this.#passes++;
+    const pass = new ComputePass(this.commands, label);
+    if (!body) return pass;
+    try {
+      body(pass);
+    } finally {
+      pass.end();
+    }
+  }
+
+  /**
+   * Run a full-screen effect into `to`.
+   *
+   * One line for what is otherwise a pass, a pipeline, a set of bindings and a
+   * draw. Sampler bindings the effect declares but the caller did not supply
+   * get a linear clamped sampler, which is what a post-process wants.
+   */
+  effect(effect: Effect, o: EffectPassOptions = {}): void {
+    const to = o.to ?? (this as unknown as { colorTexture?: MTLObject }).colorTexture;
+    if (!to) throw new Error("effect() needs somewhere to render: pass { to }");
+
+    const bind: Record<string, BindValue> = { ...o.bind };
+    for (const binding of effect.bindings.all) {
+      if (binding.kind === "sampler" && bind[binding.name] === undefined) {
+        bind[binding.name] = gpu().linearSampler;
+      }
+    }
+
+    this.render(
+      {
+        color: { texture: to, clear: o.clear ?? [0, 0, 0, 1] },
+        label: o.label ?? effect.label,
+      },
+      (pass) => {
+        pass.pipeline(effect.pipeline).bind(bind).draw(3);
+      },
+    );
+  }
+
+  /** Copy one texture into another, for post-processing chains. */
+  blit(body: (encoder: MTLObject) => void): void {
+    const encoder = this.commands.blitCommandEncoder();
+    try {
+      body(encoder);
+    } finally {
+      encoder.endEncoding();
+    }
+  }
+
+  get passCount(): number {
+    return this.#passes;
+  }
+}

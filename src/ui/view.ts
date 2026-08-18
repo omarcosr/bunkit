@@ -5,7 +5,7 @@
 // them like a virtual DOM is a category error. You mutate properties; the view
 // updates.
 
-import { objc, createDelegate, ObjCObject } from "../objc.ts";
+import { objc, createDelegate, nativeOf, ObjCObject } from "../objc.ts";
 import { LayoutAttribute, LayoutPriority, LayoutRelation, Orientation } from "./appkit.ts";
 import type { CGRect, CGSize } from "../structs.ts";
 
@@ -35,17 +35,7 @@ export const ACTION_SELECTOR = "brAction:";
  */
 export const SIZE_PRIORITY = LayoutPriority.Required - 1;
 
-/**
- * Get the underlying NSView/NSWindow from either a Layer 3 wrapper or a Layer 2
- * object. Note the instanceof check: an ObjCObject is a Proxy that answers
- * *every* property with a selector dispatcher, so `x.native ?? x` would happily
- * return a function instead of falling through.
- */
-export function nativeOf(v: any): any {
-  if (v === null || v === undefined) return null;
-  if (v instanceof ObjCObject) return v;
-  return v.native ?? v;
-}
+export { nativeOf } from "../objc.ts";
 
 export interface ViewOptions {
   /** Fixed width in points. */
