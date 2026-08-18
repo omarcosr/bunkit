@@ -3,6 +3,14 @@
 // Useful for docs and screenshots, and indispensable for testing: it asks the
 // view to draw itself, so unlike screencapture it needs no screen-recording
 // permission and works headlessly.
+//
+// It cannot see Metal. cacheDisplayInRect: replays AppKit's own drawing, and a
+// CAMetalLayer's drawable is not part of that — a snapshot of a window
+// containing a GPUView comes back with the clear colour where the scene should
+// be, and every AppKit control on top of it drawn correctly. That is a
+// convincing-looking wrong answer, so snapshotView says so rather than letting
+// it through. Use `view.capture()` or `scene.snapshot()` for the rendered
+// frame; they run the same handlers the on-screen view does.
 
 import { objc, str } from "../objc.ts";
 import { nativeOf, type View } from "./view.ts";
@@ -10,12 +18,24 @@ import type { Window } from "./window.ts";
 
 import { BitmapImageFileType } from "./appkit.ts";
 
-/** Render an NSView (or a Layer 3 View) to a PNG file. Returns the byte count. */
+/**
+ * Render an NSView (or a Layer 3 View) to a PNG file. Returns the byte count.
+ *
+ * Throws if the tree contains a Metal view, which this cannot capture.
+ */
 export function snapshotView(view: View | any, path: string): number {
   const native = nativeOf(view);
   const bounds = native.bounds();
   if (bounds.width < 1 || bounds.height < 1) {
     throw new Error(`cannot snapshot a zero-sized view (${JSON.stringify(bounds)})`);
+  }
+  const metal = findMetalLayer(native);
+  if (metal) {
+    throw new Error(
+      "this view tree contains a Metal layer, which cacheDisplayInRect: cannot capture — " +
+        "the snapshot would show the clear colour where the scene is. " +
+        "Use view.capture() or scene.snapshot(path) for the rendered frame.",
+    );
   }
   const rep = native.bitmapImageRepForCachingDisplayInRect_(bounds);
   if (!rep) throw new Error("bitmapImageRepForCachingDisplayInRect: returned nil");
@@ -34,6 +54,19 @@ export function snapshotView(view: View | any, path: string): number {
 export function snapshotWindow(window: Window | any, path: string): number {
   const native = nativeOf(window);
   return snapshotView(native.contentView(), path);
+}
+
+/** The first CAMetalLayer in a view tree, if there is one. */
+function findMetalLayer(native: any): any {
+  const layer = native.layer?.();
+  if (layer && layer.ptr !== 0n && layer.isKindOf?.("CAMetalLayer")) return layer;
+  const subs = native.subviews?.();
+  const n = subs ? Number(subs.count()) : 0;
+  for (let i = 0; i < n; i++) {
+    const found = findMetalLayer(subs.objectAtIndex_(i));
+    if (found) return found;
+  }
+  return null;
 }
 
 /**

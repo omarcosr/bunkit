@@ -13,7 +13,8 @@ import {
   Material, Scene3D, box, emissive, sphere,
   aces, fbm3, kelvin,
 } from "../src/metal/index.ts";
-import { initApp } from "../src/runtime.ts";
+import { initApp, pumpOnce } from "../src/runtime.ts";
+import { Label, VStack, Window, snapshotWindow } from "../src/ui/index.ts";
 import { objc } from "../src/objc.ts";
 import { ptr } from "../src/bridge.ts";
 import { BitmapImageFileType } from "../src/ui/appkit.ts";
@@ -841,6 +842,51 @@ fragment float4 fs(V in [[stage_in]]) {
       scene.dispose();
     }
   }
+}
+
+// ---------------------------------------------------------------------------
+// AppKit over Metal
+// ---------------------------------------------------------------------------
+
+{
+  // A HUD is an ordinary control added to the scene. It composites over the
+  // Metal layer, which is the whole reason Scene3D is a View rather than a
+  // window of its own.
+  const scene = new Scene3D({
+    grow: 1, animate: false, background: "#101018",
+    camera: { position: [0, 1.5, 4], target: [0, 0, 0] },
+  });
+  scene.add(box({ size: 1.4, color: "#ff2020" }));
+  const hud = new Label({ text: "24 fixtures", font: { monospace: true, size: 13 } });
+  scene.add(hud);
+
+  const win = new Window({
+    title: "overlay", size: { width: 400, height: 300 },
+    content: new VStack({ padding: 0 }, [scene]), show: true,
+  });
+  for (let i = 0; i < 25; i++) pumpOnce(0.004);
+
+  check("a control added to a scene becomes its subview",
+    Number(scene.native.subviews().count()) === 1, Number(scene.native.subviews().count()));
+  check("and the scene still renders", (() => {
+    const c = scene.capture(64, 64);
+    return c.pixels[(32 * 64 + 32) * 4]! > 100;
+  })());
+
+  // cacheDisplayInRect: replays AppKit's drawing and cannot see a Metal
+  // drawable, so it would return a convincing image with the scene missing.
+  let refused = "";
+  try {
+    snapshotWindow(win, `${process.env.TMPDIR ?? "/tmp"}/bunkit-should-not-exist.png`);
+  } catch (e) {
+    refused = String(e);
+  }
+  check("snapshotWindow refuses a tree containing Metal", refused.includes("Metal layer"),
+    refused.slice(0, 80) || "it did not throw");
+  check("and says what to use instead", refused.includes("capture()"));
+
+  win.close();
+  scene.dispose();
 }
 
 console.log(failures === 0 ? "\nALL GPU TESTS PASSED" : `\n${failures} GPU FAILURE(S)`);
