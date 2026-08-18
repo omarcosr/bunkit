@@ -161,15 +161,15 @@ compute is the same shape. `gpu().kernel(source)` finds the entry point, `kernel
 
 ![a stage lighting rig](docs/lighting-rig.png)
 
-twenty-four moving heads, each with a yoke, a head, a volumetric beam and a pool on the floor, re-aimed from javascript every frame. hdr into a bloom chain and an aces tone map, msaa, 220 nodes, **9 draw calls**, and 0.3ms of javascript per frame.
+twenty-four moving heads, each with a yoke, a head, a volumetric beam and a pool on the floor, re-aimed from javascript every frame. hdr into a bloom chain and an aces tone map, msaa, 220 nodes, **9 draw calls**, and 0.6ms of javascript per frame at 2160×1424 — the aiming maths for twenty-four moving heads included.
 
 the draw call count doesn't follow the object count, and that's the whole trick. measured on an m2 pro, a draw call with its bindings costs about 1.2µs from js. transforming a node and writing its instance struct costs 0.12µs. so:
 
 | nodes | draw calls | js per frame |
 | --- | --- | --- |
-| 220 | 9 | 0.30 ms |
-| 20,000 | 1 | 2.3 ms |
-| 100,000 | 1 | 8.2 ms |
+| 220 (the rig) | 9 | 0.61 ms |
+| 20,000 cubes | 1 | 2.3 ms |
+| 100,000 cubes | 1 | 8.2 ms |
 
 twenty thousand animated objects fit in a frame with room to spare. the same objects drawn one at a time would be 25ms of encoding before any of them moved. adding another hundred fixtures to the rig adds no draw calls at all.
 

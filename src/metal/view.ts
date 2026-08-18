@@ -262,6 +262,10 @@ export class GPUView extends View {
    */
   draw(time = 0, dt = 0): void {
     if (this.#disposed || this.#handlers.length === 0) return;
+    // Retire finished buffers here too, not only from the tick: draw() is a
+    // public entry point, and a caller driving frames by hand would otherwise
+    // see gpuMs stuck at zero and the in-flight list grow without bound.
+    this.#reap();
     const cpuStart = performance.now();
     let waited = 0;
 

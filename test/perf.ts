@@ -215,6 +215,10 @@ fragment float4 fs() { return 1; }`,
   // The point of the stat split: this must not be counting the vsync wait.
   check("cpuMs excludes the wait for a drawable", scene.stats.cpuMs < 16,
     `cpu ${scene.stats.cpuMs.toFixed(2)}ms, wait ${scene.stats.waitMs.toFixed(2)}ms`);
+  // Command buffers are retired from draw() as well as from the tick, so a
+  // caller driving frames by hand still gets timings and does not leak them.
+  check("gpuMs is populated even when frames are driven by hand",
+    scene.stats.gpuMs > 0, scene.stats.gpuMs);
 
   scene.dispose();
   win.close();
