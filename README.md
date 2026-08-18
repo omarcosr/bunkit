@@ -161,9 +161,17 @@ compute is the same shape. `gpu().kernel(source)` finds the entry point, `kernel
 
 ![a stage lighting rig](docs/lighting-rig.png)
 
-twenty-four moving heads, each with a yoke, a head, a volumetric beam and a pool on the floor, re-aimed from javascript every frame. hdr into a bloom chain and an aces tone map, msaa, 220 nodes, **9 draw calls**, and 0.027ms to build and encode a frame.
+twenty-four moving heads, each with a yoke, a head, a volumetric beam and a pool on the floor, re-aimed from javascript every frame. hdr into a bloom chain and an aces tone map, msaa, 220 nodes, **9 draw calls**, and 0.3ms of javascript per frame.
 
-it stays cheap because nothing scales with the object count. a draw call costs about 1.2µs from js, and writing twenty thousand instance structs into a shared buffer costs 0.05ms in total — so per-object draws are roughly 25,000× the cost of per-instance writes, and everything here is a per-instance write. adding another hundred fixtures adds no draw calls.
+the draw call count doesn't follow the object count, and that's the whole trick. measured on an m2 pro, a draw call with its bindings costs about 1.2µs from js. transforming a node and writing its instance struct costs 0.08µs. so:
+
+| nodes | draw calls | js per frame |
+| --- | --- | --- |
+| 220 | 9 | 0.30 ms |
+| 20,000 | 1 | 2.3 ms |
+| 100,000 | 1 | 8.2 ms |
+
+twenty thousand animated objects fit in a frame with room to spare. the same objects drawn one at a time would be 25ms of encoding before any of them moved. adding another hundred fixtures to the rig adds no draw calls at all.
 
 frames are paced to the display rather than run free. presenting faster than the refresh changes nothing you can see, `nextDrawable` blocks on vsync anyway, and decoupling just presents staler state — which for anything synced to music is worse than a lower frame rate. the view keeps at most two command buffers outstanding and skips a tick when the gpu hasn't caught up, so the run loop never blocks.
 

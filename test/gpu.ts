@@ -445,6 +445,66 @@ fragment float4 fs(F in [[stage_in]], float2 uv [[point_coord]]) {
 }
 
 // ---------------------------------------------------------------------------
+// Reading depth in a later pass
+// ---------------------------------------------------------------------------
+
+{
+  // Depth-aware fog, soft particles and depth of field all need the depth
+  // buffer after the pass that wrote it. That takes two things: the texture
+  // created with shaderRead, and the pass storing rather than discarding it.
+  const W = 64;
+  const target = g.target({ width: W, height: W, format: "rgba8unorm", depth: true });
+  const out = g.texture({
+    width: W, height: W, format: "rgba8unorm",
+    usage: ["renderTarget", "shaderRead"], storage: "shared",
+  });
+
+  const quad = g.renderPipeline({
+    shader: `#include <metal_stdlib>
+using namespace metal;
+struct V { float4 position [[position]]; };
+vertex V vs(uint vid [[vertex_id]], constant float2 &shape [[buffer(0)]]) {
+  float2 c[6] = { float2(-1,-1), float2(1,-1), float2(-1,1),
+                  float2(1,-1), float2(1,1), float2(-1,1) };
+  V o;
+  o.position = float4(c[vid] * shape.x, shape.y, 1.0);
+  return o;
+}
+fragment float4 fs() { return float4(0.2, 0.2, 0.2, 1.0); }`,
+    format: "rgba8unorm", depthFormat: "depth32float", cull: "none", label: "depth quad",
+  });
+
+  const showDepth = g.effect({
+    fragment: `
+fragment float4 show(Varying vary [[stage_in]],
+                     depth2d<float> sceneDepth [[texture(0)]],
+                     sampler smp [[sampler(0)]]) {
+  return float4(float3(sceneDepth.sample(smp, vary.uv)), 1.0);
+}`,
+    format: "rgba8unorm", label: "show depth",
+  });
+  check("a depth texture binds like any other", showDepth.bindings.get("sceneDepth")?.kind === "texture");
+
+  const render = (storeDepth: boolean) => {
+    g.submit((commands) => {
+      const frame = new Frame(commands, { time: 0, dt: 0, index: 0, width: W, height: W });
+      frame.render({ target, clear: [0, 0, 0, 1], storeDepth }, (pass) => {
+        // Half-width quad at 0.25 through the depth range.
+        pass.pipeline(quad).bind({ shape: [0.5, 0.25] }).draw(6);
+      });
+      frame.effect(showDepth, { to: out, bind: { sceneDepth: target.depth! } });
+    });
+    return out.read();
+  };
+
+  const stored = render(true);
+  const at = (px: Uint8Array, x: number, y: number) => px[(y * W + x) * 4]!;
+  check("the geometry's depth reads back", Math.abs(at(stored, 32, 32) - 64) < 6, at(stored, 32, 32));
+  check("and the background is the far plane", at(stored, 2, 2) === 255, at(stored, 2, 2));
+  check("which is nearer than the background", at(stored, 32, 32) < at(stored, 2, 2));
+}
+
+// ---------------------------------------------------------------------------
 // Bloom
 // ---------------------------------------------------------------------------
 
@@ -608,6 +668,39 @@ fragment float4 fs(V in [[stage_in]]) {
   scene.nodes.forEach((n) => { n.visible = true; });
   check("and showing them again draws all of them", lit(scene.capture(128, 128)) === all);
   scene.dispose();
+}
+
+{
+  // Scene3D skips the inverse-transpose when the scale is uniform and copies
+  // the model matrix's rotation instead. That is only valid because the shader
+  // normalises, so a shading difference here means the shortcut is wrong.
+  const shade = (scale: number | readonly [number, number, number]) => {
+    const scene = new Scene3D({
+      animate: false, background: "#000000",
+      camera: { position: [2.4, 2.0, 2.8], target: [0, 0, 0], fov: 50 },
+      light: { direction: [0.4, 0.9, 0.5], intensity: 1, ambientIntensity: 0.2 },
+    });
+    scene.add(sphere({ radius: 0.5, segments: 24, rings: 16, color: "#ffffff", scale }));
+    const c = scene.capture(64, 64);
+    const row: number[] = [];
+    for (let x = 8; x < 56; x += 2) row.push(c.pixels[(32 * 64 + x) * 4]!);
+    scene.dispose();
+    return row;
+  };
+
+  const plain = shade(1);
+  const scaled = shade(2);
+  // Same object, twice the size: the shading gradient across it must match.
+  const brightest = (r: number[]) => Math.max(...r);
+  check("a uniformly scaled object is lit the same as an unscaled one",
+    Math.abs(brightest(plain) - brightest(scaled)) < 12,
+    `${brightest(plain)} vs ${brightest(scaled)}`);
+  check("and it is actually lit, not flat", brightest(plain) > 120 && Math.min(...plain) < 90,
+    `${Math.min(...plain)}..${brightest(plain)}`);
+
+  // Non-uniform scale still takes the inverse-transpose path.
+  const squashed = shade([1, 0.3, 1]);
+  check("a squashed object still shades", brightest(squashed) > 100, brightest(squashed));
 }
 
 {

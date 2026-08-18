@@ -11,10 +11,10 @@
 // anything synced to music or input is worse than a lower frame rate.
 //
 // So: pace to the display, and make the per-frame JavaScript cheap enough that
-// it is never the limit. Measured on an M2 Pro, a draw call costs 1.2 us from
-// JS while writing 20,000 instance structs into a shared buffer costs 0.05 ms
-// in total. A scene built out of instanced draws spends microseconds in JS per
-// frame, so there is nothing to decouple from.
+// it is never the limit. Measured on an M2 Pro, a draw call costs about 1.2 us
+// from JS, where transforming a node and writing its instance struct costs
+// 0.08 us. Twenty thousand animated objects come to 2.3 ms of JavaScript in one
+// draw call; the same objects drawn one at a time would not fit in a frame.
 //
 // Frames are gated on GPU completion rather than a timer: the view keeps at
 // most `maxInFlight` command buffers outstanding and skips a tick when the GPU
@@ -55,8 +55,16 @@ export interface GPUViewOptions extends ViewOptions {
 export interface GPUViewStats {
   /** Frames presented in the last second. */
   fps: number;
-  /** Milliseconds of JavaScript per frame, encoding included. */
+  /**
+   * Milliseconds of JavaScript per frame: your handlers plus the encoding.
+   *
+   * Excludes the wait for a drawable, which is reported separately. Rolling
+   * them together makes every frame look like it costs a vsync interval and
+   * hides whether the CPU is actually the limit.
+   */
   cpuMs: number;
+  /** Milliseconds blocked in nextDrawable, which is the display pacing you. */
+  waitMs: number;
   /** Milliseconds the GPU spent, from its own timestamps. */
   gpuMs: number;
   /** Ticks skipped because the GPU had not caught up. */
@@ -87,6 +95,7 @@ export class GPUView extends View {
   #frame = 0;
   #skipped = 0;
   #cpuMs = 0;
+  #waitMs = 0;
   #gpuMs = 0;
   #fps = 0;
   #fpsFrames = 0;
@@ -165,6 +174,7 @@ export class GPUView extends View {
     return {
       fps: this.#fps,
       cpuMs: this.#cpuMs,
+      waitMs: this.#waitMs,
       gpuMs: this.#gpuMs,
       skipped: this.#skipped,
       frame: this.#frame,
@@ -218,8 +228,12 @@ export class GPUView extends View {
       this.layer.setDrawableSize_({ width, height });
       this.#size = { width, height };
       if (this.#depthFormat) {
+        // shaderRead as well as renderTarget, so a later pass in the same frame
+        // can sample it — depth-aware fog, soft particles, depth of field. It
+        // costs nothing when nothing reads it, and a texture created without it
+        // cannot be given the usage later.
         this.depthTexture = this.gpu.texture({
-          width, height, format: this.#depthFormat, usage: ["renderTarget"],
+          width, height, format: this.#depthFormat, usage: ["renderTarget", "shaderRead"],
           sampleCount: this.sampleCount, label: "depth",
         });
       }
@@ -249,12 +263,17 @@ export class GPUView extends View {
   draw(time = 0, dt = 0): void {
     if (this.#disposed || this.#handlers.length === 0) return;
     const cpuStart = performance.now();
+    let waited = 0;
 
     withPool(() => {
       const { width, height } = this.#syncSize();
       if (width < 2 || height < 2) return;
 
+      // nextDrawable blocks when every drawable is still on screen or in
+      // flight. That is the display pacing us, not work, so it is timed apart.
+      const waitStart = performance.now();
       const drawable = this.layer.nextDrawable();
+      waited = performance.now() - waitStart;
       if (!drawable || drawable.ptr === NIL) return;
 
       const commands = this.gpu.queue.commandBuffer();
@@ -283,7 +302,8 @@ export class GPUView extends View {
       this.#frame++;
     });
 
-    this.#cpuMs = performance.now() - cpuStart;
+    this.#waitMs = waited;
+    this.#cpuMs = performance.now() - cpuStart - waited;
     this.#fpsFrames++;
     if (time - this.#fpsMark >= 1) {
       this.#fps = Math.round(this.#fpsFrames / Math.max(1e-6, time - this.#fpsMark));

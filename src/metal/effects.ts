@@ -185,6 +185,7 @@ export interface RenderTargetOptions {
  */
 export class RenderTarget {
   color: Texture;
+  /** Sampleable as well as attachable, for depth-aware passes. */
   depth: Texture | null;
   /** Single-sample copy of `color`, present only when sampleCount > 1. */
   resolve: Texture | null;
@@ -240,7 +241,7 @@ export class RenderTarget {
     this.depth = this.#depthFormat
       ? this.#gpu.texture({
           width: w, height: h, format: this.#depthFormat,
-          usage: ["renderTarget"], sampleCount: this.#sampleCount,
+          usage: ["renderTarget", "shaderRead"], sampleCount: this.#sampleCount,
           label: `${this.#label} depth`,
         })
       : null;

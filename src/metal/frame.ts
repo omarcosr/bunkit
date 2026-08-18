@@ -2,10 +2,11 @@
 //
 // The shape is WebGPU's — set a pipeline, bind buffers by index, draw — because
 // that is what a port arrives already written against. Every call is one or two
-// Objective-C messages; a draw costs about 1.2 microseconds from JavaScript,
-// measured, which is the number that decides how a scene should be structured.
-// Thousands of individual draws will not fit in a frame. One instanced draw of
-// thousands of objects will, comfortably.
+// Objective-C messages; a draw with its bindings costs about 1.2 microseconds
+// from JavaScript, measured, which is the number that decides how a scene
+// should be structured. Twenty thousand individual draws is 25 ms and will not
+// fit in a frame. One instanced draw of twenty thousand objects is 1.2 us, and
+// filling their instance buffer is another 2 ms.
 
 import { isObjC, nativeOf, objc } from "../objc.ts";
 import { NIL, ptr } from "../bridge.ts";
@@ -59,6 +60,13 @@ export interface RenderPassOptions {
   color?: ColorAttachment | ColorAttachment[];
   depth?: TextureLike | null;
   clearDepth?: number;
+  /**
+   * Keep the depth buffer after the pass, so a later one can sample it.
+   *
+   * Off by default: nothing usually reads depth once the pass is over, and
+   * discarding it saves writing it back to memory.
+   */
+  storeDepth?: boolean;
   /** Clear colour, when `target` is used instead of an explicit attachment. */
   clear?: readonly number[] | false;
   label?: string;
@@ -102,8 +110,7 @@ export class RenderPass {
       const d = descriptor.depthAttachment();
       d.setTexture_(attachment(depth));
       d.setLoadAction_(MTL.LoadAction.clear);
-      // Nothing reads depth after the pass, so discarding it saves the writeback.
-      d.setStoreAction_(MTL.StoreAction.dontCare);
+      d.setStoreAction_(o.storeDepth ? MTL.StoreAction.store : MTL.StoreAction.dontCare);
       d.setClearDepth_(o.clearDepth ?? 1);
     }
 
@@ -235,6 +242,8 @@ export class RenderPass {
    *
    * `instances` is the lever that matters: one call here drawing 5,000
    * instances costs the same 1.2 microseconds as one drawing a single triangle.
+   * What the instances cost is filling their buffer, which is per-object work
+   * an order of magnitude cheaper than per-object encoding.
    */
   drawIndexed(
     indexBuffer: Bindable,
