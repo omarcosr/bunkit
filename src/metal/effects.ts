@@ -15,10 +15,9 @@
 // fragment function instead and declare whatever bindings you like — the effect
 // is an ordinary pipeline and `bind()` finds them by name.
 
-import type { MTLObject, PixelFormatName, RenderPipeline, Texture } from "./gpu.ts";
+import type { MTLObject, PixelFormatName, RenderPipeline, Snippet, Texture } from "./gpu.ts";
 import type { BlendMode, GPU } from "./gpu.ts";
-import type { BindValue } from "./frame.ts";
-import type { BindingTable } from "./reflect.ts";
+import type { BindingTable, BindValue } from "./reflect.ts";
 
 /**
  * The vertex half of every effect.
@@ -53,6 +52,13 @@ export interface EffectOptions {
    * must return a float4.
    */
   fragment: string;
+  /**
+   * Snippets the body calls. Emitted above the function, deduplicated.
+   *
+   * They belong here rather than interpolated into the body, because a bare
+   * body is wrapped in a function and MSL has no nested function definitions.
+   */
+  use?: readonly Snippet[];
   /** Declarations to put above the fragment function: helpers, structs, constants. */
   header?: string;
   format?: PixelFormatName;
@@ -89,7 +95,8 @@ export class Effect {
 }
 
 function buildSource(o: EffectOptions): string {
-  const header = o.header ? `${o.header}\n` : "";
+  const header = `${declarationsOf(o.use)}${o.header ? `${o.header}\n` : ""}`;
+  if (!/\bfragment\b/.test(o.fragment)) checkBody(o.fragment);
   // A source that declares its own fragment function is used as written; a bare
   // body gets the usual parameters wrapped around it.
   const body = /\bfragment\b/.test(o.fragment)
@@ -103,6 +110,31 @@ function buildSource(o: EffectOptions): string {
 ${o.fragment.split("\n").map((l) => (l.trim() ? `  ${l}` : l)).join("\n")}
 }`;
   return `${FULLSCREEN_PRELUDE}\n${header}\n${body}\n`;
+}
+
+/** Snippet declarations, in dependency order, with no repeats. */
+export function declarationsOf(use: readonly Snippet[] | undefined): string {
+  if (!use?.length) return "";
+  const out: string[] = [];
+  for (const s of use) {
+    for (const d of s.declarations()) if (!out.includes(d)) out.push(d);
+  }
+  return `${out.join("\n\n")}\n`;
+}
+
+/**
+ * A bare body is wrapped in a fragment function, and MSL has no nested
+ * function definitions — so catch the mistake here, where it can say what to
+ * do, rather than in the compiler where it says "not allowed here".
+ */
+function checkBody(body: string): void {
+  const declaration = /^[ \t]*(?:struct|constant|(?:float|half|int|uint|bool|void)[0-9x]*)\s+\w+\s*[({]/m;
+  if (!declaration.test(body)) return;
+  throw new Error(
+    "this effect body declares a function or struct, which cannot live inside one.\n" +
+      "Put snippets in `use: [...]` and other declarations in `header`, or write the " +
+      "whole `fragment` function yourself.",
+  );
 }
 
 export interface EffectPassOptions {
@@ -138,9 +170,12 @@ export interface RenderTargetOptions {
 export class RenderTarget {
   color: Texture;
   depth: Texture | null;
+  /** Single-sample copy of `color`, present only when sampleCount > 1. */
+  resolve: Texture | null;
   width: number;
   height: number;
   readonly format: PixelFormatName;
+  readonly sampleCount: number;
 
   #gpu: GPU;
   #depthFormat: PixelFormatName | null;
@@ -153,12 +188,24 @@ export class RenderTarget {
     this.#depthFormat =
       o.depth === true ? "depth32float" : typeof o.depth === "string" ? o.depth : null;
     this.#sampleCount = o.sampleCount ?? 1;
+    this.sampleCount = this.#sampleCount;
     this.#label = o.label ?? "target";
     this.width = 0;
     this.height = 0;
     this.color = null as unknown as Texture;
     this.depth = null;
+    this.resolve = null;
     this.resize(o.width, o.height);
+  }
+
+  /**
+   * The texture to sample from afterwards.
+   *
+   * A multisampled texture cannot be read by a shader, so when MSAA is on this
+   * is the resolve target and `color` is only ever an attachment.
+   */
+  get readable(): Texture {
+    return this.resolve ?? this.color;
   }
 
   /** Reallocate if the size changed. Cheap to call every frame. */
@@ -179,6 +226,12 @@ export class RenderTarget {
           width: w, height: h, format: this.#depthFormat,
           usage: ["renderTarget"], sampleCount: this.#sampleCount,
           label: `${this.#label} depth`,
+        })
+      : null;
+    this.resolve = this.#sampleCount > 1
+      ? this.#gpu.texture({
+          width: w, height: h, format: this.format,
+          usage: ["renderTarget", "shaderRead"], label: `${this.#label} resolve`,
         })
       : null;
     return this;

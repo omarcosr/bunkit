@@ -17,8 +17,9 @@
 // TypeScript types; use this when the shader already exists and you just want
 // it to work.
 
-import { NIL } from "../bridge.ts";
-import type { MTLObject } from "./gpu.ts";
+import { NIL, ptr as bytePointer } from "../bridge.ts";
+import { isObjC, nativeOf } from "../objc.ts";
+import type { GPUArrayBuffer, GPUBuffer, MTLObject, Sampler, Texture } from "./gpu.ts";
 import {
   f32, i32, u32,
   mat2x2f, mat3x3f, mat4x4f,
@@ -199,4 +200,128 @@ function stageArguments(reflection: MTLObject, stage: string): MTLObject {
     }
   }
   return null;
+}
+
+// ---------------------------------------------------------------------------
+// Binding by name
+// ---------------------------------------------------------------------------
+
+/** How one encoder sets each kind of binding. See applyBindings. */
+export interface BindingSetters {
+  buffer(stage: Stage, index: number, buffer: MTLObject, offset: number): void;
+  bytes(stage: Stage, index: number, data: ArrayBufferView): void;
+  texture(stage: Stage, index: number, texture: MTLObject): void;
+  sampler(stage: Stage, index: number, sampler: MTLObject): void;
+}
+
+/**
+ * What a named binding will accept.
+ *
+ * A buffer or texture object binds directly. A typed array is copied inline. A
+ * plain object is packed into the struct the shader declared, using the layout
+ * the compiler reported — so `{ time: 0.5, tint: [1, 0, 0, 1] }` is a complete
+ * uniform upload with nothing declared on this side.
+ */
+export type BindValue =
+  | GPUBuffer<any>
+  | GPUArrayBuffer<any>
+  | Texture
+  | Sampler
+  | MTLObject
+  | ArrayBufferView
+  | Record<string, unknown>
+  | readonly unknown[]
+  | number;
+
+/** Metal copies setBytes: data immediately, but only up to 4 KB of it. */
+const INLINE_LIMIT = 4096;
+
+const isWrapper = (v: any) => v != null && typeof v === "object" && !isObjC(v) && "native" in v;
+
+/**
+ * Set every binding in `values` on whichever stages declare it.
+ *
+ * This is the whole reason pipelines carry their reflection: the shader's own
+ * parameter names are the API, so renumbering `[[buffer(2)]]` to `[[buffer(5)]]`
+ * cannot quietly break the caller, and a typo is an error naming what does
+ * exist rather than a black frame.
+ */
+export function applyBindings(
+  values: Record<string, BindValue>,
+  table: BindingTable | undefined,
+  label: string,
+  set: BindingSetters,
+): void {
+  for (const [name, value] of Object.entries(values)) {
+    if (value === undefined) continue;
+    const binding = table?.get(name);
+    if (!binding) {
+      throw new Error(
+        `${label}: the shader has no binding called "${name}".\n` +
+          `Bindings it does have:\n${table?.describe() ?? "  (none)"}`,
+      );
+    }
+    const stages = Object.entries(binding.slots) as Array<[Stage, number]>;
+
+    if (binding.kind === "texture" || binding.kind === "sampler") {
+      const native = nativeOf(value as MTLObject);
+      for (const [stage, index] of stages) {
+        if (binding.kind === "texture") set.texture(stage, index, native);
+        else set.sampler(stage, index, native);
+      }
+      continue;
+    }
+
+    // Buffers. A real buffer binds by reference; everything else is packed and
+    // copied inline, which for uniform-sized data is the faster path anyway.
+    if (isObjC(value) || isWrapper(value)) {
+      const native = nativeOf(value as MTLObject);
+      for (const [stage, index] of stages) set.buffer(stage, index, native, 0);
+      continue;
+    }
+
+    const data = ArrayBuffer.isView(value)
+      ? (value as ArrayBufferView)
+      : pack(value, binding, name, label);
+    if (data.byteLength > INLINE_LIMIT) {
+      throw new Error(
+        `${label}: "${name}" is ${data.byteLength} bytes, past the ${INLINE_LIMIT}-byte inline limit. ` +
+          `Put it in a buffer — gpu().array(Schema, count) — and bind that instead.`,
+      );
+    }
+    for (const [stage, index] of stages) set.bytes(stage, index, data);
+  }
+}
+
+/** Pack a plain value into the layout the compiler reported for this binding. */
+function pack(value: BindValue, binding: Binding, name: string, label: string): ArrayBufferView {
+  const layout = binding.layout;
+  if (!layout) {
+    throw new Error(
+      `${label}: "${name}" needs a buffer, not a plain value — the shader takes a pointer ` +
+        `there, so there is no struct layout to pack into. Use gpu().array(Schema, count).`,
+    );
+  }
+  // An array of objects against a struct binding is N elements; an array of
+  // numbers against a `float2&` is one value. The layout says which.
+  if (Array.isArray(value) && binding.struct) {
+    const stride = Math.ceil(layout.size / layout.alignment) * layout.alignment;
+    const bytes = new Uint8Array(stride * Math.max(1, value.length));
+    const view = new DataView(bytes.buffer);
+    value.forEach((item, i) => layout.write(view, i * stride, item as never));
+    return bytes;
+  }
+  const bytes = new Uint8Array(Math.max(binding.size, layout.size));
+  layout.write(new DataView(bytes.buffer), 0, value as never);
+  return bytes;
+}
+
+/** The setter bundle for a compute encoder, which has only one stage. */
+export function computeSetters(encoder: MTLObject): BindingSetters {
+  return {
+    buffer: (_s, index, buffer, offset) => encoder.setBuffer_offset_atIndex_(buffer, offset, index),
+    bytes: (_s, index, data) => encoder.setBytes_length_atIndex_(bytePointer(data as never), data.byteLength, index),
+    texture: (_s, index, texture) => encoder.setTexture_atIndex_(texture, index),
+    sampler: (_s, index, sampler) => encoder.setSamplerState_atIndex_(sampler, index),
+  };
 }

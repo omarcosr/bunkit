@@ -15,7 +15,10 @@ import {
   type DataType,
   type StructType,
 } from "./types.ts";
-import { computeBindings, renderBindings, type BindingTable } from "./reflect.ts";
+import {
+  applyBindings, computeBindings, computeSetters, renderBindings,
+  type BindingTable, type BindValue,
+} from "./reflect.ts";
 import { Effect, PingPong, RenderTarget, type EffectOptions, type RenderTargetOptions } from "./effects.ts";
 import { Bloom, type BloomOptions } from "./post.ts";
 
@@ -576,8 +579,11 @@ export class ComputePipeline {
   readonly maxThreads: number;
   readonly threadExecutionWidth: number;
   readonly bindings: BindingTable;
+  #gpu: GPU;
 
-  constructor(device: MTLObject, o: ComputePipelineOptions, compile: (src: string) => Shader) {
+  constructor(gpu: GPU, o: ComputePipelineOptions, compile: (src: string) => Shader) {
+    const device = gpu.device;
+    this.#gpu = gpu;
     const shader = typeof o.shader === "string" ? compile(o.shader) : o.shader;
     this.shader = shader;
     const entry = o.entry ?? shader.only("kernel");
@@ -596,6 +602,31 @@ export class ComputePipeline {
     this.bindings = computeBindings(reflection[0] ? wrap(reflection[0]!, false) : null);
     this.maxThreads = Number(native.maxTotalThreadsPerThreadgroup());
     this.threadExecutionWidth = Number(native.threadExecutionWidth());
+  }
+
+  /**
+   * Run the kernel over `items` threads and wait for it.
+   *
+   *   const step = gpu().kernel(source);
+   *   step.run(particles.count, { particles, dt: 1 / 60 });
+   *
+   * For work that belongs to a frame, use frame.dispatch() instead — that
+   * shares one command buffer with the rendering rather than blocking on its
+   * own. This one is for setup, for tests, and for one-off batches.
+   */
+  run(items: number, bind: Record<string, BindValue> = {}): this {
+    this.#gpu.submit((commands) => {
+      const encoder = commands.computeCommandEncoder();
+      encoder.setLabel_(this.label);
+      encoder.setComputePipelineState_(this.native);
+      applyBindings(bind, this.bindings, this.label, computeSetters(encoder));
+      const width = Math.min(Math.max(1, items), this.maxThreads);
+      encoder.dispatchThreadgroups_threadsPerThreadgroup_(
+        size3(Math.ceil(items / width)), size3(width),
+      );
+      encoder.endEncoding();
+    });
+    return this;
   }
 }
 
@@ -664,7 +695,21 @@ export class GPU {
   }
 
   computePipeline(o: ComputePipelineOptions): ComputePipeline {
-    return new ComputePipeline(this.device, o, (src) => this.shader(src, { label: o.label }));
+    return new ComputePipeline(this, o, (src) => this.shader(src, { label: o.label }));
+  }
+
+  /**
+   * A compute kernel from MSL. The entry point is found for you.
+   *
+   *   const step = gpu().kernel(msl`
+   *     ${Particle}
+   *     kernel void step(device Particle *p [[buffer(0)]],
+   *                      constant float &dt [[buffer(1)]],
+   *                      uint i [[thread_position_in_grid]]) { ... }
+   *   `);
+   */
+  kernel(source: string | ComputePipelineOptions, label?: string): ComputePipeline {
+    return this.computePipeline(typeof source === "string" ? { shader: source, label } : source);
   }
 
   texture(o: TextureOptions): Texture {

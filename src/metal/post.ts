@@ -39,6 +39,8 @@ export interface BloomOptions {
   outputFormat?: "bgra8unorm" | "rgba8unorm" | "rgba16float";
   /** Tone map and dither on composite. Off if you are grading downstream. */
   tonemap?: boolean;
+  /** Multisample the HDR scene buffer. Resolved before the bloom chain reads it. */
+  sampleCount?: number;
 }
 
 export class Bloom {
@@ -48,6 +50,7 @@ export class Bloom {
   knee: number;
   intensity: number;
   exposure: number;
+  readonly sampleCount: number;
 
   #gpu: GPU;
   #chain: PingPong;
@@ -59,6 +62,7 @@ export class Bloom {
 
   constructor(gpu: GPU, o: BloomOptions = {}) {
     this.#gpu = gpu;
+    this.sampleCount = o.sampleCount ?? 1;
     this.threshold = o.threshold ?? 1;
     this.knee = o.knee ?? 0.5;
     this.intensity = o.intensity ?? 0.8;
@@ -66,7 +70,10 @@ export class Bloom {
     this.#scale = o.scale ?? 0.5;
     this.#passes = Math.max(1, o.passes ?? 2);
 
-    this.scene = gpu.target({ width: 16, height: 16, format: "rgba16float", depth: true, label: "hdr scene" });
+    this.scene = gpu.target({
+      width: 16, height: 16, format: "rgba16float", depth: true,
+      sampleCount: this.sampleCount, label: "hdr scene",
+    });
     this.#chain = gpu.pingPong({ width: 8, height: 8, format: "rgba16float", label: "bloom" });
 
     this.#bright = gpu.effect({
@@ -120,7 +127,7 @@ ${tonemap ? "  colour = aces(colour);\n  colour = dither(colour, vary.position.x
   apply(frame: Frame, to?: Texture | MTLObject): this {
     frame.effect(this.#bright, {
       to: this.#chain.front.color,
-      bind: { src: this.scene.color, params: [this.threshold, this.knee] },
+      bind: { src: this.scene.readable, params: [this.threshold, this.knee] },
     });
 
     for (let i = 0; i < this.#passes; i++) {
@@ -140,7 +147,7 @@ ${tonemap ? "  colour = aces(colour);\n  colour = dither(colour, vary.position.x
     frame.effect(this.#composite, {
       to: target,
       bind: {
-        src: this.scene.color,
+        src: this.scene.readable,
         bloomTexture: this.#chain.front.color,
         params: [this.intensity, this.exposure],
       },

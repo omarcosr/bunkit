@@ -8,6 +8,9 @@ import {
   Scene3D,
   box,
   boxGeometry,
+  compose,
+  coneGeometry,
+  cylinderGeometry,
   geometry,
   identity,
   invert,
@@ -17,12 +20,15 @@ import {
   multiply,
   normalMatrix,
   perspective,
+  mesh,
   plane,
   planeGeometry,
   radians,
   sphere,
   sphereGeometry,
   v3normalize,
+  Vertex,
+  VERTEX_STRIDE,
 } from "../src/metal/index.ts";
 import { HStack, VStack, Window } from "../src/ui/index.ts";
 import { initApp, pumpOnce } from "../src/runtime.ts";
@@ -85,6 +91,21 @@ initApp();
   const byNormal = v3normalize({
     x: n[0]! * tilted.x, y: n[5]! * tilted.y, z: n[10]! * tilted.z,
   });
+  // aimAt has to agree with compose()'s Euler order exactly. A wrong yaw sign
+  // still produces a plausible-looking rotation, so check where it points.
+  for (const target of [{ x: 3, y: -5, z: 2 }, { x: -4, y: -8, z: -1 }, { x: 6, y: -2, z: -6 }]) {
+    const node = mesh({ vertices: new Float32Array(0), indices: new Uint32Array(0) });
+    node.aimAt(target);
+    const m = compose(node.position, node.rotation, node.scale);
+    // The local -Y axis, transformed: column 1 of the rotation, negated.
+    const pointing = { x: -m[4]!, y: -m[5]!, z: -m[6]! };
+    const want = v3normalize(target);
+    check(`aimAt points -Y at ${target.x},${target.y},${target.z}`,
+      close(pointing.x, want.x, 1e-3) && close(pointing.y, want.y, 1e-3) &&
+      close(pointing.z, want.z, 1e-3),
+      `got ${pointing.x.toFixed(3)},${pointing.y.toFixed(3)},${pointing.z.toFixed(3)}`);
+  }
+
   check("normal matrix differs from the model matrix under squash",
     Math.abs(byModel.y - byNormal.y) > 0.2, `${byModel.y} vs ${byNormal.y}`);
 }
@@ -94,10 +115,13 @@ initApp();
 // ---------------------------------------------------------------------------
 {
   const g = boxGeometry({ size: [2, 4, 6] });
-  check("box has 24 vertices and 36 indices", g.vertices.length / 6 === 24 && g.indices.length === 36);
+  check("box has 24 vertices and 36 indices",
+    g.vertices.length / 8 === 24 && g.indices.length === 36, g.vertices.length / 8);
+  check("the vertex schema matches the buffer stride", Vertex.size === VERTEX_STRIDE,
+    `${Vertex.size} vs ${VERTEX_STRIDE}`);
 
   let min = [9, 9, 9], max = [-9, -9, -9];
-  for (let i = 0; i < g.vertices.length; i += 6) {
+  for (let i = 0; i < g.vertices.length; i += 8) {
     for (let k = 0; k < 3; k++) {
       min[k] = Math.min(min[k]!, g.vertices[i + k]!);
       max[k] = Math.max(max[k]!, g.vertices[i + k]!);
@@ -107,7 +131,7 @@ initApp();
     close(min[0]!, -1) && close(max[1]!, 2) && close(max[2]!, 3), `${min} ${max}`);
 
   const unit = (gg: { vertices: Float32Array }) => {
-    for (let i = 3; i < gg.vertices.length; i += 6) {
+    for (let i = 3; i < gg.vertices.length; i += 8) {
       if (Math.abs(Math.hypot(gg.vertices[i]!, gg.vertices[i + 1]!, gg.vertices[i + 2]!) - 1) > 1e-4) {
         return false;
       }
@@ -119,8 +143,32 @@ initApp();
   check("plane normals are unit length", unit(planeGeometry({ segments: 3 })));
 
   const inRange = (gg: { vertices: Float32Array; indices: Uint32Array }) =>
-    [...gg.indices].every((i) => i < gg.vertices.length / 6);
-  check("every index is in range", inRange(g) && inRange(sphereGeometry()) && inRange(planeGeometry()));
+    [...gg.indices].every((i) => i < gg.vertices.length / 8);
+  check("every index is in range",
+    inRange(g) && inRange(sphereGeometry()) && inRange(planeGeometry()) &&
+    inRange(cylinderGeometry()) && inRange(coneGeometry()));
+  check("cylinder and cone normals are unit length",
+    unit(cylinderGeometry({ segments: 8 })) && unit(coneGeometry({ segments: 8 })));
+
+  // A cone's apex sits at the origin, so a node's position is the fixture and
+  // the mouth is where the beam lands. Getting this inverted renders a beam
+  // that is widest at the lamp, which reads as obviously wrong but tests as
+  // fine unless the check is about radius rather than extent.
+  const c = coneGeometry({ radius: 1, height: 4 });
+  let lowest = 0, highest = -99, radiusAtApex = 0, radiusAtMouth = 0;
+  for (let i = 0; i < c.vertices.length; i += 8) {
+    const y = c.vertices[i + 1]!;
+    const r = Math.hypot(c.vertices[i]!, c.vertices[i + 2]!);
+    lowest = Math.min(lowest, y);
+    highest = Math.max(highest, y);
+    if (close(y, 0, 1e-3)) radiusAtApex = Math.max(radiusAtApex, r);
+    if (close(y, -4, 1e-3)) radiusAtMouth = Math.max(radiusAtMouth, r);
+  }
+  check("cone spans from the origin down to -height",
+    close(highest, 0) && close(lowest, -4), `${lowest}..${highest}`);
+  check("its point is at the origin and its mouth at the bottom",
+    close(radiusAtApex, 0, 1e-3) && close(radiusAtMouth, 1),
+    `apex r=${radiusAtApex}, mouth r=${radiusAtMouth}`);
 
   // Normals derived from the winding of a single triangle facing +Z.
   const derived = geometry({ positions: [0, 0, 0, 1, 0, 0, 0, 1, 0] });

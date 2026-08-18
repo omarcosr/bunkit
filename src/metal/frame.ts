@@ -24,7 +24,7 @@ import {
   type Sampler,
 } from "./gpu.ts";
 import { gpu } from "./gpu.ts";
-import type { Binding, BindingTable, Stage } from "./reflect.ts";
+import { applyBindings, computeSetters, type BindingSetters, type BindValue } from "./reflect.ts";
 import type { Effect, EffectPassOptions, RenderTarget } from "./effects.ts";
 
 /** Anywhere a texture is wanted, a RenderTarget stands in for its colour. */
@@ -43,117 +43,6 @@ export type Bindable = GPUBuffer<any> | GPUArrayBuffer<any> | MTLObject;
 
 function nativeBuffer(b: Bindable): MTLObject {
   return nativeOf(b);
-}
-
-// ---------------------------------------------------------------------------
-// Binding by name
-// ---------------------------------------------------------------------------
-
-/**
- * What a named binding will accept.
- *
- * A buffer or texture object binds directly. A typed array is copied inline. A
- * plain object is packed into the struct the shader declared, using the layout
- * the compiler reported — so `{ time: 0.5, tint: [1, 0, 0, 1] }` is a complete
- * uniform upload with nothing declared on this side.
- */
-export type BindValue =
-  | GPUBuffer<any>
-  | GPUArrayBuffer<any>
-  | Texture
-  | Sampler
-  | MTLObject
-  | ArrayBufferView
-  | Record<string, unknown>
-  | readonly unknown[]
-  | number;
-
-/** Metal copies setBytes: data immediately, but only up to 4 KB of it. */
-const INLINE_LIMIT = 4096;
-
-const isWrapper = (v: any) => v != null && typeof v === "object" && !isObjC(v) && "native" in v;
-
-/**
- * Set every binding in `values` on whichever stages declare it.
- *
- * This is the whole reason pipelines carry their reflection: the shader's own
- * parameter names are the API, so renumbering `[[buffer(2)]]` to `[[buffer(5)]]`
- * cannot quietly break the caller, and a typo is an error naming what does
- * exist rather than a black frame.
- */
-function applyBindings(
-  values: Record<string, BindValue>,
-  table: BindingTable | undefined,
-  label: string,
-  set: {
-    buffer(stage: Stage, index: number, buffer: MTLObject, offset: number): void;
-    bytes(stage: Stage, index: number, data: ArrayBufferView): void;
-    texture(stage: Stage, index: number, texture: MTLObject): void;
-    sampler(stage: Stage, index: number, sampler: MTLObject): void;
-  },
-): void {
-  for (const [name, value] of Object.entries(values)) {
-    if (value === undefined) continue;
-    const binding = table?.get(name);
-    if (!binding) {
-      throw new Error(
-        `${label}: the shader has no binding called "${name}".\n` +
-          `Bindings it does have:\n${table?.describe() ?? "  (none)"}`,
-      );
-    }
-    const stages = Object.entries(binding.slots) as Array<[Stage, number]>;
-
-    if (binding.kind === "texture" || binding.kind === "sampler") {
-      const native = nativeOf(value as MTLObject);
-      for (const [stage, index] of stages) {
-        if (binding.kind === "texture") set.texture(stage, index, native);
-        else set.sampler(stage, index, native);
-      }
-      continue;
-    }
-
-    // Buffers. A real buffer binds by reference; everything else is packed and
-    // copied inline, which for uniform-sized data is the faster path anyway.
-    if (isObjC(value) || isWrapper(value)) {
-      const native = nativeOf(value as MTLObject);
-      for (const [stage, index] of stages) set.buffer(stage, index, native, 0);
-      continue;
-    }
-
-    const data = ArrayBuffer.isView(value)
-      ? (value as ArrayBufferView)
-      : pack(value, binding, name, label);
-    if (data.byteLength > INLINE_LIMIT) {
-      throw new Error(
-        `${label}: "${name}" is ${data.byteLength} bytes, past the ${INLINE_LIMIT}-byte inline limit. ` +
-          `Put it in a buffer — gpu().array(Schema, count) — and bind that instead.`,
-      );
-    }
-    for (const [stage, index] of stages) set.bytes(stage, index, data);
-  }
-}
-
-/** Pack a plain value into the layout the compiler reported for this binding. */
-function pack(value: BindValue, binding: Binding, name: string, label: string): ArrayBufferView {
-  const layout = binding.layout;
-  if (!layout) {
-    throw new Error(
-      `${label}: "${name}" needs a buffer, not a plain value — the shader takes a pointer ` +
-        `there, so there is no struct layout to pack into. Use gpu().array(Schema, count).`,
-    );
-  }
-  // An array of objects against a struct binding is N elements; an array of
-  // numbers against a `float2&` is one value. The layout says which.
-  if (Array.isArray(value) && binding.struct) {
-    const stride = Math.ceil(layout.size / layout.alignment) * layout.alignment;
-    const bytes = new Uint8Array(stride * Math.max(1, value.length));
-    const view = new DataView(bytes.buffer);
-    value.forEach((item, i) => layout.write(view, i * stride, item as never));
-    return bytes;
-  }
-  const bytes = new Uint8Array(Math.max(binding.size, layout.size));
-  layout.write(new DataView(bytes.buffer), 0, value as never);
-  return bytes;
 }
 
 export interface ColorAttachment {
@@ -188,7 +77,7 @@ export class RenderPass {
     const descriptor = objc.MTLRenderPassDescriptor.renderPassDescriptor();
     const colors: ColorAttachment[] =
       o.color ? (Array.isArray(o.color) ? o.color : [o.color])
-      : o.target ? [{ texture: o.target.color, clear: o.clear }]
+      : o.target ? [{ texture: o.target.color, clear: o.clear, resolve: o.target.resolve ?? undefined }]
       : [];
     const depth = o.depth ?? o.target?.depth ?? null;
 
@@ -254,7 +143,7 @@ export class RenderPass {
   bind(values: Record<string, BindValue>): this {
     if (!this.#pipeline) throw new Error("bind() before pipeline(): the names come from the pipeline");
     const encoder = this.native;
-    applyBindings(values, this.#pipeline.bindings, this.#pipeline.label, {
+    const setters: BindingSetters = {
       buffer: (stage, index, buffer, offset) => {
         if (stage === "vertex") encoder.setVertexBuffer_offset_atIndex_(buffer, offset, index);
         else encoder.setFragmentBuffer_offset_atIndex_(buffer, offset, index);
@@ -271,7 +160,8 @@ export class RenderPass {
         if (stage === "vertex") encoder.setVertexSamplerState_atIndex_(sampler, index);
         else encoder.setFragmentSamplerState_atIndex_(sampler, index);
       },
-    });
+    };
+    applyBindings(values, this.#pipeline.bindings, this.#pipeline.label, setters);
     return this;
   }
 
@@ -405,12 +295,7 @@ export class ComputePass {
   bind(values: Record<string, BindValue>): this {
     if (!this.#pipeline) throw new Error("bind() before pipeline(): the names come from the pipeline");
     const encoder = this.native;
-    applyBindings(values, this.#pipeline.bindings, this.#pipeline.label, {
-      buffer: (_s, index, buffer, offset) => encoder.setBuffer_offset_atIndex_(buffer, offset, index),
-      bytes: (_s, index, data) => encoder.setBytes_length_atIndex_(ptr(data as never), data.byteLength, index),
-      texture: (_s, index, texture) => encoder.setTexture_atIndex_(texture, index),
-      sampler: (_s, index, sampler) => encoder.setSamplerState_atIndex_(sampler, index),
-    });
+    applyBindings(values, this.#pipeline.bindings, this.#pipeline.label, computeSetters(encoder));
     return this;
   }
 
@@ -506,6 +391,26 @@ export class Frame {
     } finally {
       pass.end();
     }
+  }
+
+  /**
+   * Run one kernel over `items` threads, as part of this frame.
+   *
+   *   frame.dispatch(simulate, particles.count, { particles, dt: frame.dt });
+   *
+   * Shares the frame's command buffer, so the simulation and the draw that
+   * reads its output are ordered by the GPU rather than by a CPU wait.
+   */
+  dispatch(
+    kernel: ComputePipeline,
+    items: number,
+    bind: Record<string, BindValue> = {},
+    options: { threadgroup?: number } = {},
+  ): this {
+    this.compute((pass) => {
+      pass.pipeline(kernel).bind(bind).dispatch(items, options);
+    }, kernel.label);
+    return this;
   }
 
   /** Open a compute pass. Ends automatically if you pass a body. */

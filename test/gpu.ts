@@ -1,0 +1,464 @@
+// The typed GPU stack: layouts, reflection, binding, compute, and effects.
+//
+// The first section is the one that matters most. It declares a struct with
+// every awkward type in it, hands the generated MSL to the Metal compiler, and
+// compares the compiler's reported offsets against the ones types.ts computed.
+// If Apple ever changes a padding rule, this fails on the next SDK rather than
+// three months later as a scene that renders wrong on someone else's machine.
+
+import {
+  arrayOf, boolean32, describeLayout, f32, i32, mat3x3f, mat4x4f, packed2f, packed3f,
+  struct, strideOf, u32, vec2f, vec3f, vec4f,
+  Frame, gpu, gpuAvailable, msl, snippet,
+  Material, Scene3D, box, emissive, sphere,
+  aces, fbm3, kelvin,
+} from "../src/metal/index.ts";
+import { initApp } from "../src/runtime.ts";
+
+let failures = 0;
+function check(name: string, cond: any, extra?: any) {
+  if (cond) console.log(`  ok   ${name}`);
+  else {
+    failures++;
+    console.log(`  FAIL ${name}`, extra ?? "");
+  }
+}
+const close = (a: number, b: number, eps = 1e-4) => Math.abs(a - b) < eps;
+
+initApp();
+
+if (!gpuAvailable()) {
+  console.log("  (no Metal device here — skipping every GPU check)");
+  console.log("\nGPU TESTS SKIPPED");
+  process.exit(0);
+}
+
+const g = gpu();
+
+// ---------------------------------------------------------------------------
+// Schema layouts, checked against the Metal compiler itself
+// ---------------------------------------------------------------------------
+
+{
+  // Every rule worth getting wrong: a float3 padded to 16, a float3x3 whose
+  // columns are padded, a packed_float3 that is not, and scalars that have to
+  // land in the gaps.
+  const Awkward = struct("Awkward", {
+    a: f32,
+    b: vec3f,
+    c: f32,
+    d: mat3x3f,
+    e: packed3f,
+    f: f32,
+    g: vec2f,
+    h: mat4x4f,
+    i: u32,
+    j: vec4f,
+    k: packed2f,
+    l: i32,
+  });
+
+  const probe = g.renderPipeline({
+    shader: msl`
+#include <metal_stdlib>
+using namespace metal;
+
+${Awkward}
+
+vertex float4 vs(constant Awkward &probe [[buffer(0)]]) {
+  // Touch every member, or the optimiser drops them from the reflection.
+  return float4(probe.a + probe.c + probe.f + probe.i + probe.l, probe.b.x + probe.e.y,
+                probe.d[0].x + probe.h[3].w, probe.g.x + probe.j.z + probe.k.y);
+}
+fragment float4 fs() { return 1; }`,
+    depthFormat: null,
+    label: "layout probe",
+  });
+
+  const reflected = probe.bindings.get("probe")?.struct;
+  check("the compiler reports the probe struct", !!reflected);
+
+  if (reflected) {
+    let mismatches: string[] = [];
+    for (const field of Awkward.fields) {
+      const theirs = reflected.fields.find((f) => f.name === field.name);
+      if (!theirs) {
+        mismatches.push(`${field.name}: missing`);
+      } else if (theirs.offset !== field.offset) {
+        mismatches.push(`${field.name}: ours ${field.offset}, Metal ${theirs.offset}`);
+      }
+    }
+    check("every field offset matches the Metal compiler", mismatches.length === 0, mismatches);
+    check("the struct size matches the compiler",
+      Awkward.size === probe.bindings.get("probe")!.size,
+      `${Awkward.size} vs ${probe.bindings.get("probe")!.size}`);
+  }
+
+  // The documented rules, stated as assertions so a regression says which one.
+  check("float3 is 16 bytes, 16-aligned", vec3f.size === 16 && vec3f.alignment === 16);
+  check("packed_float3 is 12 bytes, 4-aligned", packed3f.size === 12 && packed3f.alignment === 4);
+  check("float3x3 is 48 bytes", mat3x3f.size === 48);
+  check("float4x4 is 64 bytes", mat4x4f.size === 64);
+  check("an array strides by the rounded-up element size",
+    strideOf(arrayOf(vec3f, 4).element) === 16 && arrayOf(f32, 4).size === 16);
+  check("describeLayout names the fields", describeLayout(Awkward).includes("d "));
+}
+
+// ---------------------------------------------------------------------------
+// Typed buffers
+// ---------------------------------------------------------------------------
+
+{
+  const Uniform = struct("Uniform", { tint: vec4f, count: u32, enabled: boolean32 });
+  const buffer = g.buffer(Uniform, { label: "uniform" });
+  buffer.write({ tint: [0.25, 0.5, 0.75, 1], count: 7, enabled: true });
+  const read = buffer.read();
+  check("a struct round-trips through a buffer",
+    close((read.tint as number[])[1]!, 0.5) && read.count === 7 && read.enabled === true, read);
+
+  buffer.writeField("count", 9);
+  check("writeField leaves the other fields alone",
+    buffer.read().count === 9 && close((buffer.read().tint as number[])[2]!, 0.75));
+
+  const Particle = struct("Particle", { position: vec3f, life: f32 });
+  const array = g.array(Particle, 128, { label: "particles" });
+  array.fill([{ position: [1, 2, 3], life: 0.5 }, { position: [4, 5, 6], life: 0.25 }]);
+  check("an array buffer sets count from fill()", array.count === 2);
+  check("elements land at their stride",
+    close((array.get(1).position as number[])[0]!, 4) && close(array.get(1).life as number, 0.25),
+    array.get(1));
+
+  let threw = false;
+  try { array.set(999, { position: [0, 0, 0], life: 0 }); } catch { threw = true; }
+  check("writing past the capacity throws rather than corrupting", threw);
+
+  // Shared storage: the CPU and GPU address the same memory, so a write is
+  // visible without an upload step. That is the whole reason instancing is cheap.
+  check("the buffer is mapped, not copied", array.bytes.byteLength >= 128 * strideOf(Particle));
+}
+
+// ---------------------------------------------------------------------------
+// Reflection and binding by name
+// ---------------------------------------------------------------------------
+
+const SHADER = msl`
+#include <metal_stdlib>
+using namespace metal;
+
+struct Style { float4 tint; float2 centre; float radius; };
+struct V { float4 position [[position]]; float2 uv; };
+
+vertex V vs(uint vid [[vertex_id]], constant Style &style [[buffer(3)]]) {
+  float2 p = float2((vid << 1) & 2, vid & 2);
+  V o;
+  o.position = float4(p * 2.0 - 1.0, 0, 1) * (style.radius > -1.0 ? 1.0 : 0.0);
+  o.uv = p;
+  return o;
+}
+
+fragment float4 fs(V in [[stage_in]], constant Style &style [[buffer(1)]],
+                   texture2d<float> tex [[texture(2)]], sampler smp [[sampler(0)]]) {
+  float d = distance(in.uv, style.centre);
+  return d < style.radius ? style.tint * tex.sample(smp, in.uv) : float4(0, 0, 0, 1);
+}`;
+
+const pipeline = g.renderPipeline({ shader: SHADER, format: "rgba8unorm", depthFormat: null, label: "circle" });
+
+{
+  const style = pipeline.bindings.get("style");
+  check("a binding is found by name", !!style);
+  check("the same name on both stages keeps both indices",
+    style?.slots.vertex === 3 && style?.slots.fragment === 1, style?.slots);
+  check("its struct layout comes back from the compiler",
+    style?.struct?.fields.map((f) => f.name).join(",") === "tint,centre,radius",
+    style?.struct?.fields.map((f) => f.name));
+  check("textures and samplers are classified",
+    pipeline.bindings.get("tex")?.kind === "texture" &&
+    pipeline.bindings.get("smp")?.kind === "sampler");
+  check("entry points are found without being named",
+    pipeline.shader.entries.vertex.join() === "vs" && pipeline.shader.entries.fragment.join() === "fs");
+  check("describe() lists what is bindable", pipeline.bindings.describe().includes("tint"));
+}
+
+const white = g.texture({ width: 2, height: 2, format: "rgba8unorm", usage: ["shaderRead"], storage: "shared" });
+white.write(new Uint8Array(2 * 2 * 4).fill(255));
+
+function renderCircle(bind: Record<string, any>, size = 32) {
+  const target = g.texture({
+    width: size, height: size, format: "rgba8unorm",
+    usage: ["renderTarget", "shaderRead"], storage: "shared", label: "circle target",
+  });
+  g.submit((commands) => {
+    const frame = new Frame(commands, { time: 0, dt: 0, index: 0, width: size, height: size });
+    frame.render({ color: { texture: target, clear: [0, 0, 0, 1] } }, (pass) => {
+      pass.pipeline(pipeline).bind(bind).draw(3);
+    });
+  });
+  const pixels = target.read();
+  return (x: number, y: number) => [...pixels.slice((y * size + x) * 4, (y * size + x) * 4 + 3)];
+}
+
+{
+  // The headline: nothing about this struct is declared in TypeScript. The
+  // layout came from the compiler, and the plain object is packed into it.
+  const at = renderCircle({
+    style: { tint: [0, 1, 0, 1], centre: [0.5, 0.5], radius: 0.3 },
+    tex: white,
+    smp: g.linearSampler,
+  });
+  check("a plain object packs into the shader's struct", at(16, 16).join() === "0,255,0", at(16, 16));
+  check("and the parts outside it are untouched", at(1, 1).join() === "0,0,0", at(1, 1));
+
+  const small = renderCircle({
+    style: { tint: [1, 0, 0, 1], centre: [0.5, 0.5], radius: 0.05 },
+    tex: white, smp: g.linearSampler,
+  });
+  check("changing one field changes the frame", small(16, 8).join() === "0,0,0", small(16, 8));
+
+  let message = "";
+  try {
+    renderCircle({ styel: { tint: [1, 1, 1, 1] }, tex: white, smp: g.linearSampler });
+  } catch (e) {
+    message = String(e);
+  }
+  check("a misspelled binding names the ones that exist",
+    message.includes("styel") && message.includes("style"), message.slice(0, 120));
+}
+
+// ---------------------------------------------------------------------------
+// Compute
+// ---------------------------------------------------------------------------
+
+{
+  const Body = struct("Body", { position: vec3f, velocity: vec3f });
+  const bodies = g.array(Body, 2048, { label: "bodies" });
+  for (let i = 0; i < 2048; i++) bodies.set(i, { position: [i, 0, 0], velocity: [1, 2, 3] });
+  bodies.count = 2048;
+
+  const step = g.kernel(msl`
+#include <metal_stdlib>
+using namespace metal;
+
+${Body}
+
+kernel void step(device Body *bodies [[buffer(0)]],
+                 constant float &dt [[buffer(1)]],
+                 constant uint &count [[buffer(2)]],
+                 uint i [[thread_position_in_grid]]) {
+  if (i >= count) return;
+  bodies[i].position += bodies[i].velocity * dt;
+}`);
+
+  check("a kernel finds its own entry point", step.label === "step");
+  check("it reports a threadgroup width", step.maxThreads >= 32 && step.threadExecutionWidth >= 8,
+    `${step.maxThreads}/${step.threadExecutionWidth}`);
+
+  step.run(2048, { bodies, dt: 0.5, count: 2048 });
+  const one = bodies.get(7);
+  check("the kernel wrote through shared memory",
+    close((one.position as number[])[0]!, 7.5) && close((one.position as number[])[1]!, 1), one);
+
+  // The last threadgroup runs past the end; the bounds check is what keeps it
+  // from writing outside the buffer.
+  const tail = bodies.get(2047);
+  check("the last element was reached", close((tail.position as number[])[0]!, 2047.5), tail);
+
+  const untouched = bodies.get(2047);
+  step.run(2000, { bodies, dt: 1, count: 2000 });
+  check("count bounds the work, not the dispatch size",
+    close((bodies.get(2047).position as number[])[0]!, (untouched.position as number[])[0]!),
+    bodies.get(2047));
+}
+
+// ---------------------------------------------------------------------------
+// Effects and render targets
+// ---------------------------------------------------------------------------
+
+{
+  const invert = g.effect(`return float4(1.0 - src.sample(smp, uv).rgb, 1.0);`);
+  check("a one-line effect compiles", !!invert.pipeline);
+  check("its sampler is discovered", invert.bindings.get("smp")?.kind === "sampler");
+
+  const source = g.texture({
+    width: 8, height: 8, format: "rgba8unorm", usage: ["shaderRead", "renderTarget"], storage: "shared",
+  });
+  source.write(new Uint8Array(8 * 8 * 4).map((_, i) => (i % 4 === 3 ? 255 : i % 4 === 0 ? 200 : 0)));
+
+  const out = g.target({ width: 8, height: 8, format: "rgba8unorm" });
+  g.submit((commands) => {
+    const frame = new Frame(commands, { time: 0, dt: 0, index: 0, width: 8, height: 8 });
+    // No sampler passed: the effect binds the default linear one itself.
+    frame.effect(invert, { to: out.color, bind: { src: source } });
+  });
+  const pixels = out.color.read();
+  check("the effect ran and the sampler was supplied",
+    pixels[0] === 55 && pixels[1] === 255, [...pixels.slice(0, 4)]);
+
+  out.resize(16, 16);
+  check("a target reallocates on resize", out.width === 16 && out.color.width === 16);
+  const same = out.color;
+  out.resize(16, 16);
+  check("and does nothing when the size is unchanged", out.color === same);
+
+  const msaa = g.target({ width: 8, height: 8, format: "rgba8unorm", sampleCount: 4 });
+  check("a multisampled target carries a resolve texture",
+    msaa.resolve !== null && msaa.readable === msaa.resolve);
+  check("a single-sampled one reads from its colour", out.readable === out.color);
+
+  const pair = g.pingPong({ width: 4, height: 4 });
+  const front = pair.front;
+  pair.swap();
+  check("ping-pong swaps", pair.back === front && pair.front !== front);
+}
+
+// ---------------------------------------------------------------------------
+// Bloom
+// ---------------------------------------------------------------------------
+
+{
+  const bloom = g.bloom({ threshold: 0.8, intensity: 1.5, passes: 2 });
+  bloom.resize(64, 64);
+
+  const disc = g.renderPipeline({
+    shader: `#include <metal_stdlib>
+using namespace metal;
+struct V { float4 position [[position]]; float2 uv; };
+vertex V vs(uint vid [[vertex_id]]) {
+  float2 p = float2((vid << 1) & 2, vid & 2);
+  V o; o.position = float4(p * 2.0 - 1.0, 0, 1); o.uv = p; return o;
+}
+fragment float4 fs(V in [[stage_in]]) {
+  return distance(in.uv, float2(0.5)) < 0.1 ? float4(8, 6, 2, 1) : float4(0.02, 0.02, 0.03, 1);
+}`,
+    format: "rgba16float", cull: "none", label: "hdr disc",
+  });
+
+  const out = g.texture({
+    width: 64, height: 64, format: "bgra8unorm",
+    usage: ["renderTarget", "shaderRead"], storage: "shared",
+  });
+  g.submit((commands) => {
+    const frame = new Frame(commands, { time: 0, dt: 0, index: 0, width: 64, height: 64 });
+    frame.render({ target: bloom.scene, clear: [0.02, 0.02, 0.03, 1] }, (p) => p.pipeline(disc).draw(3));
+    bloom.apply(frame, out);
+  });
+
+  const pixels = out.read();
+  // BGRA on the way out.
+  const at = (x: number, y: number) => {
+    const i = (y * 64 + x) * 4;
+    return [pixels[i + 2]!, pixels[i + 1]!, pixels[i]!];
+  };
+  check("the HDR core survives tone mapping", at(32, 32)[0]! > 200, at(32, 32));
+  check("light spills outside the shape it came from", at(32, 22)[0]! > 40, at(32, 22));
+  check("the corners stay dark", at(2, 2)[0]! < 40, at(2, 2));
+  check("and the spill is warm, as the source was", at(32, 22)[0]! > at(32, 22)[2]!, at(32, 22));
+}
+
+// ---------------------------------------------------------------------------
+// Shader snippets
+// ---------------------------------------------------------------------------
+
+{
+  const source = msl`${aces}\n${aces}\n${fbm3}\n${kelvin}`;
+  const occurrences = source.split("float3 aces(").length - 1;
+  check("an interpolated snippet is emitted once", occurrences === 1, occurrences);
+  check("its dependencies come with it",
+    source.includes("float noise3(") && source.includes("float hash31("));
+  check("declaration order puts dependencies first",
+    source.indexOf("float hash31(") < source.indexOf("float noise3("));
+
+  const custom = snippet("twice", `float twice(float x) { return x * 2.0; }`);
+  const effect = g.effect({ use: [custom], fragment: `return float4(twice(uv.x), 0, 0, 1);` });
+  check("a custom snippet compiles into an effect", !!effect.pipeline);
+
+  // A body cannot declare a function, and saying so beats the compiler's
+  // "function definition is not allowed here" pointing at a generated line.
+  let message = "";
+  try { g.effect(`float twice(float x) { return x; }\nreturn float4(twice(uv.x));`); }
+  catch (e) { message = String(e); }
+  check("declaring a function in a body explains `use`", message.includes("use:"), message.slice(0, 90));
+}
+
+// ---------------------------------------------------------------------------
+// Instancing and materials in a scene
+// ---------------------------------------------------------------------------
+
+{
+  const scene = new Scene3D({
+    animate: false, background: "#000000",
+    camera: { position: [0, 0, 6], target: [0, 0, 0], fov: 50 },
+    light: { direction: [0, 0, 1], ambientIntensity: 0 },
+  });
+
+  for (let i = 0; i < 200; i++) {
+    scene.add(box({ size: 0.2, position: [(i % 20) - 10, Math.floor(i / 20) - 5, 0], color: "#ffffff" }));
+  }
+  check("200 nodes of one geometry are one draw call", scene.batchCount === 1, scene.batchCount);
+
+  scene.add(sphere({ radius: 0.3, color: "#ff0000" }));
+  check("a second geometry is a second batch", scene.batchCount === 2, scene.batchCount);
+
+  const glow = emissive({ intensity: 4 });
+  scene.add(box({ size: 0.2, position: [0, 3, 0], color: "#00ff00", material: glow }));
+  check("a material splits the batch even for the same geometry",
+    scene.batchCount === 3, scene.batchCount);
+
+  const capture = scene.capture(64, 64);
+  const at = (x: number, y: number) => {
+    const i = (y * 64 + x) * 4;
+    return [capture.pixels[i]!, capture.pixels[i + 1]!, capture.pixels[i + 2]!];
+  };
+  check("the instanced grid rendered", at(32, 32).some((c) => c > 100), at(32, 32));
+  scene.dispose();
+}
+
+{
+  // A custom material is MSL against the same instanced pipeline.
+  const stripes = new Material({
+    label: "stripes",
+    fragment: `
+      float bar = step(0.5, fract(in.uv.x * 8.0));
+      return float4(in.color.rgb * bar, 1.0);
+    `,
+  });
+  const scene = new Scene3D({
+    animate: false, background: "#000000",
+    camera: { position: [0, 0, 2.2], target: [0, 0, 0], fov: 50 },
+    light: { direction: [0, 0, 1], ambientIntensity: 0 },
+  });
+  scene.add(box({ size: 2, color: "#ffffff", material: stripes }));
+  const capture = scene.capture(64, 64);
+  const row: number[] = [];
+  for (let x = 8; x < 56; x++) row.push(capture.pixels[(32 * 64 + x) * 4]!);
+  const light = row.filter((v) => v > 128).length;
+  const dark = row.filter((v) => v < 128).length;
+  check("a custom fragment shader reaches the framebuffer", light > 4 && dark > 4, `${light}/${dark}`);
+  check("uvs vary across the face", new Set(row).size > 1);
+  scene.dispose();
+}
+
+{
+  // Bloom inside a scene: an emissive node has to spill past its own edges.
+  const scene = new Scene3D({
+    animate: false, background: "#000000",
+    camera: { position: [0, 0, 6], target: [0, 0, 0], fov: 50 },
+    light: { direction: [0, 0, 1], ambientIntensity: 0 },
+    bloom: { threshold: 0.7, intensity: 1.6, passes: 2 },
+  });
+  check("the scene owns a post chain", scene.post !== null);
+  scene.add(sphere({ radius: 0.5, color: "#ffcc44", material: emissive({ intensity: 6 }) }));
+
+  const capture = scene.capture(96, 96);
+  const at = (x: number, y: number) => {
+    const i = (y * 96 + x) * 4;
+    return [capture.pixels[i]!, capture.pixels[i + 1]!, capture.pixels[i + 2]!];
+  };
+  check("the emissive core is bright", at(48, 48)[0]! > 180, at(48, 48));
+  check("it spills past its own silhouette", at(48, 30)[0]! > 25, at(48, 30));
+  check("the far corner stays black", at(3, 3)[0]! < 25, at(3, 3));
+  scene.dispose();
+}
+
+console.log(failures === 0 ? "\nALL GPU TESTS PASSED" : `\n${failures} GPU FAILURE(S)`);
+process.exit(failures === 0 ? 0 : 1);

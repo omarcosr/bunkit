@@ -13,6 +13,7 @@ const EXAMPLES = [
   "examples/demo.ts",
   "examples/raw-objc.ts",
   "examples/scene3d.ts",
+  "examples/lighting-rig.ts",
 ];
 
 let failures = 0;
@@ -26,7 +27,7 @@ function check(name: string, cond: any, extra?: any) {
 
 for (const example of EXAMPLES) {
   // scene3d needs a GPU. A CI runner without one is not a failing example.
-  if (example.includes("scene3d") && !gpuAvailable()) {
+  if ((example.includes("scene3d") || example.includes("lighting-rig")) && !gpuAvailable()) {
     console.log(`  skip ${example} (no Metal device)`);
     continue;
   }

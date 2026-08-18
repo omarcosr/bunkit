@@ -2,12 +2,17 @@
 //
 // This is the easy layer, and it sits on top of GPUView and the typed buffers
 // rather than beside them, so the performance work is not something you opt
-// into. Nodes sharing geometry are batched into a single instanced draw and
-// their transforms are written straight into shared memory: a thousand cubes
-// cost one draw call and roughly 150 microseconds of JavaScript, where a
-// thousand individual draws would cost 1.2 milliseconds before doing any work.
+// into. Nodes sharing a geometry and a material are batched into a single
+// instanced draw and their transforms are written straight into shared memory:
+// a thousand cubes cost one draw call and roughly 150 microseconds of
+// JavaScript, where a thousand individual draws would cost 1.2 milliseconds
+// before doing any work.
 //
-// When it stops being enough, drop to GPUView and write the passes yourself.
+// The way out is graded rather than a cliff. Give a node a Material and you are
+// writing MSL against the same instanced pipeline. Turn on `bloom` and the
+// scene renders to a 16-bit float buffer with a tone mapper on the end. Past
+// that, drop to GPUView and write the passes yourself — Scene3D is a few
+// hundred lines on top of the same public API, so nothing is lost by leaving.
 
 import { objc } from "../objc.ts";
 import { NIL, ptr } from "../bridge.ts";
@@ -15,12 +20,18 @@ import { BitmapImageFileType } from "../ui/appkit.ts";
 import type { View } from "../ui/view.ts";
 import {
   gpu, msl,
-  type GPUArrayBuffer, type GPUBuffer, type MTLObject, type RenderPipeline, type Shader,
+  type BlendMode, type GPU, type GPUArrayBuffer, type GPUBuffer,
+  type MTLObject, type PixelFormatName, type RenderPipeline, type Snippet,
 } from "./gpu.ts";
 import { targets, GPUView, type GPUViewOptions } from "./view.ts";
+import { declarationsOf } from "./effects.ts";
 import type { Frame, RenderPass } from "./frame.ts";
+import type { Bloom, BloomOptions } from "./post.ts";
 import { mat4x4f, struct, vec4f } from "./types.ts";
-import { boxGeometry, planeGeometry, sphereGeometry, type Geometry } from "./geometry.ts";
+import {
+  boxGeometry, coneGeometry, cylinderGeometry, planeGeometry, sphereGeometry,
+  Vertex, type Geometry,
+} from "./geometry.ts";
 import {
   compose, lookAt, multiply, normalMatrix, perspective, radians, toVec3, v3normalize,
   type Mat4, type Vec3,
@@ -58,13 +69,202 @@ export const SceneUniforms = struct("SceneUniforms", {
   lightColor: vec4f,
   ambient: vec4f,
   eye: vec4f,
+  /** x is seconds since the view started; the rest are yours. */
+  time: vec4f,
 });
 
 export const InstanceData = struct("InstanceData", {
   model: mat4x4f,
   normalMatrix: mat4x4f,
   color: vec4f,
+  /** Free per-node values a material can read. See Node.params. */
+  params: vec4f,
 });
+
+// ---------------------------------------------------------------------------
+// Materials
+// ---------------------------------------------------------------------------
+
+export interface MaterialOptions {
+  /**
+   * How to shade a fragment.
+   *
+   * Either the body of a fragment function — with `in` (the varyings), `u`
+   * (SceneUniforms) and `params` (the node's four free floats) in scope,
+   * returning a float4 — or a whole `fragment` function if you would rather
+   * declare your own bindings.
+   */
+  fragment?: string;
+  /**
+   * Snippets the body calls. Emitted above the function, deduplicated.
+   *
+   * They go here rather than into the body, because a bare body is wrapped in
+   * a function and MSL has no nested function definitions.
+   */
+  use?: readonly Snippet[];
+  /** Declarations above the fragment function: helpers, constants, structs. */
+  header?: string;
+  blend?: BlendMode;
+  /** Off for anything additive, or it punches a hole in what is behind it. */
+  depthWrite?: boolean;
+  cull?: "back" | "front" | "none";
+  label?: string;
+}
+
+/**
+ * A shading program a node can be drawn with.
+ *
+ * Materials batch: two nodes sharing a material and a geometry are one
+ * instanced draw, so a hundred identical beams cost the same as one.
+ */
+export class Material {
+  readonly options: MaterialOptions;
+  readonly label: string;
+  #pipelines = new Map<string, RenderPipeline>();
+
+  constructor(options: MaterialOptions = {}) {
+    this.options = options;
+    this.label = options.label ?? "material";
+  }
+
+  /** The pipeline for one set of attachment formats, compiled once. */
+  pipeline(g: GPU, format: PixelFormatName, sampleCount: number, depthFormat: PixelFormatName): RenderPipeline {
+    const key = `${format}|${sampleCount}|${depthFormat}`;
+    let pipeline = this.#pipelines.get(key);
+    if (!pipeline) {
+      pipeline = g.renderPipeline({
+        shader: sceneShader(this.options),
+        vertex: "scene_vertex",
+        fragment: "scene_fragment",
+        format,
+        depthFormat,
+        sampleCount,
+        blend: this.options.blend,
+        cull: this.options.cull ?? "back",
+        depth: { write: this.options.depthWrite ?? true },
+        label: this.label,
+      });
+      this.#pipelines.set(key, pipeline);
+    }
+    return pipeline;
+  }
+}
+
+export const material = (o: MaterialOptions = {}) => new Material(o);
+
+/**
+ * Additive, depth-read-only, and multiplied up past 1.0 so bloom sees it.
+ *
+ * This is what makes something read as emitting rather than as being a bright
+ * shape: additive so overlapping beams accumulate, no depth write so they do
+ * not occlude each other, and a colour above 1.0 so the HDR buffer has
+ * something for the bright pass to find.
+ */
+export function emissive(options: { intensity?: number; falloff?: string } = {}): Material {
+  const intensity = options.intensity ?? 3;
+  return new Material({
+    blend: "additive",
+    depthWrite: false,
+    cull: "none",
+    label: "emissive",
+    fragment: `
+      // params.x scales per node, so one material serves a whole rig.
+      float strength = ${intensity.toFixed(3)} * (params.x > 0.0 ? params.x : 1.0);
+      ${options.falloff ?? "float falloff = 1.0;"}
+      return float4(in.color.rgb * strength * falloff, in.color.a);
+    `,
+  });
+}
+
+/** The default: Lambert diffuse, hemisphere ambient, a narrow specular. */
+export const DEFAULT_FRAGMENT = `
+  float3 n = normalize(in.worldNormal);
+  float3 l = normalize(u.lightDirection.xyz);
+  float diffuse = max(dot(n, l), 0.0);
+
+  // Hemisphere ambient: full strength facing the sky, half facing the ground.
+  // Flat ambient makes everything read as a silhouette.
+  float sky = n.y * 0.5 + 0.5;
+  float3 ambient = u.ambient.rgb * u.ambient.w * mix(0.5, 1.0, sky);
+
+  float3 viewDir = normalize(u.eye.xyz - in.worldPosition);
+  // Not "half": that is MSL's 16-bit float type, and shadowing it is an error.
+  float3 halfway = normalize(l + viewDir);
+  float specular = pow(max(dot(n, halfway), 0.0), 48.0) * step(0.001, diffuse) * 0.25;
+
+  float3 lit = in.color.rgb * (ambient + u.lightColor.rgb * u.lightColor.w * diffuse);
+  return float4(lit + specular, in.color.a);
+`;
+
+/**
+ * The vertex half every material shares, plus whichever fragment it brought.
+ *
+ * `packed_float3` for the vertex data is load-bearing: a plain float3 is
+ * 16-byte aligned, which would make the stride 40 rather than the 32 the buffer
+ * is packed with, and every vertex after the first would be read wrong. The
+ * Vertex schema emits the packed spelling, so this cannot drift.
+ */
+export function sceneShader(o: MaterialOptions = {}): string {
+  const fragment = o.fragment ?? DEFAULT_FRAGMENT;
+  const body = /\bfragment\b/.test(fragment)
+    ? fragment
+    : `fragment float4 scene_fragment(
+  Fragment in [[stage_in]],
+  constant SceneUniforms &u [[buffer(1)]]
+) {
+  float4 params = in.params;
+${fragment}
+}`;
+
+  return msl`
+#include <metal_stdlib>
+using namespace metal;
+
+${SceneUniforms}
+
+${InstanceData}
+
+${Vertex}
+
+struct Fragment {
+  float4 position [[position]];
+  float3 worldNormal;
+  float3 worldPosition;
+  float2 uv;
+  float4 color;
+  float4 params;
+};
+
+vertex Fragment scene_vertex(
+  uint vid [[vertex_id]],
+  uint iid [[instance_id]],
+  device const Vertex *vertices [[buffer(0)]],
+  constant SceneUniforms &u [[buffer(1)]],
+  device const InstanceData *instances [[buffer(2)]]
+) {
+  Vertex v = vertices[vid];
+  InstanceData inst = instances[iid];
+  float4 world = inst.model * float4(v.position, 1.0);
+
+  Fragment out;
+  out.position = u.viewProjection * world;
+  out.worldNormal = normalize((inst.normalMatrix * float4(v.normal, 0.0)).xyz);
+  out.worldPosition = world.xyz;
+  out.uv = v.uv;
+  out.color = inst.color;
+  out.params = inst.params;
+  return out;
+}
+
+${declarationsOf(o.use)}
+${o.header ?? ""}
+
+${body}
+`;
+}
+
+/** Kept for anyone who compiled the default scene shader by hand. */
+export const SCENE_SHADER = sceneShader();
 
 // ---------------------------------------------------------------------------
 // Nodes
@@ -76,6 +276,9 @@ export interface NodeOptions {
   scale?: Vec3 | readonly [number, number, number] | number;
   color?: Color;
   visible?: boolean;
+  material?: Material;
+  /** Four free floats the material can read as `params`. */
+  params?: readonly [number, number, number, number];
 }
 
 export class Node {
@@ -85,6 +288,8 @@ export class Node {
   scale: Vec3;
   color: [number, number, number, number];
   visible: boolean;
+  material: Material | null;
+  params: [number, number, number, number];
 
   /** @internal Reused every frame, so animating allocates nothing. */
   readonly _model: Mat4 = new Float32Array(16);
@@ -98,20 +303,65 @@ export class Node {
     this.scale = toVec3(options.scale ?? 1);
     this.color = parseColor(options.color ?? "#cccccc");
     this.visible = options.visible ?? true;
+    this.material = options.material ?? null;
+    this.params = [...(options.params ?? [1, 0, 0, 0])] as [number, number, number, number];
   }
 
   setColor(c: Color): this {
     this.color = parseColor(c);
     return this;
   }
+
+  /**
+   * Point the node's -Y axis at a target, which is how a beam is aimed.
+   *
+   * The Euler angles are derived for compose()'s Ry·Rx·Rz order specifically:
+   * pitch away from straight down, then yaw. The negated arguments to atan2 are
+   * not a sign slip — rotating (0,-1,0) by Rx leaves it in -z, so the yaw that
+   * carries it to (dx, dz) is measured from -z, not +z.
+   */
+  aimAt(target: Vec3 | readonly [number, number, number]): this {
+    const t = toVec3(target);
+    const d = v3normalize({
+      x: t.x - this.position.x, y: t.y - this.position.y, z: t.z - this.position.z,
+    });
+    this.rotation = {
+      x: Math.acos(Math.min(1, Math.max(-1, -d.y))),
+      y: Math.atan2(-d.x, -d.z),
+      z: 0,
+    };
+    return this;
+  }
 }
 
-export const box = (o: NodeOptions & { size?: number | readonly [number, number, number] } = {}) =>
-  new Node(boxGeometry({ size: o.size }), o);
-export const sphere = (o: NodeOptions & { radius?: number; segments?: number; rings?: number } = {}) =>
-  new Node(sphereGeometry(o), o);
-export const plane = (o: NodeOptions & { size?: number | readonly [number, number]; segments?: number } = {}) =>
-  new Node(planeGeometry(o), o);
+type Sized<T> = NodeOptions & T;
+
+/**
+ * Only the shape keys reach the geometry builder.
+ *
+ * The builders memoise on their arguments so that identical shapes are the same
+ * object and therefore one instanced draw. Handing them the node's position and
+ * colour as well would make every key unique and quietly turn the whole scene
+ * back into one draw call per node.
+ */
+function shapeOf<T extends object>(o: T, keys: readonly (keyof T)[]): Partial<T> {
+  const out: Partial<T> = {};
+  for (const k of keys) if (o[k] !== undefined) out[k] = o[k];
+  return out;
+}
+
+export const box = (o: Sized<{ size?: number | readonly [number, number, number] }> = {}) =>
+  new Node(boxGeometry(shapeOf(o, ["size"])), o);
+export const sphere = (o: Sized<{ radius?: number; segments?: number; rings?: number }> = {}) =>
+  new Node(sphereGeometry(shapeOf(o, ["radius", "segments", "rings"])), o);
+export const plane = (o: Sized<{ size?: number | readonly [number, number]; segments?: number }> = {}) =>
+  new Node(planeGeometry(shapeOf(o, ["size", "segments"])), o);
+export const cylinder = (
+  o: Sized<{ radius?: number; top?: number; height?: number; segments?: number; caps?: boolean }> = {},
+) => new Node(cylinderGeometry(shapeOf(o, ["radius", "top", "height", "segments", "caps"])), o);
+/** A cone with its apex at the node's position, opening downward along -Y. */
+export const cone = (o: Sized<{ radius?: number; height?: number; segments?: number; caps?: boolean }> = {}) =>
+  new Node(coneGeometry(shapeOf(o, ["radius", "height", "segments", "caps"])), o);
 export const mesh = (geometry: Geometry, o: NodeOptions = {}) => new Node(geometry, o);
 
 // ---------------------------------------------------------------------------
@@ -175,76 +425,6 @@ export class Light {
 }
 
 // ---------------------------------------------------------------------------
-// The shader
-// ---------------------------------------------------------------------------
-
-/**
- * Lambert diffuse, hemisphere ambient, and a narrow Blinn-Phong highlight.
- *
- * `packed_float3` for the vertex data is load-bearing: a plain float3 is
- * 16-byte aligned, which would make the stride 32 rather than the 24 the buffer
- * is packed with, and every vertex after the first would be read wrong.
- */
-export const SCENE_SHADER = msl`
-#include <metal_stdlib>
-using namespace metal;
-
-${SceneUniforms}
-
-${InstanceData}
-
-struct Vertex {
-  packed_float3 position;
-  packed_float3 normal;
-};
-
-struct Fragment {
-  float4 position [[position]];
-  float3 worldNormal;
-  float3 worldPosition;
-  float4 color;
-};
-
-vertex Fragment scene_vertex(
-  uint vid [[vertex_id]],
-  uint iid [[instance_id]],
-  device const Vertex *vertices [[buffer(0)]],
-  constant SceneUniforms &u [[buffer(1)]],
-  device const InstanceData *instances [[buffer(2)]]
-) {
-  Vertex v = vertices[vid];
-  InstanceData inst = instances[iid];
-  float4 world = inst.model * float4(v.position, 1.0);
-
-  Fragment out;
-  out.position = u.viewProjection * world;
-  out.worldNormal = normalize((inst.normalMatrix * float4(v.normal, 0.0)).xyz);
-  out.worldPosition = world.xyz;
-  out.color = inst.color;
-  return out;
-}
-
-fragment float4 scene_fragment(Fragment in [[stage_in]], constant SceneUniforms &u [[buffer(1)]]) {
-  float3 n = normalize(in.worldNormal);
-  float3 l = normalize(u.lightDirection.xyz);
-  float diffuse = max(dot(n, l), 0.0);
-
-  // Hemisphere ambient: full strength facing the sky, half facing the ground.
-  // Flat ambient makes everything read as a silhouette.
-  float sky = n.y * 0.5 + 0.5;
-  float3 ambient = u.ambient.rgb * u.ambient.w * mix(0.5, 1.0, sky);
-
-  float3 viewDir = normalize(u.eye.xyz - in.worldPosition);
-  // Not "half": that is MSL's 16-bit float type, and shadowing it is an error.
-  float3 halfway = normalize(l + viewDir);
-  float specular = pow(max(dot(n, halfway), 0.0), 48.0) * step(0.001, diffuse) * 0.25;
-
-  float3 lit = in.color.rgb * (ambient + u.lightColor.rgb * u.lightColor.w * diffuse);
-  return float4(lit + specular, in.color.a);
-}
-`;
-
-// ---------------------------------------------------------------------------
 // The view
 // ---------------------------------------------------------------------------
 
@@ -252,8 +432,10 @@ export interface Scene3DOptions extends Omit<GPUViewOptions, "onFrame"> {
   background?: Color;
   camera?: CameraOptions | Camera;
   light?: LightOptions | Light;
-  /** Nodes per geometry the instance buffers are sized for. Default 4096. */
+  /** Nodes per batch the instance buffers are sized for. Default 4096. */
   maxInstances?: number;
+  /** Render in HDR with a bloom chain and a tone mapper. Emissive needs it. */
+  bloom?: boolean | BloomOptions;
   onFrame?: SceneHandler;
 }
 
@@ -265,6 +447,7 @@ export interface SceneFrame extends Frame {
 export type SceneHandler = (frame: SceneFrame, scene: Scene3D) => void;
 
 interface Batch {
+  material: Material;
   vertices: MTLObject;
   indices: MTLObject;
   indexCount: number;
@@ -276,11 +459,12 @@ export class Scene3D extends GPUView {
   readonly camera: Camera;
   readonly light: Light;
   background: [number, number, number, number];
+  /** The post chain, when `bloom` was asked for. Tune it live. */
+  readonly post: Bloom | null;
 
   #uniforms: GPUBuffer<any>;
-  #pipeline: RenderPipeline;
-  #shader: Shader;
-  #batches = new Map<Geometry, Batch>();
+  #defaultMaterial = new Material({ label: "lit" });
+  #batches = new Map<string, Batch>();
   #nodes: Node[] = [];
   #handlers: SceneHandler[] = [];
   #maxInstances: number;
@@ -296,16 +480,14 @@ export class Scene3D extends GPUView {
     this.light = options.light instanceof Light ? options.light : new Light(options.light);
     this.background = parseColor(options.background ?? "#0b0b0f");
     this.#maxInstances = options.maxInstances ?? 4096;
-
     this.#uniforms = g.buffer(SceneUniforms, { label: "scene uniforms" });
-    this.#shader = g.shader(SCENE_SHADER, { label: "scene" });
-    this.#pipeline = g.renderPipeline({
-      shader: this.#shader,
-      vertex: "scene_vertex",
-      fragment: "scene_fragment",
-      sampleCount: this.sampleCount,
-      label: "scene",
-    });
+
+    this.post = options.bloom
+      ? g.bloom({
+          ...(typeof options.bloom === "object" ? options.bloom : {}),
+          sampleCount: this.sampleCount,
+        })
+      : null;
 
     super.onFrame((frame) => this.#render(frame));
     if (options.onFrame) this.#handlers.push(options.onFrame);
@@ -319,7 +501,7 @@ export class Scene3D extends GPUView {
   add(item: any): any {
     if (item instanceof Node) {
       this.#nodes.push(item);
-      this.#batchFor(item.geometry).nodes.push(item);
+      this.#batchFor(item).nodes.push(item);
       return item;
     }
     return super.add(item);
@@ -328,8 +510,7 @@ export class Scene3D extends GPUView {
   remove(node: Node): this {
     const i = this.#nodes.indexOf(node);
     if (i >= 0) this.#nodes.splice(i, 1);
-    const batch = this.#batches.get(node.geometry);
-    if (batch) {
+    for (const batch of this.#batches.values()) {
       const j = batch.nodes.indexOf(node);
       if (j >= 0) batch.nodes.splice(j, 1);
     }
@@ -346,7 +527,7 @@ export class Scene3D extends GPUView {
     return this.#nodes;
   }
 
-  /** Draw calls the next frame will take: one per distinct geometry in use. */
+  /** Draw calls the next frame will take: one per geometry-and-material pair. */
   get batchCount(): number {
     let n = 0;
     for (const b of this.#batches.values()) if (b.nodes.some((x) => x.visible)) n++;
@@ -359,23 +540,34 @@ export class Scene3D extends GPUView {
     return this;
   }
 
-  /** The compiled scene shader, if you want to build another pipeline on it. */
-  get shader(): Shader {
-    return this.#shader;
+  #keys = new WeakMap<object, number>();
+  #nextKey = 0;
+
+  /** Identity for a geometry or material, so a pair can key a Map. */
+  #idOf(o: object): number {
+    let id = this.#keys.get(o);
+    if (id === undefined) {
+      id = this.#nextKey++;
+      this.#keys.set(o, id);
+    }
+    return id;
   }
 
-  #batchFor(geometry: Geometry): Batch {
-    let batch = this.#batches.get(geometry);
+  #batchFor(node: Node): Batch {
+    const material = node.material ?? this.#defaultMaterial;
+    const key = `${this.#idOf(node.geometry)}:${this.#idOf(material)}`;
+    let batch = this.#batches.get(key);
     if (!batch) {
       const g = gpu();
       batch = {
-        vertices: g.data(geometry.vertices, { label: "vertices" }),
-        indices: g.data(geometry.indices, { label: "indices" }),
-        indexCount: geometry.indices.length,
+        material,
+        vertices: g.data(node.geometry.vertices, { label: "vertices" }),
+        indices: g.data(node.geometry.indices, { label: "indices" }),
+        indexCount: node.geometry.indices.length,
         instances: g.array(InstanceData, this.#maxInstances, { label: "instances" }),
         nodes: [],
       };
-      this.#batches.set(geometry, batch);
+      this.#batches.set(key, batch);
     }
     return batch;
   }
@@ -407,9 +599,10 @@ export class Scene3D extends GPUView {
       lightColor: [this.light.color[0], this.light.color[1], this.light.color[2], this.light.intensity],
       ambient: [this.light.ambient[0], this.light.ambient[1], this.light.ambient[2], this.light.ambientIntensity],
       eye: [this.camera.position.x, this.camera.position.y, this.camera.position.z, 1],
+      time: [frame.time, frame.dt, frame.index, 0],
     });
 
-    // One instance-buffer fill and one draw per distinct geometry.
+    // One instance-buffer fill and one draw per batch.
     for (const batch of this.#batches.values()) {
       let n = 0;
       for (const node of batch.nodes) {
@@ -417,30 +610,48 @@ export class Scene3D extends GPUView {
         compose(node.position, node.rotation, node.scale, node._model);
         normalMatrix(node._model, node._normal);
         batch.instances.set(n++, {
-          model: node._model, normalMatrix: node._normal, color: node.color,
+          model: node._model, normalMatrix: node._normal,
+          color: node.color, params: node.params,
         });
       }
       batch.instances.count = n;
     }
 
     const t = targets(frame);
+    const g = gpu();
+    const post = this.post;
+    if (post) post.resize(frame.width, frame.height);
+
+    const format: PixelFormatName = post ? "rgba16float" : this.#formatName();
+    const depthFormat: PixelFormatName = "depth32float";
+
     frame.render(
-      {
-        color: { texture: t.colorTexture, clear: this.background, resolve: t.resolveTexture },
-        depth: t.depthTexture,
-        label: "scene",
-      },
+      post
+        ? { target: post.scene, clear: this.background, label: "scene" }
+        : {
+            color: { texture: t.colorTexture, clear: this.background, resolve: t.resolveTexture },
+            depth: t.depthTexture,
+            label: "scene",
+          },
       (pass: RenderPass) => {
-        pass.pipeline(this.#pipeline);
-        pass.uniforms(1, this.#uniforms);
         for (const batch of this.#batches.values()) {
           if (batch.instances.count === 0) continue;
-          pass.vertex(0, batch.vertices);
-          pass.vertex(2, batch.instances);
+          pass.pipeline(batch.material.pipeline(g, format, this.sampleCount, depthFormat));
+          pass.bind({
+            vertices: batch.vertices,
+            u: this.#uniforms,
+            instances: batch.instances,
+          });
           pass.drawIndexed(batch.indices, batch.indexCount, { instances: batch.instances.count });
         }
       },
     );
+
+    if (post) post.apply(frame, t.resolveTexture ?? t.colorTexture);
+  }
+
+  #formatName(): PixelFormatName {
+    return "bgra8unorm";
   }
 
   /** Render off-screen and write a PNG. Returns the file size in bytes. */
