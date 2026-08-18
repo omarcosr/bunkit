@@ -23,7 +23,7 @@ import {
   type BlendMode, type GPU, type GPUArrayBuffer, type GPUBuffer,
   type MTLObject, type PixelFormatName, type RenderPipeline, type Snippet,
 } from "./gpu.ts";
-import { targets, GPUView, type GPUViewOptions } from "./view.ts";
+import { GPUView, type GPUViewOptions } from "./view.ts";
 import { declarationsOf } from "./effects.ts";
 import type { Frame, RenderPass } from "./frame.ts";
 import type { Bloom, BloomOptions } from "./post.ts";
@@ -160,7 +160,7 @@ export const material = (o: MaterialOptions = {}) => new Material(o);
  * not occlude each other, and a colour above 1.0 so the HDR buffer has
  * something for the bright pass to find.
  */
-export function emissive(options: { intensity?: number; falloff?: string } = {}): Material {
+export function emissive(options: { intensity?: number } = {}): Material {
   const intensity = options.intensity ?? 3;
   return new Material({
     blend: "additive",
@@ -170,8 +170,7 @@ export function emissive(options: { intensity?: number; falloff?: string } = {})
     fragment: `
       // params.x scales per node, so one material serves a whole rig.
       float strength = ${intensity.toFixed(3)} * (params.x > 0.0 ? params.x : 1.0);
-      ${options.falloff ?? "float falloff = 1.0;"}
-      return float4(in.color.rgb * strength * falloff, in.color.a);
+      return float4(in.color.rgb * strength, in.color.a);
     `,
   });
 }
@@ -262,9 +261,6 @@ ${o.header ?? ""}
 ${body}
 `;
 }
-
-/** Kept for anyone who compiled the default scene shader by hand. */
-export const SCENE_SHADER = sceneShader();
 
 // ---------------------------------------------------------------------------
 // Nodes
@@ -617,20 +613,21 @@ export class Scene3D extends GPUView {
       batch.instances.count = n;
     }
 
-    const t = targets(frame);
     const g = gpu();
     const post = this.post;
     if (post) post.resize(frame.width, frame.height);
 
-    const format: PixelFormatName = post ? "rgba16float" : this.#formatName();
+    const format: PixelFormatName = post ? "rgba16float" : this.formatName;
     const depthFormat: PixelFormatName = "depth32float";
 
     frame.render(
       post
         ? { target: post.scene, clear: this.background, label: "scene" }
         : {
-            color: { texture: t.colorTexture, clear: this.background, resolve: t.resolveTexture },
-            depth: t.depthTexture,
+            color: {
+              texture: frame.colorTexture!, clear: this.background, resolve: frame.resolveTexture,
+            },
+            depth: frame.depthTexture,
             label: "scene",
           },
       (pass: RenderPass) => {
@@ -647,11 +644,7 @@ export class Scene3D extends GPUView {
       },
     );
 
-    if (post) post.apply(frame, t.resolveTexture ?? t.colorTexture);
-  }
-
-  #formatName(): PixelFormatName {
-    return "bgra8unorm";
+    if (post) post.apply(frame, frame.resolveTexture ?? frame.colorTexture);
   }
 
   /** Render off-screen and write a PNG. Returns the file size in bytes. */

@@ -236,15 +236,6 @@ export class RenderTarget {
       : null;
     return this;
   }
-
-  /** Scale another size down, for a half- or quarter-resolution chain. */
-  static scaled(gpu: GPU, width: number, height: number, factor: number, o: Partial<RenderTargetOptions> = {}) {
-    return new RenderTarget(gpu, {
-      ...o,
-      width: Math.max(1, Math.round(width * factor)),
-      height: Math.max(1, Math.round(height * factor)),
-    });
-  }
 }
 
 /**

@@ -215,7 +215,7 @@ export class GPUView extends View {
       }
       this.msaaTexture = this.sampleCount > 1
         ? this.gpu.texture({
-            width, height, format: this.#formatName(), usage: ["renderTarget"],
+            width, height, format: this.formatName, usage: ["renderTarget"],
             sampleCount: this.sampleCount, label: "msaa",
           })
         : null;
@@ -223,7 +223,8 @@ export class GPUView extends View {
     return this.#size;
   }
 
-  #formatName(): PixelFormatName {
+  /** The pixel format as a name, for building a pipeline that matches. */
+  get formatName(): PixelFormatName {
     for (const [name, value] of Object.entries(PixelFormat)) {
       if (value === this.format) return name as PixelFormatName;
     }
@@ -252,15 +253,10 @@ export class GPUView extends View {
       const frame = new Frame(commands, {
         time, dt, index: this.#frame, width, height,
       });
-      // The drawable's texture is what a pass should target; expose it rather
-      // than hiding it, because a post-processing chain needs to render
-      // elsewhere first and only resolve here at the end.
-      (frame as { drawable?: MTLObject }).drawable = drawable;
-      (frame as { colorTexture?: MTLObject }).colorTexture =
-        this.msaaTexture ? this.msaaTexture.native : drawable.texture();
-      (frame as { resolveTexture?: MTLObject }).resolveTexture =
-        this.msaaTexture ? drawable.texture() : undefined;
-      (frame as { depthTexture?: MTLObject }).depthTexture = this.depthTexture?.native;
+      frame.drawable = drawable;
+      frame.colorTexture = this.msaaTexture ? this.msaaTexture.native : drawable.texture();
+      frame.resolveTexture = this.msaaTexture ? drawable.texture() : undefined;
+      frame.depthTexture = this.depthTexture?.native;
 
       for (const fn of this.#handlers) {
         try {
@@ -294,7 +290,7 @@ export class GPUView extends View {
    */
   capture(width = 512, height = 384): { width: number; height: number; pixels: Uint8Array } {
     const color = this.gpu.texture({
-      width, height, format: this.#formatName(),
+      width, height, format: this.formatName,
       usage: ["renderTarget", "shaderRead"], storage: "shared", label: "capture",
     });
     const depth = this.#depthFormat
@@ -305,8 +301,8 @@ export class GPUView extends View {
       const frame = new Frame(commands, {
         time: this.#last - this.#start, dt: 1 / 60, index: this.#frame, width, height,
       });
-      (frame as { colorTexture?: MTLObject }).colorTexture = color.native;
-      (frame as { depthTexture?: MTLObject }).depthTexture = depth?.native;
+      frame.colorTexture = color.native;
+      frame.depthTexture = depth?.native;
       for (const fn of this.#handlers) fn(frame, this);
     });
 
@@ -332,15 +328,3 @@ export class GPUView extends View {
   }
 }
 
-/** The attachments the view prepared for this frame. */
-export interface FrameTargets {
-  colorTexture: MTLObject;
-  resolveTexture?: MTLObject;
-  depthTexture?: MTLObject;
-  drawable?: MTLObject;
-}
-
-/** Read the view-provided attachments off a Frame. */
-export function targets(frame: Frame): FrameTargets {
-  return frame as unknown as FrameTargets;
-}

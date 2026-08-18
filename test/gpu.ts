@@ -14,6 +14,9 @@ import {
   aces, fbm3, kelvin,
 } from "../src/metal/index.ts";
 import { initApp } from "../src/runtime.ts";
+import { objc } from "../src/objc.ts";
+import { ptr } from "../src/bridge.ts";
+import { BitmapImageFileType } from "../src/ui/appkit.ts";
 
 let failures = 0;
 function check(name: string, cond: any, extra?: any) {
@@ -34,6 +37,17 @@ if (!gpuAvailable()) {
 }
 
 const g = gpu();
+
+/** Write RGBA8 pixels to a PNG, so the loader has something real to read. */
+function writePNG(path: string, pixels: Uint8Array, width: number, height: number): void {
+  const planes = new BigUint64Array([BigInt(ptr(pixels))]);
+  const rep = objc.NSBitmapImageRep.alloc()
+    .initWithBitmapDataPlanes_pixelsWide_pixelsHigh_bitsPerSample_samplesPerPixel_hasAlpha_isPlanar_colorSpaceName_bytesPerRow_bitsPerPixel_(
+      ptr(planes), width, height, 8, 4, true, false, "NSDeviceRGBColorSpace", width * 4, 32,
+    );
+  rep.representationUsingType_properties_(BitmapImageFileType.PNG, objc.NSDictionary.dictionary())
+    .writeToFile_atomically_(path, true);
+}
 
 // ---------------------------------------------------------------------------
 // Schema layouts, checked against the Metal compiler itself
@@ -309,6 +323,39 @@ kernel void step(device Body *bodies [[buffer(0)]],
   const front = pair.front;
   pair.swap();
   check("ping-pong swaps", pair.back === front && pair.front !== front);
+}
+
+// ---------------------------------------------------------------------------
+// Loading an image
+// ---------------------------------------------------------------------------
+
+{
+  // Written top-down, so a texture that loads upside down fails here rather
+  // than as a scene where every texture is mirrored and nobody notices.
+  const W = 16;
+  const source = new Uint8Array(W * W * 4);
+  for (let y = 0; y < W; y++) {
+    for (let x = 0; x < W; x++) {
+      const i = (y * W + x) * 4;
+      const topLeft = x < W / 2 && y < W / 2;
+      source[i] = topLeft ? 255 : 0;
+      source[i + 2] = topLeft ? 0 : 255;
+      source[i + 3] = 255;
+    }
+  }
+  const path = `${process.env.TMPDIR ?? "/tmp"}/bunkit-texture-test.png`;
+  writePNG(path, source, W, W);
+
+  const texture = g.loadTexture(path);
+  check("an image file loads at its own size", texture.width === W && texture.height === W);
+  const back = texture.read();
+  const at = (x: number, y: number) => [...back.slice((y * W + x) * 4, (y * W + x) * 4 + 3)];
+  check("row 0 is the top, as Metal samples it", at(2, 2).join() === "255,0,0", at(2, 2));
+  check("and the rest came through", at(13, 13).join() === "0,0,255", at(13, 13));
+
+  let threw = false;
+  try { g.loadTexture(`${path}.missing`); } catch { threw = true; }
+  check("a missing file says so", threw);
 }
 
 // ---------------------------------------------------------------------------

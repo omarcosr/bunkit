@@ -417,8 +417,19 @@ export class Texture {
     this.native = native;
   }
 
-  /** Upload RGBA8 pixels. */
-  write(pixels: ArrayBufferView, bytesPerRow = this.width * 4): this {
+  /** Bytes one pixel occupies in this format, for read() and write(). */
+  get bytesPerPixel(): number {
+    switch (this.format) {
+      case PixelFormat.rgba32float: return 16;
+      case PixelFormat.rgba16float: return 8;
+      case PixelFormat.r32float: return 4;
+      case PixelFormat.r16float: return 2;
+      default: return 4;
+    }
+  }
+
+  /** Upload pixels. RGBA8 unless the texture says otherwise. */
+  write(pixels: ArrayBufferView, bytesPerRow = this.width * this.bytesPerPixel): this {
     const bytes = new Uint8Array(pixels.buffer, pixels.byteOffset, pixels.byteLength);
     this.native.replaceRegion_mipmapLevel_withBytes_bytesPerRow_(
       region2d(0, 0, this.width, this.height), 0, ptr(bytes), bytesPerRow,
@@ -426,11 +437,17 @@ export class Texture {
     return this;
   }
 
-  /** Read the texture back. Only valid for shared storage. */
+  /**
+   * Read the texture back. Only valid for shared storage.
+   *
+   * The bytes are in the texture's own format — a 16-bit float target comes
+   * back as half floats, not as something you can index as RGBA8.
+   */
   read(): Uint8Array {
-    const out = new Uint8Array(this.width * this.height * 4);
+    const stride = this.width * this.bytesPerPixel;
+    const out = new Uint8Array(stride * this.height);
     this.native.getBytes_bytesPerRow_fromRegion_mipmapLevel_(
-      ptr(out), this.width * 4, region2d(0, 0, this.width, this.height), 0,
+      ptr(out), stride, region2d(0, 0, this.width, this.height), 0,
     );
     return out;
   }
@@ -718,6 +735,50 @@ export class GPU {
 
   sampler(o: SamplerOptions = {}): Sampler {
     return new Sampler(this.device, o);
+  }
+
+  /**
+   * Load an image file into a texture. Anything AppKit reads: PNG, JPEG, HEIC.
+   *
+   * The file is redrawn into a known RGBA8 layout rather than trusted as it
+   * came, because an image on disk can be greyscale, indexed, 16 bits per
+   * channel or premultiplied, and uploading those bytes as if they were RGBA8
+   * gives you a texture that is wrong in a different way for each file.
+   */
+  loadTexture(path: string, o: { label?: string; mipmapped?: boolean } = {}): Texture {
+    return withPool(() => {
+      const image = objc.NSImage.alloc().initWithContentsOfFile_(path);
+      if (!image || image.ptr === NIL) throw new Error(`could not read an image from ${path}`);
+      const size = image.size();
+      const width = Math.max(1, Math.round(size.width));
+      const height = Math.max(1, Math.round(size.height));
+
+      // Our own buffer: a rep created with NULL planes does not allocate, and
+      // bitmapData comes back nil.
+      const pixels = new Uint8Array(width * height * 4);
+      const planes = new BigUint64Array([BigInt(ptr(pixels))]);
+      const rep = objc.NSBitmapImageRep.alloc()
+        .initWithBitmapDataPlanes_pixelsWide_pixelsHigh_bitsPerSample_samplesPerPixel_hasAlpha_isPlanar_colorSpaceName_bytesPerRow_bitsPerPixel_(
+          ptr(planes), width, height, 8, 4, true, false, "NSDeviceRGBColorSpace", width * 4, 32,
+        );
+      if (!rep || rep.ptr === NIL) throw new Error(`could not make a bitmap for ${path}`);
+
+      const context = objc.NSGraphicsContext.graphicsContextWithBitmapImageRep_(rep);
+      objc.NSGraphicsContext.saveGraphicsState();
+      objc.NSGraphicsContext.setCurrentContext_(context);
+      image.drawInRect_({ x: 0, y: 0, width, height });
+      objc.NSGraphicsContext.restoreGraphicsState();
+
+      // Row 0 is the top, which is the origin Metal samples from, so there is
+      // no flip here. If you need the other convention, do `1.0 - uv.y` in the
+      // shader rather than rewriting the bitmap.
+
+      const texture = new Texture(this.device, {
+        width, height, format: "rgba8unorm", usage: ["shaderRead"],
+        storage: "shared", mipmapped: o.mipmapped, label: o.label ?? path,
+      });
+      return texture.write(pixels);
+    });
   }
 
   /** Linear, clamped. What a full-screen pass wants, so effects bind it for you. */

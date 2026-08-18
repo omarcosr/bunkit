@@ -46,10 +46,6 @@ export function strideOf(type: DataType): number {
   return roundUp(type.size, type.alignment);
 }
 
-export function sizeOf(type: DataType): number {
-  return type.size;
-}
-
 // ---------------------------------------------------------------------------
 // Scalars
 // ---------------------------------------------------------------------------
@@ -197,8 +193,6 @@ export interface StructType<T extends Record<string, any> = Record<string, any>>
   declarations(): string[];
 }
 
-let anonymousStructs = 0;
-
 /**
  * Declare a struct once, use it on both sides.
  *
@@ -294,11 +288,6 @@ export function structWithLayout(
     },
   };
   return self;
-}
-
-/** A struct whose name does not matter, for one-off uniform blocks. */
-export function anonStruct<T extends Record<string, DataType<any>>>(fields: T) {
-  return struct(`Anon${anonymousStructs++}`, fields);
 }
 
 // ---------------------------------------------------------------------------

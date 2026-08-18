@@ -142,7 +142,7 @@ ${tonemap ? "  colour = aces(colour);\n  colour = dither(colour, vary.position.x
       }
     }
 
-    const target = to ?? (frame as unknown as { colorTexture?: MTLObject }).colorTexture;
+    const target = to ?? frame.resolveTexture ?? frame.colorTexture;
     if (!target) throw new Error("bloom.apply needs somewhere to composite: pass a texture");
     frame.effect(this.#composite, {
       to: target,

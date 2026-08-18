@@ -365,6 +365,19 @@ export class Frame {
   /** Drawable size in pixels. */
   readonly width: number;
   readonly height: number;
+
+  // The attachments a view prepared, when the frame came from one. They are
+  // exposed rather than hidden because a post-processing chain has to render
+  // somewhere else first and only resolve to the drawable at the end.
+
+  /** Where to render: the multisample texture, or the drawable's own. */
+  colorTexture?: MTLObject;
+  /** Where a multisampled pass resolves to. Undefined when sampleCount is 1. */
+  resolveTexture?: MTLObject;
+  depthTexture?: MTLObject;
+  /** The CAMetalDrawable being presented, for the rare case that needs it. */
+  drawable?: MTLObject;
+
   #passes = 0;
 
   constructor(
@@ -435,7 +448,7 @@ export class Frame {
    * get a linear clamped sampler, which is what a post-process wants.
    */
   effect(effect: Effect, o: EffectPassOptions = {}): void {
-    const to = o.to ?? (this as unknown as { colorTexture?: MTLObject }).colorTexture;
+    const to = o.to ?? this.resolveTexture ?? this.colorTexture;
     if (!to) throw new Error("effect() needs somewhere to render: pass { to }");
 
     const bind: Record<string, BindValue> = { ...o.bind };

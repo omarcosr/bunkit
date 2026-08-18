@@ -102,11 +102,70 @@ const cube = scene.add(box({ size: 1.1, position: [0, 0.55, 0], color: "#aa091b"
 scene.onFrame(({ dt }) => { cube.rotation.y += dt; });
 ```
 
-`box`, `sphere` and `plane`, or your own vertex data through `geometry()`. one directional light, a depth buffer, a camera you can move, and `scene.capture()` / `scene.snapshot()` to read the framebuffer back — which is how the renderer is tested, since nobody is watching.
+`box`, `sphere`, `plane`, `cylinder` and `cone`, or your own vertex data through `geometry()`. nodes that share a shape and a material get batched into one instanced draw, so the draw call count follows the number of distinct meshes rather than the number of objects. two hundred cubes is one draw.
 
-it's a `CAMetalLayer` rather than an `MTKView`, so the frames come from bunkit's own run loop instead of a second one. if you'd rather write your own shaders, `scene.device` and `scene.layer` are right there; the built-in msl is about 40 lines in `src/metal/device.ts`.
+`bun run scene` is that example.
 
-`bun run scene` is the example.
+### shaders
+
+the layer under `Scene3D` is a typed gpu api. it borrows [typegpu](https://github.com/software-mansion/TypeGPU)'s idea — declare a struct once, generate both the byte layout and the msl from it — and adds the other direction, because metal's compiler will tell you the layout it decided on.
+
+so you can start from the schema:
+
+```ts
+const Globals = struct("Globals", { viewProjection: mat4x4f, time: f32 });
+
+const pipeline = gpu().renderPipeline({
+  shader: msl`
+    ${Globals}
+    vertex float4 vs(constant Globals &g [[buffer(0)]]) { ... }
+    fragment float4 fs() { ... }
+  `,
+});
+```
+
+or skip it entirely and let the compiler describe the struct you already wrote:
+
+```ts
+pass.pipeline(pipeline).bind({
+  g: { viewProjection, time: 0.4 },   // packed using metal's own offsets
+  albedo: texture,                     // right stage, right index
+});
+```
+
+`bind` takes the names out of the shader. there are no buffer indices to keep in sync on this side, and renumbering `[[buffer(2)]]` can't quietly break the caller — a name that doesn't exist throws and lists the ones that do.
+
+entry points get found the same way. one vertex function and one fragment function in the library means you don't name either.
+
+a full-screen effect is a string:
+
+```ts
+const invert = gpu().effect(`return float4(1.0 - src.sample(smp, uv).rgb, 1.0);`);
+
+frame.effect(invert, { to: screen, bind: { src: sceneTexture } });
+```
+
+`src`, `smp` and `uv` are in scope, the sampler gets bound for you, and the triangle gets drawn for you. pass a whole `fragment` function instead when one expression isn't enough — it's an ordinary pipeline underneath, so `bind` still finds whatever you declared.
+
+compute is the same shape. `gpu().kernel(source)` finds the entry point, `kernel.run(n, bindings)` dispatches it, and `frame.dispatch(...)` puts it in the same command buffer as the drawing so the simulation and the draw that reads it are ordered by the gpu instead of a cpu wait.
+
+`src/metal/shaders.ts` has the msl you'd otherwise retype: aces, colour temperature in kelvin, ordered dither, value noise and fbm, sdfs, cone falloff. they're snippets — interpolate one and its dependencies come with it, deduplicated.
+
+### a rig
+
+![a stage lighting rig](docs/lighting-rig.png)
+
+twenty-four moving heads, each with a yoke, a head, a volumetric beam and a pool on the floor, re-aimed from javascript every frame. hdr into a bloom chain and an aces tone map, msaa, 220 nodes, **9 draw calls**, and 0.027ms to build and encode a frame.
+
+it stays cheap because nothing scales with the object count. a draw call costs about 1.2µs from js, and writing twenty thousand instance structs into a shared buffer costs 0.05ms in total — so per-object draws are roughly 25,000× the cost of per-instance writes, and everything here is a per-instance write. adding another hundred fixtures adds no draw calls.
+
+frames are paced to the display rather than run free. presenting faster than the refresh changes nothing you can see, `nextDrawable` blocks on vsync anyway, and decoupling just presents staler state — which for anything synced to music is worse than a lower frame rate. the view keeps at most two command buffers outstanding and skips a tick when the gpu hasn't caught up, so the run loop never blocks.
+
+completion is polled rather than handled. metal calls `addCompletedHandler:` on its own thread and a js callback entered from there deadlocks bun, so the status gets read at the top of the next tick from the thread that's allowed to read it.
+
+`bun run rig` is the example.
+
+it's a `CAMetalLayer` rather than an `MTKView`, so frames come from bunkit's run loop instead of a second one. `.native` is on every object if you want the raw obj-c, and `scene.capture()` / `scene.snapshot()` read the framebuffer back — which is how all of this is tested, since nobody is watching.
 
 ### the annoying parts
 
