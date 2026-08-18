@@ -16,6 +16,7 @@ const SUITES = [
   "test/keys.ts",
   "test/runloop.ts",
   "test/soak.ts",
+  "test/perf.ts",
   "test/examples.ts",
 ];
 

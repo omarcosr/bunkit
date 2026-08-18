@@ -163,7 +163,7 @@ compute is the same shape. `gpu().kernel(source)` finds the entry point, `kernel
 
 twenty-four moving heads, each with a yoke, a head, a volumetric beam and a pool on the floor, re-aimed from javascript every frame. hdr into a bloom chain and an aces tone map, msaa, 220 nodes, **9 draw calls**, and 0.3ms of javascript per frame.
 
-the draw call count doesn't follow the object count, and that's the whole trick. measured on an m2 pro, a draw call with its bindings costs about 1.2µs from js. transforming a node and writing its instance struct costs 0.08µs. so:
+the draw call count doesn't follow the object count, and that's the whole trick. measured on an m2 pro, a draw call with its bindings costs about 1.2µs from js. transforming a node and writing its instance struct costs 0.12µs. so:
 
 | nodes | draw calls | js per frame |
 | --- | --- | --- |

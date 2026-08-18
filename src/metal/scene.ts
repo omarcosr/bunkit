@@ -4,7 +4,7 @@
 // rather than beside them, so the performance work is not something you opt
 // into. Nodes sharing a geometry and a material are batched into a single
 // instanced draw and their transforms are written straight into shared memory.
-// Measured on an M2 Pro: a node costs about 0.08us per frame to transform and
+// Measured on an M2 Pro: a node costs about 0.12us per frame to transform and
 // write, so twenty thousand animated nodes come to 2.3ms of JavaScript in one
 // draw call. Drawing them one at a time would be 25ms of encoding alone.
 //
@@ -460,7 +460,7 @@ export type SceneHandler = (frame: SceneFrame, scene: Scene3D) => void;
  *
  * The per-frame fill writes through a Float32Array rather than through
  * InstanceData.write(), because it is the hottest loop in the library:
- * measured, the schema path costs 0.12us per node against 0.016us for the
+ * measured, the schema path costs 0.12us per node against 0.03us for the
  * direct writes, and at ten thousand nodes that is the difference between
  * 1.2ms of a frame and 0.16ms. The offsets still come from the schema, so the
  * two cannot disagree about the layout.

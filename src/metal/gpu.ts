@@ -119,7 +119,7 @@ function outError() {
  * Storage is `shared`, which on Apple silicon means the CPU and GPU address the
  * same memory: `write()` stores directly into what the shader will read, with
  * no staging copy and no upload step. Measured, one instance struct costs
- * 0.12us through the schema and 0.016us written straight through `floats()`,
+ * 0.12us through the schema and 0.03us written straight through `floats()`,
  * against 1.2us for a draw call — which is why per-instance data belongs here
  * rather than in per-object draw calls.
  */
