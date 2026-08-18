@@ -52,6 +52,7 @@
     "scene": "bun run examples/scene3d.ts",
     "rig": "bun run examples/lighting-rig.ts",
     "playground": "bun run examples/shader-playground.ts",
+    "particles": "bun run examples/particles.ts",
     "test": "bun run test/all.ts",
     "typecheck": "tsc -p .",
     "gen": "bun run tools/gen-constants.ts && bun run tools/gen-types.ts",

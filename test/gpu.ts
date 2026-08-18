@@ -285,6 +285,92 @@ kernel void step(device Body *bodies [[buffer(0)]],
 }
 
 // ---------------------------------------------------------------------------
+// Compute feeding a draw, in one command buffer
+// ---------------------------------------------------------------------------
+
+{
+  // The pattern a GPU particle system is: a kernel writes the buffer, and the
+  // draw in the same command buffer reads it. Ordering is the GPU's job — if it
+  // were not, this would render the buffer's previous contents.
+  const P = struct("P", { position: vec4f, color: vec4f });
+  const Sim = struct("Sim", { count: u32, spread: f32 });
+  const N = 2048;
+  const points = g.array(P, N, { label: "points" });
+  for (let i = 0; i < N; i++) points.set(i, { position: [0, 0, 0, 1], color: [1, 0.6, 0.2, 1] });
+  points.count = N;
+
+  const place = g.kernel(msl`
+#include <metal_stdlib>
+using namespace metal;
+
+${P}
+
+${Sim}
+
+kernel void place(device P *points [[buffer(0)]],
+                  constant Sim &sim [[buffer(1)]],
+                  uint i [[thread_position_in_grid]]) {
+  if (i >= sim.count) return;
+  float a = float(i) / float(sim.count) * 6.2831853;
+  points[i].position = float4(cos(a) * sim.spread, sin(a) * sim.spread, 0.0, 1.0);
+}`);
+
+  const Style = struct("Style", { style: vec4f });
+  const style = g.buffer(Style);
+  style.write({ style: [10, 1, 0, 0] });
+
+  const points3 = g.renderPipeline({
+    shader: msl`
+#include <metal_stdlib>
+using namespace metal;
+
+${P}
+
+${Style}
+
+struct F { float4 position [[position]]; float size [[point_size]]; float4 color; };
+
+vertex F vs(uint vid [[vertex_id]], device const P *points [[buffer(0)]],
+            constant Style &style [[buffer(1)]]) {
+  F o;
+  o.position = float4(points[vid].position.xy, 0.0, 1.0);
+  o.size = style.style.x;
+  o.color = points[vid].color;
+  return o;
+}
+
+fragment float4 fs(F in [[stage_in]], float2 uv [[point_coord]]) {
+  float falloff = pow(saturate(1.0 - length(uv - 0.5) * 2.0), 2.0);
+  if (falloff <= 0.0) discard_fragment();
+  return float4(in.color.rgb * falloff, 1.0);
+}`,
+    format: "rgba8unorm", depthFormat: null, blend: "additive", cull: "none", label: "points",
+  });
+
+  const size = 128;
+  const out = g.texture({
+    width: size, height: size, format: "rgba8unorm",
+    usage: ["renderTarget", "shaderRead"], storage: "shared",
+  });
+  g.submit((commands) => {
+    const frame = new Frame(commands, { time: 0, dt: 1 / 60, index: 0, width: size, height: size });
+    frame.dispatch(place, N, { points, sim: { count: N, spread: 0.6 } });
+    frame.render({ color: { texture: out, clear: [0, 0, 0, 1] } }, (pass) => {
+      pass.pipeline(points3).bind({ points, style }).draw(N, { primitive: "point" });
+    });
+  });
+
+  const pixels = out.read();
+  const at = (x: number, y: number) => pixels[(y * size + x) * 4]!;
+  check("point primitives rasterise with a size and a coord",
+    at(size - 26, size / 2) > 100, at(size - 26, size / 2));
+  check("the draw saw what the compute pass wrote", at(size / 2, size / 2) < 30, at(size / 2, size / 2));
+  check("and the ring did not fill the whole target", at(2, 2) < 20, at(2, 2));
+  check("shared storage shows the kernel's output on the cpu too",
+    Math.abs((points.get(0).position as number[])[0]! - 0.6) < 1e-3, points.get(0).position);
+}
+
+// ---------------------------------------------------------------------------
 // Effects and render targets
 // ---------------------------------------------------------------------------
 
