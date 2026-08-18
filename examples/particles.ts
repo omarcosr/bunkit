@@ -2,14 +2,15 @@
 //
 //   bun run examples/particles.ts
 //
-// The point of this one is where the work happens. JavaScript writes a single
-// uniform struct per frame — about forty bytes — and everything else is two GPU
-// commands in the same command buffer: a compute pass that moves every particle,
-// then a draw that reads the buffer the compute pass just wrote.
+// The point of this one is where the work happens. Per frame, JavaScript writes
+// two uniform structs — 128 bytes between them — and issues a compute dispatch,
+// one draw, and the bloom chain. The compute pass and the draw share a command
+// buffer, so the draw reads what the kernel just wrote without a CPU wait.
 //
+// Measured on an M2 Pro at 2000x1384: 0.5ms of JavaScript and 3.2ms of GPU.
 // Nothing is read back, nothing is uploaded, and the particle count does not
-// appear anywhere in the per-frame JavaScript. Turning 250,000 into 1,000,000 is
-// a number in the constructor.
+// appear anywhere in the per-frame JavaScript — turning 250,000 into 1,000,000
+// is a number in the constructor and costs the GPU, not the loop.
 
 import {
   Application, Checkbox, HStack, Label, Segmented, Slider, Spacer, VStack, Window,

@@ -153,7 +153,7 @@ a live editor is then a text view and a debounce. `bun run playground` is one �
 
 compute is the same shape. `gpu().kernel(source)` finds the entry point, `kernel.run(n, bindings)` dispatches it, and `frame.dispatch(...)` puts it in the same command buffer as the drawing so the simulation and the draw that reads it are ordered by the gpu instead of a cpu wait.
 
-`bun run particles` is a quarter of a million of them, simulated in a kernel and drawn as point sprites. per frame javascript writes one uniform struct — about forty bytes — and issues two commands. the particle count doesn't appear in the frame callback at all; it's a number in the constructor.
+`bun run particles` is a quarter of a million of them, simulated in a kernel and drawn as point sprites. per frame javascript writes two uniform structs — 128 bytes — and issues a dispatch, a draw and the bloom chain: 0.5ms of js against 3.2ms of gpu at 2000×1384. the particle count doesn't appear in the frame callback at all, so a million costs the gpu and not the loop.
 
 `src/metal/shaders.ts` has the msl you'd otherwise retype: aces, colour temperature in kelvin, ordered dither, value noise and fbm, sdfs, cone falloff. they're snippets — interpolate one and its dependencies come with it, deduplicated.
 
