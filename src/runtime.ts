@@ -92,9 +92,21 @@ export function onFrame(fn: (now: number) => void): () => void {
   return () => frameCallbacks.delete(fn);
 }
 
+let tick = 0;
+
+/**
+ * Run-loop iterations so far.
+ *
+ * Anything that has to distinguish "this frame" from "a previous one" — an
+ * input edge, a per-frame delta — compares against this rather than keeping its
+ * own flag and hoping something clears it at the right point in the frame.
+ */
+export function frameTick(): number {
+  return tick;
+}
+
 /** Invoke the frame callbacks. Called by the run loop and by pumpOnce. */
 export function tickFrames(): void {
-  if (frameCallbacks.size === 0) return;
   const now = lib.br_now();
   for (const fn of [...frameCallbacks]) {
     try {
@@ -103,6 +115,11 @@ export function tickFrames(): void {
       console.error("[runtime] frame callback failed:", e);
     }
   }
+  // Advanced *after* the callbacks, not before. AppKit has already dispatched
+  // this iteration's events by the time we get here, so anything they recorded
+  // — a key going down, a mouse delta — is stamped with the tick the callbacks
+  // are still running under, and reads as having happened this frame.
+  tick++;
 }
 
 export function onQuit(fn: () => void | Promise<void>): void {

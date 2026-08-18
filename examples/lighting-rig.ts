@@ -7,6 +7,10 @@
 // cues that advance on a musical beat. It runs at the display's refresh with
 // the whole rig re-aimed from JavaScript every frame.
 //
+// Hold the right mouse button to look around and fly with WASD, which is the
+// part that makes this feel like something you could build a game in: the
+// camera is read from held keys inside the frame callback, not from events.
+//
 // What makes that affordable is that the number of draw calls does not depend
 // on the number of fixtures. Everything is instanced: 24 heads are one draw,
 // 24 beams are one draw, 24 pools are one draw. Adding a hundred more fixtures
@@ -247,6 +251,54 @@ let hazeLevel = 1;
 let master = 1;
 
 // ---------------------------------------------------------------------------
+// Flying the camera
+// ---------------------------------------------------------------------------
+
+const keys = scene.input;
+
+/** Where the camera is and which way it faces, in the usual yaw/pitch pair. */
+const eye = { x: 0, y: 9.2, z: 17.5 };
+let yaw = Math.PI;
+let pitch = -0.28;
+/** True while the viewer is driving; the automatic drift stops until they stop. */
+let flying = false;
+let driftFrom = 0;
+
+function fly(dt: number): void {
+  const looking = keys.button(1);
+  if (looking) {
+    yaw -= keys.mouse.dx * 0.005;
+    // Stop just short of straight up or down: at exactly vertical the forward
+    // vector is parallel to up and lookAt has no way to orient the horizon.
+    pitch = Math.max(-1.45, Math.min(1.45, pitch - keys.mouse.dy * 0.005));
+  }
+
+  const speed = (keys.shift ? 24 : 9) * dt;
+  const forward = { x: Math.sin(yaw) * Math.cos(pitch), y: Math.sin(pitch), z: Math.cos(yaw) * Math.cos(pitch) };
+  const right = { x: Math.cos(yaw), y: 0, z: -Math.sin(yaw) };
+
+  let moved = false;
+  const step = (v: { x: number; y: number; z: number }, amount: number) => {
+    eye.x += v.x * amount;
+    eye.y += v.y * amount;
+    eye.z += v.z * amount;
+    moved = true;
+  };
+  if (keys.held("w")) step(forward, speed);
+  if (keys.held("s")) step(forward, -speed);
+  if (keys.held("d")) step(right, speed);
+  if (keys.held("a")) step(right, -speed);
+  if (keys.held("e") || keys.held("space")) step({ x: 0, y: 1, z: 0 }, speed);
+  if (keys.held("q")) step({ x: 0, y: 1, z: 0 }, -speed);
+  // Under the floor is never where you meant to be.
+  eye.y = Math.max(0.6, eye.y);
+
+  flying = looking || moved;
+  scene.camera.position = { ...eye };
+  scene.camera.target = { x: eye.x + forward.x, y: eye.y + forward.y, z: eye.z + forward.z };
+}
+
+// ---------------------------------------------------------------------------
 // The frame
 // ---------------------------------------------------------------------------
 
@@ -316,13 +368,20 @@ scene.onFrame(({ time, dt }) => {
     p.params[0] = 0.5 + Math.sin(time * 0.7 + i) * 0.12;
   });
 
-  // A slow drift, so the rig is seen from more than one angle. High enough to
-  // see the floor, because half of what a rig does is land somewhere.
-  scene.camera.position = {
-    x: Math.sin(time * 0.09) * 5.2,
-    y: 9.2 + Math.sin(time * 0.13) * 1.4,
-    z: 17.5,
-  };
+  fly(dt);
+  if (flying) {
+    driftFrom = time;
+  } else {
+    // Nobody is driving: drift, from wherever they left the camera, so taking
+    // your hands off does not teleport the view.
+    const t = time - driftFrom;
+    scene.camera.position = {
+      x: eye.x + Math.sin(t * 0.09) * 5.2,
+      y: eye.y + Math.sin(t * 0.13) * 1.4,
+      z: eye.z,
+    };
+    scene.camera.target = { x: 0, y: 2.2, z: -0.5 };
+  }
 });
 
 // ---------------------------------------------------------------------------
@@ -349,6 +408,10 @@ const win = new Window({
   content: new VStack({ spacing: 12, padding: 16 }, [
     new HStack({ spacing: 8, align: "center" }, [
       new Label({ text: "Rig", font: { style: "title", weight: "semibold" } }),
+      new Label({
+        text: "right-drag to look · wasd to fly · shift for speed",
+        color: "tertiaryLabel",
+      }),
       new Spacer(),
       readout,
     ]),

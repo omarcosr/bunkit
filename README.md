@@ -163,6 +163,20 @@ frames are paced to the display rather than run free. presenting faster than the
 
 completion is polled rather than handled. metal calls `addCompletedHandler:` on its own thread and a js callback entered from there deadlocks bun, so the status gets read at the top of the next tick from the thread that's allowed to read it.
 
+hold the right mouse button to look around and fly with wasd. input is polled rather than delivered — `keys.held("w")` asked once per frame, inside the frame callback, which is what a loop wants and what a callback API makes awkward:
+
+```ts
+const keys = view.input;
+
+scene.onFrame(({ dt }) => {
+  if (keys.held("w")) move(forward, speed * dt);
+  if (keys.pressed("space")) jump();          // true on exactly one frame
+  yaw -= keys.mouse.dx * 0.005;               // zero on a frame with no motion
+});
+```
+
+it's one application-wide `NSEvent` monitor rather than an `NSView` subclass, so it sees every key regardless of which control has focus, and it passes every event straight through — nothing else in the app notices. key codes map by position, so wasd stays under the same fingers on an azerty keyboard.
+
 `bun run rig` is the example.
 
 it's a `CAMetalLayer` rather than an `MTKView`, so frames come from bunkit's run loop instead of a second one. `.native` is on every object if you want the raw obj-c, and `scene.capture()` / `scene.snapshot()` read the framebuffer back — which is how all of this is tested, since nobody is watching.

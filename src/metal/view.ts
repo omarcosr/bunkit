@@ -31,6 +31,7 @@ import { objc, withPool } from "../objc.ts";
 import { NIL } from "../bridge.ts";
 import { onFrame, setAnimating } from "../runtime.ts";
 import { View, type ViewOptions } from "../ui/view.ts";
+import { input, type Input } from "../ui/input.ts";
 import {
   CommandBufferStatus, gpu, PixelFormat, Texture,
   type GPU, type MTLObject, type PixelFormatName,
@@ -127,6 +128,15 @@ export class GPUView extends View {
   onFrame(fn: (frame: Frame, view: GPUView) => void): this {
     this.#handlers.push(fn);
     return this;
+  }
+
+  /**
+   * Keyboard and mouse, with the pointer reported in this view's coordinates.
+   *
+   *   if (view.input.held("w")) camera.position.z -= speed * frame.dt;
+   */
+  get input(): Input {
+    return input().track(this);
   }
 
   start(): this {
