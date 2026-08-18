@@ -18,6 +18,7 @@
 import type { MTLObject, PixelFormatName, RenderPipeline, Snippet, Texture } from "./gpu.ts";
 import type { BlendMode, GPU } from "./gpu.ts";
 import type { BindingTable, BindValue } from "./reflect.ts";
+import type { StructType } from "./types.ts";
 
 /**
  * The vertex half of every effect.
@@ -59,9 +60,20 @@ export interface EffectOptions {
    * body is wrapped in a function and MSL has no nested function definitions.
    */
   use?: readonly Snippet[];
+  /**
+   * A uniform block for the body form, declared and bound as `u`.
+   *
+   *   const Play = struct("Play", { time: f32, resolution: vec2f });
+   *   gpu().effect({ uniforms: Play, fragment: `return float4(u.time); ` });
+   *   frame.effect(play, { bind: { u: { time, resolution } } });
+   *
+   * Without this a bare body sees only `uv`, `src` and `smp`, which is enough
+   * for an image filter and not enough for anything that moves.
+   */
+  uniforms?: StructType;
   /** Declarations to put above the fragment function: helpers, structs, constants. */
   header?: string;
-  format?: PixelFormatName;
+  format?: PixelFormatName | readonly PixelFormatName[];
   blend?: BlendMode;
   label?: string;
 }
@@ -95,16 +107,20 @@ export class Effect {
 }
 
 function buildSource(o: EffectOptions): string {
-  const header = `${declarationsOf(o.use)}${o.header ? `${o.header}\n` : ""}`;
-  if (!/\bfragment\b/.test(o.fragment)) checkBody(o.fragment);
+  const uniforms = o.uniforms ? `${o.uniforms.declare()}\n` : "";
+  const header = `${declarationsOf(o.use)}${uniforms}${o.header ? `${o.header}\n` : ""}`;
+
   // A source that declares its own fragment function is used as written; a bare
   // body gets the usual parameters wrapped around it.
-  const body = /\bfragment\b/.test(o.fragment)
-    ? o.fragment
-    : `fragment float4 bunkit_effect(
+  if (/\bfragment\b/.test(o.fragment)) {
+    return `${FULLSCREEN_PRELUDE}\n${header}\n${o.fragment}\n`;
+  }
+  checkBody(o.fragment);
+  const uniformParam = o.uniforms ? `,\n  constant ${o.uniforms.msl} &u [[buffer(0)]]` : "";
+  const body = `fragment float4 bunkit_effect(
   Varying vary [[stage_in]],
   texture2d<float> src [[texture(0)]],
-  sampler smp [[sampler(0)]]
+  sampler smp [[sampler(0)]]${uniformParam}
 ) {
   float2 uv = vary.uv;
 ${o.fragment.split("\n").map((l) => (l.trim() ? `  ${l}` : l)).join("\n")}

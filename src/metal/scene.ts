@@ -120,11 +120,19 @@ export interface MaterialOptions {
 export class Material {
   readonly options: MaterialOptions;
   readonly label: string;
+  /**
+   * Whether this material blends with what is already there.
+   *
+   * Decides draw order, and that is not cosmetic: a blended surface writes no
+   * depth, so anything opaque drawn after it overwrites it completely.
+   */
+  readonly transparent: boolean;
   #pipelines = new Map<string, RenderPipeline>();
 
   constructor(options: MaterialOptions = {}) {
     this.options = options;
     this.label = options.label ?? "material";
+    this.transparent = !!options.blend && options.blend !== "none";
   }
 
   /** The pipeline for one set of attachment formats, compiled once. */
@@ -449,6 +457,8 @@ interface Batch {
   indexCount: number;
   instances: GPUArrayBuffer<any>;
   nodes: Node[];
+  /** Mean distance from the camera, for ordering the transparent batches. */
+  depth: number;
 }
 
 export class Scene3D extends GPUView {
@@ -562,6 +572,7 @@ export class Scene3D extends GPUView {
         indexCount: node.geometry.indices.length,
         instances: g.array(InstanceData, this.#maxInstances, { label: "instances" }),
         nodes: [],
+        depth: 0,
       };
       this.#batches.set(key, batch);
     }
@@ -599,8 +610,10 @@ export class Scene3D extends GPUView {
     });
 
     // One instance-buffer fill and one draw per batch.
+    const eye = this.camera.position;
     for (const batch of this.#batches.values()) {
       let n = 0;
+      let depth = 0;
       for (const node of batch.nodes) {
         if (!node.visible || n >= batch.instances.capacity) continue;
         compose(node.position, node.rotation, node.scale, node._model);
@@ -609,9 +622,23 @@ export class Scene3D extends GPUView {
           model: node._model, normalMatrix: node._normal,
           color: node.color, params: node.params,
         });
+        depth += (node.position.x - eye.x) ** 2 + (node.position.y - eye.y) ** 2 +
+                 (node.position.z - eye.z) ** 2;
       }
       batch.instances.count = n;
+      batch.depth = n > 0 ? depth / n : 0;
     }
+
+    // Opaque first, then blended back to front. Ordering is per batch, not per
+    // object — sorting individual nodes would mean one draw call each, which
+    // costs more than it buys. Additive blending does not care about order at
+    // all, and that is what most of this is.
+    const order = [...this.#batches.values()]
+      .filter((b) => b.instances.count > 0)
+      .sort((a, b) =>
+        a.material.transparent === b.material.transparent
+          ? b.depth - a.depth
+          : (a.material.transparent ? 1 : 0) - (b.material.transparent ? 1 : 0));
 
     const g = gpu();
     const post = this.post;
@@ -631,8 +658,7 @@ export class Scene3D extends GPUView {
             label: "scene",
           },
       (pass: RenderPass) => {
-        for (const batch of this.#batches.values()) {
-          if (batch.instances.count === 0) continue;
+        for (const batch of order) {
           pass.pipeline(batch.material.pipeline(g, format, this.sampleCount, depthFormat));
           pass.bind({
             vertices: batch.vertices,

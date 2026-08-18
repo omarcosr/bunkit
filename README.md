@@ -147,6 +147,10 @@ frame.effect(invert, { to: screen, bind: { src: sceneTexture } });
 
 `src`, `smp` and `uv` are in scope, the sampler gets bound for you, and the triangle gets drawn for you. pass a whole `fragment` function instead when one expression isn't enough — it's an ordinary pipeline underneath, so `bind` still finds whatever you declared.
 
+a live editor is then a text view and a debounce. `bun run playground` is one — type msl on the left, watch it on the right, with compile errors shown under the offending line and the last shader that worked still rendering while you fix the one that doesn't.
+
+![the shader playground](docs/playground.png)
+
 compute is the same shape. `gpu().kernel(source)` finds the entry point, `kernel.run(n, bindings)` dispatches it, and `frame.dispatch(...)` puts it in the same command buffer as the drawing so the simulation and the draw that reads it are ordered by the gpu instead of a cpu wait.
 
 `src/metal/shaders.ts` has the msl you'd otherwise retype: aces, colour temperature in kelvin, ordered dither, value noise and fbm, sdfs, cone falloff. they're snippets — interpolate one and its dependencies come with it, deduplicated.

@@ -486,6 +486,35 @@ fragment float4 fs(V in [[stage_in]]) {
 }
 
 {
+  // Draw order must not depend on the order things were added. A blended
+  // surface writes no depth, so an opaque one drawn afterwards erases it —
+  // which looks like a shader bug and is an ordering bug.
+  const render = (glowFirst: boolean) => {
+    const s = new Scene3D({
+      animate: false, background: "#000000",
+      camera: { position: [0, 0, 6], target: [0, 0, 0], fov: 50 },
+      light: { direction: [0, 0, 1], ambientIntensity: 0 },
+    });
+    const glow = () => s.add(box({
+      size: 1.5, position: [0, 0, 1], color: "#00ff00", material: emissive({ intensity: 2 }),
+    }));
+    const solid = () => s.add(box({ size: 3, position: [0, 0, -1], color: "#ff0000" }));
+    if (glowFirst) { glow(); solid(); } else { solid(); glow(); }
+    const c = s.capture(48, 48);
+    const i = (24 * 48 + 24) * 4;
+    const px = [c.pixels[i]!, c.pixels[i + 1]!, c.pixels[i + 2]!];
+    s.dispose();
+    return px;
+  };
+  const solidFirst = render(false);
+  const glowFirst = render(true);
+  check("blended geometry draws after opaque, whatever order it was added in",
+    solidFirst.join() === glowFirst.join(), `${solidFirst} vs ${glowFirst}`);
+  check("and the additive layer is actually there",
+    solidFirst[0]! > 200 && solidFirst[1]! > 200, solidFirst);
+}
+
+{
   // Bloom inside a scene: an emissive node has to spill past its own edges.
   const scene = new Scene3D({
     animate: false, background: "#000000",
@@ -505,6 +534,58 @@ fragment float4 fs(V in [[stage_in]]) {
   check("it spills past its own silhouette", at(48, 30)[0]! > 25, at(48, 30));
   check("the far corner stays black", at(3, 3)[0]! < 25, at(3, 3));
   scene.dispose();
+}
+
+// ---------------------------------------------------------------------------
+// The playground's presets
+// ---------------------------------------------------------------------------
+
+{
+  // Pulled out of the example rather than copied, so this checks what ships.
+  // The examples suite only proves the app starts; these are the shaders, and a
+  // shader that fails to compile there is a silent red status line nobody sees.
+  const source = await Bun.file("examples/shader-playground.ts").text();
+  const presets = [...source.matchAll(/\["(\w+)", `([\s\S]*?)`\],/g)];
+  check("the presets were found in the example", presets.length >= 4, presets.length);
+
+  const Play = struct("Play", { time: vec4f, resolution: vec4f, mouse: vec4f });
+  const W = 48;
+
+  for (const [, name, body] of presets) {
+    let colours = 0;
+    let error = "";
+    try {
+      const effect = g.effect({ uniforms: Play, fragment: body!, format: "rgba8unorm", label: name });
+      const out = g.texture({
+        width: W, height: W, format: "rgba8unorm",
+        usage: ["renderTarget", "shaderRead"], storage: "shared",
+      });
+      g.submit((commands) => {
+        const frame = new Frame(commands, { time: 1.4, dt: 1 / 60, index: 84, width: W, height: W });
+        frame.effect(effect, {
+          to: out,
+          bind: {
+            u: {
+              time: [1.4, 84, 0, 0],
+              resolution: [W, W, 1 / W, 1 / W],
+              mouse: [W * 0.5, W * 0.4, 1, 0],
+            },
+          },
+        });
+      });
+      const pixels = out.read();
+      const distinct = new Set<string>();
+      for (let i = 0; i < pixels.length; i += 4) {
+        distinct.add(`${pixels[i]},${pixels[i + 1]},${pixels[i + 2]}`);
+      }
+      colours = distinct.size;
+    } catch (e) {
+      error = String(e).split("\n").slice(0, 3).join(" ");
+    }
+    // More than a handful of distinct colours: a preset that compiles but
+    // returns a constant is not doing what the preset claims.
+    check(`the ${name} preset compiles and draws something`, colours > 20, error || colours);
+  }
 }
 
 console.log(failures === 0 ? "\nALL GPU TESTS PASSED" : `\n${failures} GPU FAILURE(S)`);

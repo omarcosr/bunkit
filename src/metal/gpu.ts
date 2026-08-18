@@ -501,7 +501,14 @@ export interface RenderPipelineOptions {
   vertex?: string;
   /** Omit when the library has exactly one fragment function. */
   fragment?: string;
-  format?: PixelFormatName;
+  /**
+   * Attachment format, or one per attachment for a shader writing several.
+   *
+   * A fragment function returning a struct of `[[color(0)]]`/`[[color(1)]]`
+   * members needs a format for each, and they have to match the textures the
+   * pass attaches or the pipeline is rejected.
+   */
+  format?: PixelFormatName | readonly PixelFormatName[];
   depthFormat?: PixelFormatName | null;
   blend?: BlendMode;
   depth?: { compare?: CompareName; write?: boolean } | false;
@@ -535,11 +542,15 @@ export class RenderPipeline {
     const fragmentName = o.fragment ?? (shader.entries.fragment.length === 1 ? shader.entries.fragment[0] : undefined);
     if (fragmentName) d.setFragmentFunction_(shader.fn(fragmentName));
 
-    const attachment = d.colorAttachments().objectAtIndexedSubscript_(0);
-    attachment.setPixelFormat_(PixelFormat[o.format ?? "bgra8unorm"]);
-
+    const formats = Array.isArray(o.format)
+      ? (o.format as readonly PixelFormatName[])
+      : [(o.format as PixelFormatName) ?? "bgra8unorm"];
     const blend = typeof o.blend === "string" ? BLEND_PRESETS[o.blend] : o.blend;
-    if (blend) {
+
+    formats.forEach((name, i) => {
+      const attachment = d.colorAttachments().objectAtIndexedSubscript_(i);
+      attachment.setPixelFormat_(PixelFormat[name]);
+      if (!blend) return;
       attachment.setBlendingEnabled_(true);
       attachment.setRgbBlendOperation_(BlendOperation[blend.color.op ?? "add"]);
       attachment.setSourceRGBBlendFactor_(BlendFactor[blend.color.src]);
@@ -548,7 +559,7 @@ export class RenderPipeline {
       attachment.setAlphaBlendOperation_(BlendOperation[a.op ?? "add"]);
       attachment.setSourceAlphaBlendFactor_(BlendFactor[a.src]);
       attachment.setDestinationAlphaBlendFactor_(BlendFactor[a.dst]);
-    }
+    });
 
     const depthFormat = o.depthFormat === null ? null : (o.depthFormat ?? "depth32float");
     if (depthFormat) d.setDepthAttachmentPixelFormat_(PixelFormat[depthFormat]);
