@@ -26,16 +26,18 @@
     "cocoa"
   ],
   "os": [
-    "darwin"
+    "darwin",
+    "win32"
   ],
   "cpu": [
-    "arm64"
+    "arm64",
+    "x64"
   ],
   "engines": {
     "bun": ">=1.4.0"
   },
   "exports": {
-    ".": "./src/ui/index.ts",
+    ".": "./src/index.ts",
     "./objc": "./src/objc.ts",
     "./bridge": "./src/bridge.ts",
     "./constants": "./src/generated/constants.ts",
@@ -46,6 +48,7 @@
   },
   "scripts": {
     "build": "./native/build.sh",
+    "build:windows": "powershell -ExecutionPolicy Bypass -File native/windows/build.ps1",
     "hello": "bun run examples/hello.ts",
     "tour": "bun run examples/tour.ts",
     "demo": "bun run examples/demo.ts",
@@ -58,7 +61,10 @@
     "gen": "bun run tools/gen-constants.ts && bun run tools/gen-types.ts",
     "gen:constants": "bun run tools/gen-constants.ts",
     "gen:types": "bun run tools/gen-types.ts",
-    "bundle": "bun run tools/bundle.ts"
+    "bundle": "bun run tools/bundle.ts",
+    "bundle:windows": "powershell -ExecutionPolicy Bypass -File native/windows/bundle.ps1",
+    "package:windows": "powershell -ExecutionPolicy Bypass -File native/windows/package.ps1",
+    "installer:windows": "powershell -ExecutionPolicy Bypass -File native/windows/installer.ps1"
   },
   "devDependencies": {
     "@types/bun": "^1.3.14",

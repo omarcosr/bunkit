@@ -1,0 +1,13 @@
+{
+  "version": 2,
+  "dgSpecHash": "OOZifSLLPrE=",
+  "success": true,
+  "projectFilePath": "A:\\bunkit\\native\\windows\\bridge\\bridge.vcxproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\marco\\.nuget\\packages\\microsoft.web.webview2\\1.0.2903.40\\microsoft.web.webview2.1.0.2903.40.nupkg.sha512",
+    "C:\\Users\\marco\\.nuget\\packages\\microsoft.windows.cppwinrt\\2.0.250303.1\\microsoft.windows.cppwinrt.2.0.250303.1.nupkg.sha512",
+    "C:\\Users\\marco\\.nuget\\packages\\microsoft.windows.sdk.buildtools\\10.0.22621.756\\microsoft.windows.sdk.buildtools.10.0.22621.756.nupkg.sha512",
+    "C:\\Users\\marco\\.nuget\\packages\\microsoft.windowsappsdk\\1.7.260224002\\microsoft.windowsappsdk.1.7.260224002.nupkg.sha512"
+  ],
+  "logs": []
+}

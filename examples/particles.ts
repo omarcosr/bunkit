@@ -12,6 +12,12 @@
 // appear anywhere in the per-frame JavaScript — turning 250,000 into 1,000,000
 // is a number in the constructor and costs the GPU, not the loop.
 
+// Metal is macOS-only; fail fast with a clear message elsewhere.
+if (process.platform !== "darwin") {
+  console.error("bunkit: this example uses Metal and requires macOS.");
+  process.exit(1);
+}
+
 import {
   Application, Checkbox, HStack, Label, Segmented, Slider, Spacer, VStack, Window,
   GPUView, gpu, gpuAvailable, msl, struct, f32, u32, vec4f,

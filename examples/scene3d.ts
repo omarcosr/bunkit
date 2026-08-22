@@ -5,6 +5,12 @@
 // The Scene3D is a View: it sits in the VStack between a header and a row of
 // controls, and the controls mutate the scene directly from their callbacks.
 
+// Metal is macOS-only; fail fast with a clear message elsewhere.
+if (process.platform !== "darwin") {
+  console.error("bunkit: this example uses Metal and requires macOS.");
+  process.exit(1);
+}
+
 import {
   Application,
   Checkbox,

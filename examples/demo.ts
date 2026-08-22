@@ -11,8 +11,9 @@ import {
   GroupBox,
   HStack,
   Label,
+  openFile,
   Progress,
-  ScrollView,
+  prompt,
   Segmented,
   Select,
   Separator,
@@ -24,8 +25,6 @@ import {
   TextField,
   VStack,
   Window,
-  openFile,
-  prompt,
 } from "bunkit";
 
 interface Person {
@@ -83,14 +82,8 @@ scoreSlider.onChange((v) => {
 });
 
 const detail = new GroupBox({ title: "Details", padding: 12 }, [
-  new HStack({ spacing: 8, align: "center" }, [
-    new Label({ text: "Name", width: 52 }),
-    nameField,
-  ]),
-  new HStack({ spacing: 8, align: "center" }, [
-    new Label({ text: "Role", width: 52 }),
-    roleField,
-  ]),
+  new HStack({ spacing: 8, align: "center" }, [new Label({ text: "Name", width: 52 }), nameField]),
+  new HStack({ spacing: 8, align: "center" }, [new Label({ text: "Role", width: 52 }), roleField]),
   new HStack({ spacing: 8, align: "center" }, [
     new Label({ text: "Score", width: 52 }),
     scoreSlider,
@@ -204,7 +197,11 @@ const win = new Window({
     table,
     new Separator(),
     new HStack({ spacing: 12, align: "fill" }, [detail, showcase]),
-    new Label({ text: "Event log", font: { size: 11, weight: "semibold" }, color: "secondaryLabel" }),
+    new Label({
+      text: "Event log",
+      font: { size: 11, weight: "semibold" },
+      color: "secondaryLabel",
+    }),
     logView,
   ]),
 });

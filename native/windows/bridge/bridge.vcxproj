@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- winbridge.dll — BunKit Windows backend. Built via msbuild (see ../build.ps1).
+
+     Unpackaged DLL hosted by bun.exe, so XAML activation is done manually
+     through MddBootstrap (src/bootstrap_config.h); no AppContainer, no
+     XAML compiler, no ApplicationManifest. -->
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{6B7E2A10-9C3D-4E8F-A1B2-3D4C5E6F7081}</ProjectGuid>
+    <RootNamespace>winbridge</RootNamespace>
+    <WindowsPackageType>None</WindowsPackageType>
+    <WindowsAppSdkBootstrapInitialize>false</WindowsAppSdkBootstrapInitialize>
+  </PropertyGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+
+  <PropertyGroup Condition="'$(Configuration)'=='Release'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <PlatformToolset>v145</PlatformToolset>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)'=='Debug'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <PlatformToolset>v145</PlatformToolset>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+
+  <PropertyGroup>
+    <OutDir>$(ProjectDir)..\build\$(Configuration)\$(Platform)\</OutDir>
+    <IntDir>$(ProjectDir)..\build\obj\$(Configuration)\$(Platform)\</IntDir>
+    <TargetName>winbridge</TargetName>
+  </PropertyGroup>
+
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <WarningLevel>Level4</WarningLevel>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <AdditionalIncludeDirectories>include;..\deps\wasdk17\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>NOMINMAX;WIN32_LEAN_AND_MEAN;WINRT_NO_MODULE_LOCK;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <LanguageStandard_C>stdc11</LanguageStandard_C>
+    </ClCompile>
+    <Link>
+      <AdditionalLibraryDirectories>..\deps\wasdk17\lib\win10-x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>Microsoft.WindowsAppRuntime.Bootstrap.lib;windowsapp.lib;user32.lib;gdi32.lib;ole32.lib;advapi32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <SubSystem>Windows</SubSystem>
+    </Link>
+  </ItemDefinitionGroup>
+
+  <ItemGroup>
+    <ClCompile Include="src\dllmain.cpp" />
+    <ClCompile Include="src\errors.cpp" />
+    <ClCompile Include="src\events.cpp" />
+    <ClCompile Include="src\exports.cpp" />
+    <ClCompile Include="src\registry.cpp" />
+    <ClCompile Include="src\runtime.cpp" />
+    <ClCompile Include="src\window.cpp" />
+    <ClCompile Include="src\controls.cpp" />
+    <ClCompile Include="src\advanced_controls.cpp" />
+    <ClCompile Include="src\composite_controls.cpp" />
+    <ClCompile Include="src\dialogs.cpp" />
+    <ClCompile Include="src\menu.cpp" />
+    <ClCompile Include="src\layout.cpp" />
+    <ClCompile Include="src\debug.cpp" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ClInclude Include="include\bunkit.h" />
+    <ClInclude Include="src\common.h" />
+    <ClInclude Include="src\bootstrap_config.h" />
+    <ClInclude Include="src\application.h" />
+    <ClInclude Include="src\events.h" />
+    <ClInclude Include="src\registry.h" />
+    <ClInclude Include="src\runtime.h" />
+    <ClInclude Include="src\strings.h" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.7.260224002" />
+    <PackageReference Include="Microsoft.Windows.CppWinRT" Version="2.0.250303.1" />
+  </ItemGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+
+</Project>

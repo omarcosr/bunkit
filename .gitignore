@@ -3,7 +3,8 @@ build/
 dist/
 *.dylib
 *.dSYM/
-
+.omo
+.zcode
 # Dependencies
 node_modules/
 

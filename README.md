@@ -12,6 +12,11 @@ Real AppKit apps for macOS, written in TypeScript on Bun.
 
 bunkit builds mac apps out of actual appkit — windows, tables, menus, sheets — with all of the app logic sitting in typescript. there's no webview anywhere, so the screenshot above is a real `NSTableView` with real `NSTextField`s in it.
 
+the same source also runs on windows: `src/index.ts` dispatches to a WinUI 3
+backend (`winbridge.dll` over `bun:ffi`), so `examples/hello.ts`, `tour.ts` and
+`demo.ts` run 1:1 on both platforms. see [WINDOWS.md](WINDOWS.md) for build
+and platform notes; the Metal-based 3D examples stay macOS-only.
+
 ```ts
 import { Application, Window, VStack, HStack, Label, Button, TextField } from "bunkit";
 

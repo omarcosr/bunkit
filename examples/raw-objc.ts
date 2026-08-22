@@ -10,6 +10,12 @@
 // own bundle and — unless HELLO_STAY=1 — quits itself after a few seconds so a
 // build script can run it unattended.
 
+// the Objective-C runtime is macOS-only; fail fast with a clear message elsewhere.
+if (process.platform !== "darwin") {
+  console.error("bunkit: this example uses the Objective-C runtime and requires macOS.");
+  process.exit(1);
+}
+
 import { objc } from "bunkit/objc";
 import { initApp, run, quit, NSApp } from "bunkit/runtime";
 

@@ -1,0 +1,6 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <MicrosoftWindowsAppSDKFoundationAppXVersion>7000.785.2325.0</MicrosoftWindowsAppSDKFoundationAppXVersion>
+  </PropertyGroup>
+</Project>

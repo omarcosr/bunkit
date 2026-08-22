@@ -12,6 +12,12 @@
 // while you fix the one that does not, because a shader is broken for most of
 // the time you spend typing it.
 
+// Metal is macOS-only; fail fast with a clear message elsewhere.
+if (process.platform !== "darwin") {
+  console.error("bunkit: this example uses Metal and requires macOS.");
+  process.exit(1);
+}
+
 import {
   Application, GPUView, HStack, Label, Segmented, Spacer, TextArea, VStack, Window,
   gpu, gpuAvailable, struct, vec4f,

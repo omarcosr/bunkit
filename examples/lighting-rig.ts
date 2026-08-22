@@ -17,6 +17,12 @@
 // changes the per-frame cost by the memory bandwidth of writing a hundred more
 // 160-byte structs, which is nothing, and by no draw calls at all.
 
+// Metal is macOS-only; fail fast with a clear message elsewhere.
+if (process.platform !== "darwin") {
+  console.error("bunkit: this example uses Metal and requires macOS.");
+  process.exit(1);
+}
+
 import {
   Application, Checkbox, HStack, Label, Segmented, Slider, Spacer, VStack, Window,
 } from "bunkit";

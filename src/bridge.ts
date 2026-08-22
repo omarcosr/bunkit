@@ -50,19 +50,8 @@ function findLib(): string {
   );
 }
 
-// The dispatcher is written to the arm64 ABI. On any other architecture the
-// struct-return convention differs, and the failure mode would be silently
-// wrong geometry rather than a crash — so refuse up front.
-if (process.platform !== "darwin" || process.arch !== "arm64") {
-  throw new Error(
-    `BunKit requires macOS on Apple silicon; this is ${process.platform}/${process.arch}.`,
-  );
-}
-
-export const LIB_PATH = findLib();
-
-const OBJ = FFIType.u64; // an Obj-C pointer (may be tagged)
-const BUF = FFIType.ptr; // one of our own buffers
+const OBJ = FFIType.u64;
+const BUF = FFIType.ptr;
 const I32 = FFIType.i32;
 const U32 = FFIType.u32;
 const I64 = FFIType.i64;
@@ -70,7 +59,14 @@ const F64 = FFIType.f64;
 const V = FFIType.void;
 const CSTR = FFIType.cstring;
 
-export const lib = dlopen(LIB_PATH, {
+let _lib: any = null;
+function getLib(): any {
+  if (_lib) return _lib;
+  if (process.platform !== "darwin" || process.arch !== "arm64") {
+    throw new Error(`BunKit Darwin bridge requested on ${process.platform}/${process.arch}.`);
+  }
+  const p = findLib();
+  _lib = dlopen(p, {
   br_version: { args: [], returns: CSTR },
 
   br_class: { args: [CSTR], returns: OBJ },
@@ -131,7 +127,20 @@ export const lib = dlopen(LIB_PATH, {
   br_post_empty_event: { args: [], returns: V },
   br_now: { args: [], returns: F64 },
   br_bundle_path: { args: [], returns: CSTR },
-}).symbols;
+  }).symbols;
+  return _lib;
+}
+
+export let LIB_PATH: string = "";
+if (process.platform === "darwin" && process.arch === "arm64") {
+  try { LIB_PATH = findLib(); } catch {}
+}
+
+export const lib: any = new Proxy({} as any, {
+  get(_t: any, prop: string) {
+    return (getLib() as any)[prop];
+  },
+});
 
 // ---------------------------------------------------------------------------
 // C strings
