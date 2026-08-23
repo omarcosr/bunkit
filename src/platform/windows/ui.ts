@@ -274,23 +274,44 @@ export function standardMenu(options: StandardMenuOptions = {}): Menu {
   return bar;
 }
 
+// Flattens a MenuItemSpec tree into "depth|label|shortcut|id" records; an
+// item followed by deeper items becomes a MenuFlyoutSubItem natively.
+function flattenItems(
+  items: MenuItemSpec[],
+  depth: number,
+  handlers: Map<number, () => void>,
+): string {
+  const out: string[] = [];
+  let nextId = 1;
+  const walk = (list: MenuItemSpec[], level: number): void => {
+    for (const item of list) {
+      if (item.separator) {
+        out.push(`${level}||0|0`);
+        continue;
+      }
+      if (item.submenu?.length) {
+        out.push(`${level}|${item.title ?? ""}||0`);
+        walk(item.submenu, level + 1);
+        continue;
+      }
+      let id = 0;
+      if (item.onClick) {
+        id = nextId++;
+        handlers.set(id, item.onClick);
+      }
+      out.push(`${level}|${item.title ?? ""}|${item.shortcut ?? ""}|${id}`);
+    }
+  };
+  walk(items, depth);
+  return out.join("\x1f");
+}
+
 /** Show a context menu at the pointer over a window. */
 export function popUpMenu(items: MenuItemSpec[], view?: any): void {
   const win = view instanceof Window ? view : lastWindow();
   if (!win) return;
   const handlers = new Map<number, () => void>();
-  const fields: string[] = [];
-  let nextId = 1;
-  for (const item of items) {
-    if (item && item.separator) {
-      fields.push("|0|0");
-    } else if (item) {
-      const id = nextId++;
-      if (item.onClick) handlers.set(id, item.onClick);
-      fields.push(`${item.title ?? ""}|${item.shortcut ?? ""}|${id}`);
-    }
-  }
-  windowsBackend.popUpMenu(win.handle, fields.join("\x1f"), (itemId) => handlers.get(itemId)?.());
+  windowsBackend.popUpMenu(win.handle, flattenItems(items, 0, handlers), (itemId) => handlers.get(itemId)?.());
 }
 
 // --- application -----------------------------------------------------------------
@@ -340,21 +361,11 @@ export class Application {
     if (bar.sections.length === 0) return;
 
     const handlers = new Map<number, () => void>();
-    let nextId = 1;
     const sections: string[] = [];
     for (const section of bar.sections) {
       if (section.items.length === 0) continue;
-      const fields = [section.title || "Menu"];
-      for (const item of section.items) {
-        if (item.separator) {
-          fields.push("|0|0");
-        } else {
-          const id = item.onClick ? nextId++ : 0;
-          if (item.onClick) handlers.set(id, item.onClick);
-          fields.push(`${item.title ?? ""}|${item.shortcut ?? ""}|${id}`);
-        }
-      }
-      sections.push(fields.join("\x1f"));
+      // Title field first, then the flattened depth-prefixed items.
+      sections.push((section.title || "Menu") + "\x1f" + flattenItems(section.items, 0, handlers));
     }
     const spec = sections.join("\x1e");
     for (const win of windowsBackend.allWindows) {

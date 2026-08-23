@@ -93,7 +93,8 @@ honors `types` as an extension filter and `chooseDirectories` as a folder
 picker), window menu bars
 (`Application({ menu })` maps the macOS app menu onto each window's MenuBar,
 including About/Settings/Quit, File/Edit/View/Window/Help sections), context
-menus (`popUpMenu` as a MenuFlyout at the pointer), `beep`, the clipboard
+menus (`popUpMenu` as a MenuFlyout at the pointer; `MenuItemSpec.submenu`
+nests into MenuFlyoutSubItems, any depth), `beep`, the clipboard
 (`setClipboardText`/`getClipboardText`, synchronous Win32), and the styling
 options (`Button.primary/destructive/symbol`, `Label.color/font/align`,
 `TextField.onSubmit` including secure fields, `Window.minSize`).
@@ -244,5 +245,4 @@ bun test/win/parity2.ts       # views, advanced table, input, snapshot, debug
   equivalent without a canvas.
 - `TextArea` `richText` uses RichEditBox (plain get/set round-trip; no styled
   runs API yet).
-- Menu `submenu` nesting is flattened out (flat items only).
 - Wheel deltas in `input().mouse` are 0 (needs a message hook).

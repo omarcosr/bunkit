@@ -541,10 +541,10 @@ export class WindowsBackend {
 
   // --- menu ---------------------------------------------------------------------
 
-  setMenu(h: NativeHandle, spec: string, handler: (itemId: number, label: string) => void): void {
+  setMenu(h: NativeHandle, spec: string, handler: (itemId: number, label: string) => void): number {
     menuHandlers.set(h, handler);
     const b = cstr(spec);
-    winLib.bk_window_set_menu(h, b as any, b.length);
+    return winLib.bk_window_set_menu(h, b as any, b.length) as number;
   }
 
   get allWindows(): readonly NativeHandle[] { return windows; }

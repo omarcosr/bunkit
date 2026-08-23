@@ -108,6 +108,17 @@ check(describeViewTree(sidedDash).includes("Rectangle"), "per-side dashed draws 
 const hexBuf = Buffer.from("#F26419") as any;
 check((winLib.bk_control_set_border((box as any).handle, hexBuf, 7, widths(2), radii(8)) as number) === 0, "groupbox is stylable");
 
+// Nested submenus: "depth|label|shortcut|id" records build MenuFlyoutSubItems.
+const subWin = new Window({ title: "P2Menus", size: { width: 200, height: 120 },
+  content: new VStack({}, [new Label({ text: "menus" })]) });
+// Nested submenus build lazily (flyouts only enter the visual tree when
+// expanded), so this asserts the native side accepted the nested spec; the
+// expanded structure was verified through UI Automation.
+const menuRc = windowsBackend.setMenu((subWin as any).handle,
+  "Go0|Recent||01|One|cmd+1|111|Two|cmd+2|120||0|00|Settings...|cmd+,|13",
+  () => {});
+check(menuRc === 0, "nested submenu spec accepted by the native menu bar");
+
 // BlurView: both setters exist at runtime and tint the acrylic, not kill it.
 const blur = new BlurView({}, new Label({ text: "acrylic" }));
 check(typeof (blur as any).setBackground === "function" && typeof (blur as any).setBorder === "function",
