@@ -99,8 +99,15 @@ BK_EXPORT int32_t bk_checkbox_set_checked(bk_handle c, int32_t checked) {
       status = BK_INVALID_HANDLE;
       return;
     }
-    ++entry->suppress;
-    entry->object.as<cx::CheckBox>().IsChecked(checked != 0);
+    auto box = entry->object.as<cx::CheckBox>();
+    const bool target = checked != 0;
+    if (box.IsChecked().GetBoolean() != target) {
+      // Only suppress when the value actually changes: a no-op set fires no
+      // Checked/Unchecked event, and an un-decremented suppress would swallow
+      // the next real user interaction.
+      ++entry->suppress;
+      box.IsChecked(target);
+    }
     status = BK_OK;
   });
   return combine(rc, status);
@@ -154,7 +161,12 @@ BK_EXPORT int32_t bk_switch_set_on(bk_handle s, int32_t on) {
   const int32_t rc = bk::Runtime::instance().dispatch_sync([&] {
     auto* entry = bk::registry().get(s);
     if (!entry || entry->type != bk::NativeType::ToggleSwitch) status = BK_INVALID_HANDLE;
-    else { entry->suppress++; entry->object.as<cx::ToggleSwitch>().IsOn(on != 0); status = BK_OK; }
+    else {
+      auto sw = entry->object.as<cx::ToggleSwitch>();
+      const bool target = on != 0;
+      if (sw.IsOn() != target) { entry->suppress++; sw.IsOn(target); }
+      status = BK_OK;
+    }
   });
   return combine(rc, status);
 }
@@ -205,7 +217,11 @@ BK_EXPORT int32_t bk_slider_set_value(bk_handle s, double value) {
   const int32_t rc = bk::Runtime::instance().dispatch_sync([&] {
     auto* entry = bk::registry().get(s);
     if (!entry || entry->type != bk::NativeType::Slider) status = BK_INVALID_HANDLE;
-    else { entry->suppress++; entry->object.as<cx::Slider>().Value(value); status = BK_OK; }
+    else {
+      auto sl = entry->object.as<cx::Slider>();
+      if (sl.Value() != value) { entry->suppress++; sl.Value(value); }
+      status = BK_OK;
+    }
   });
   return combine(rc, status);
 }
@@ -259,7 +275,8 @@ BK_EXPORT int32_t bk_select_set_items(bk_handle s, const char* items,
     auto* entry = bk::registry().get(s);
     if (!entry || entry->type != bk::NativeType::Select) { status = BK_INVALID_HANDLE; return; }
     auto combo = entry->object.as<cx::ComboBox>();
-    entry->suppress++;
+    const int32_t prev = combo.SelectedIndex();
+    if (prev >= 0) entry->suppress++;   // clearing the selection fires
     combo.Items().Clear();
     size_t start = 0;
     while (start <= raw.size()) {
@@ -269,7 +286,10 @@ BK_EXPORT int32_t bk_select_set_items(bk_handle s, const char* items,
       if (end == std::string::npos) break;
       start = end + 1;
     }
-    combo.SelectedIndex(selected);
+    if (combo.SelectedIndex() != selected) {
+      entry->suppress++;
+      combo.SelectedIndex(selected);
+    }
     status = BK_OK;
   });
   return combine(rc, status);
@@ -281,7 +301,11 @@ BK_EXPORT int32_t bk_select_set_selected(bk_handle s, int32_t selected) {
   const int32_t rc = bk::Runtime::instance().dispatch_sync([&] {
     auto* entry = bk::registry().get(s);
     if (!entry || entry->type != bk::NativeType::Select) status = BK_INVALID_HANDLE;
-    else { entry->suppress++; entry->object.as<cx::ComboBox>().SelectedIndex(selected); status = BK_OK; }
+    else {
+      auto combo = entry->object.as<cx::ComboBox>();
+      if (combo.SelectedIndex() != selected) { entry->suppress++; combo.SelectedIndex(selected); }
+      status = BK_OK;
+    }
   });
   return combine(rc, status);
 }
@@ -392,14 +416,28 @@ BK_EXPORT int32_t bk_textarea_set_text(bk_handle t, const char* text, uint32_t t
       status = BK_INVALID_HANDLE;
       return;
     }
-    entry->suppress++;
+    // Only suppress when the text actually changes: a no-op set fires no
+    // TextChanged event, and an un-decremented suppress would swallow the
+    // next real user edit.
+    std::string cur;
     if (entry->type == bk::NativeType::RichTextArea) {
-      entry->object.as<cx::RichEditBox>().Document().SetText(
-          winrt::Microsoft::UI::Text::TextSetOptions::None,
-          bk::utf8_to_hstring(value.data(), static_cast<uint32_t>(value.size())));
+      winrt::hstring text;
+      entry->object.as<cx::RichEditBox>().Document().GetText(
+          winrt::Microsoft::UI::Text::TextGetOptions::None, text);
+      cur = bk::hstring_to_utf8(text);
     } else {
-      entry->object.as<cx::TextBox>().Text(
-          bk::utf8_to_hstring(value.data(), static_cast<uint32_t>(value.size())));
+      cur = bk::hstring_to_utf8(entry->object.as<cx::TextBox>().Text());
+    }
+    if (cur != value) {
+      entry->suppress++;
+      if (entry->type == bk::NativeType::RichTextArea) {
+        entry->object.as<cx::RichEditBox>().Document().SetText(
+            winrt::Microsoft::UI::Text::TextSetOptions::None,
+            bk::utf8_to_hstring(value.data(), static_cast<uint32_t>(value.size())));
+      } else {
+        entry->object.as<cx::TextBox>().Text(
+            bk::utf8_to_hstring(value.data(), static_cast<uint32_t>(value.size())));
+      }
     }
     status = BK_OK;
   });

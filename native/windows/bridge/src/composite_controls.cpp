@@ -237,10 +237,11 @@ BK_EXPORT int32_t bk_segmented_set_selected(bk_handle s, int32_t selected) {
       st = BK_INVALID_ARGUMENT;
       return;
     }
-    ++entry->suppress;
-    items.GetAt(static_cast<uint32_t>(selected))
-        .as<cx::SelectorBarItem>()
-        .IsSelected(true);
+    auto item = items.GetAt(static_cast<uint32_t>(selected)).as<cx::SelectorBarItem>();
+    if (!item.IsSelected()) {
+      ++entry->suppress;
+      item.IsSelected(true);
+    }
     st = BK_OK;
   });
   return combine(rc, st);
