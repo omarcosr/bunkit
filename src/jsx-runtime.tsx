@@ -12,13 +12,14 @@ import {
   Application, Window, VStack, HStack, Stack, Label, Button, TextField,
   Checkbox, Switch, Slider, Select, Segmented, TextArea, Progress,
   GroupBox, ScrollView, SplitView, Container, ImageView, BlurView,
-  Spacer, Separator, View,
+  Spacer, Separator, View, isSignal,
 } from "./index.ts";
 import type {
   WindowOptions, StackOptions, LabelOptions, ButtonOptions,
   CheckboxOptions, TextFieldOptions, TextAreaOptions, SliderOptions,
   SelectOptions, SegmentedOptions, ProgressOptions, ImageOptions,
   BoxOptions, BlurOptions, ScrollOptions, SplitOptions, ViewOptions,
+  Signal,
 } from "./index.ts";
 
 export const Fragment = Symbol.for("bunkit.Fragment");
@@ -34,6 +35,13 @@ function flatten(value: any, out: any[]): void {
   out.push(value);
 }
 
+// Signal binding. Passing a signal as one of these props binds it to the
+// control: typing/flipping writes back into the signal, and signal.set()
+// updates the control. `value`/`checked`/`on`/`selected` are two-way (the
+// controls have change events); `text`/`title` are one-way (no event to
+// write back from).
+import { WRITE_BACK_EVENT } from "./signal.ts";
+
 function create(type: any, props: any, children: any[]): any {
   const p = props ?? {};
 
@@ -42,59 +50,112 @@ function create(type: any, props: any, children: any[]): any {
     return type({ ...p, children });
   }
 
+  // Pull signals out of their props (bindings are wired after construction);
+  // a user-supplied onChange runs after the signal is written back.
+  const bound: Array<[string, Signal<any>]> = [];
+  for (const key of Object.keys(p)) {
+    if (isSignal(p[key])) {
+      const sig = p[key] as Signal<any>;
+      bound.push([key, sig]);
+      p[key] = sig.get();
+    }
+  }
+  for (const [key, sig] of bound) {
+    const ev = WRITE_BACK_EVENT[key];
+    if (ev && typeof p[ev] === "function") {
+      const user = p[ev];
+      p[ev] = (v: any, ...rest: any[]) => {
+        sig.set(v);
+        user(v, ...rest);
+      };
+    }
+  }
+
+  let control: any;
   switch (type) {
     case Fragment:
       return children;
     case "window":
-      return new Window({ ...p, content: children[0] });
+      control = new Window({ ...p, content: children[0] });
+      break;
     case "vstack":
-      return new VStack(p, children);
+      control = new VStack(p, children);
+      break;
     case "hstack":
-      return new HStack(p, children);
+      control = new HStack(p, children);
+      break;
     case "stack":
-      return new Stack(p.orientation ?? 0, p, children);
+      control = new Stack(p.orientation ?? 0, p, children);
+      break;
     case "label":
-      return new Label(p);
+      control = new Label(p);
+      break;
     case "button":
-      return new Button(p);
+      control = new Button(p);
+      break;
     case "textfield":
-      return new TextField(p);
+      control = new TextField(p);
+      break;
     case "checkbox":
-      return new Checkbox(p);
+      control = new Checkbox(p);
+      break;
     case "switch":
-      return new Switch(p);
+      control = new Switch(p);
+      break;
     case "slider":
-      return new Slider(p);
+      control = new Slider(p);
+      break;
     case "select":
-      return new Select(p);
+      control = new Select(p);
+      break;
     case "segmented":
-      return new Segmented(p);
+      control = new Segmented(p);
+      break;
     case "textarea":
-      return new TextArea(p);
+      control = new TextArea(p);
+      break;
     case "progress":
-      return new Progress(p);
+      control = new Progress(p);
+      break;
     case "groupbox":
-      return new GroupBox(p, children);
+      control = new GroupBox(p, children);
+      break;
     case "scrollview": {
-      const sv = new ScrollView(p);
-      if (children[0] !== undefined) sv.content = children[0];
-      return sv;
+      control = new ScrollView(p);
+      if (children[0] !== undefined) control.content = children[0];
+      break;
     }
     case "splitview":
-      return new SplitView(p, children);
+      control = new SplitView(p, children);
+      break;
     case "container":
-      return new Container(p, children);
+      control = new Container(p, children);
+      break;
     case "imageview":
-      return new ImageView(p);
+      control = new ImageView(p);
+      break;
     case "blurview":
-      return new BlurView(p, children[0]);
+      control = new BlurView(p, children[0]);
+      break;
     case "spacer":
-      return new Spacer();
+      control = new Spacer();
+      break;
     case "separator":
-      return new Separator();
+      control = new Separator();
+      break;
     default:
       throw new Error(`bunkit/jsx-runtime: unknown tag <${String(type)}>`);
   }
+
+  // Wire signal bindings: one-way (signal → control) + two-way (also write-back).
+  for (const [key, sig] of bound) {
+    sig.subscribe(() => { control[key] = sig.get(); });
+    const ev = WRITE_BACK_EVENT[key];
+    if (ev && typeof control[ev] === "function" && typeof p[ev] !== "function") {
+      control[ev]((v: any) => sig.set(v));
+    }
+  }
+  return control;
 }
 
 export function jsx(type: any, props: any): any {
@@ -120,21 +181,23 @@ declare global {
     type Child = any;
     /** The constructor options plus JSX children, where the runtime takes them. */
     type ContainerProps<T> = T & { children?: Child };
+    /** A bindable prop: a plain value or a signal the runtime binds both ways. */
+    type Bindable<T, K extends keyof T> = Omit<T, K> & { [P in K]: T[P] | Signal<T[P]> };
     interface IntrinsicElements {
       window: ContainerProps<WindowOptions>;
       vstack: ContainerProps<StackOptions>;
       hstack: ContainerProps<StackOptions>;
       stack: ContainerProps<StackOptions> & { orientation?: number };
-      label: LabelOptions;
-      button: ButtonOptions;
-      textfield: TextFieldOptions;
-      checkbox: CheckboxOptions;
-      switch: ViewOptions & { on?: boolean; onChange?: (on: boolean, s: InstanceType<typeof Switch>) => void };
-      slider: SliderOptions;
-      select: SelectOptions;
-      segmented: SegmentedOptions;
-      textarea: TextAreaOptions;
-      progress: ProgressOptions;
+      label: Bindable<LabelOptions, "text">;
+      button: Bindable<ButtonOptions, "title">;
+      textfield: Bindable<TextFieldOptions, "value">;
+      checkbox: Bindable<CheckboxOptions, "checked">;
+      switch: Bindable<ViewOptions & { on?: boolean; onChange?: (on: boolean, s: InstanceType<typeof Switch>) => void }, "on">;
+      slider: Bindable<SliderOptions, "value">;
+      select: Bindable<SelectOptions, "selected">;
+      segmented: Bindable<SegmentedOptions, "selected">;
+      textarea: Bindable<TextAreaOptions, "value">;
+      progress: Bindable<ProgressOptions, "value">;
       groupbox: ContainerProps<BoxOptions>;
       scrollview: ContainerProps<ScrollOptions>;
       splitview: ContainerProps<SplitOptions>;

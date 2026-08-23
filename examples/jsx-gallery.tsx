@@ -1,4 +1,10 @@
-// The same gallery ideas, written declaratively in JSX.
+// The same gallery ideas, written declaratively in JSX, with reactive
+// signal bindings (SolidJS-style):
+//
+//   const name = signal("");
+//   <textfield value={name} />   // two-way: typing updates the signal,
+//                                // name.set(...) updates the field
+//   <label text={name} />        // one-way: live echo of whatever you type
 //
 //   bun run examples/jsx-gallery.tsx
 //
@@ -6,11 +12,12 @@
 // straight to the constructors, so onClick/onChange/onSubmit are the event
 // props. Bare text between tags is dropped — use text/title/placeholder.
 
-import { Application, setTheme } from "bunkit";
+import { Application, setTheme, signal } from "bunkit";
 
 const app = new Application({ name: "JSX Gallery", theme: "light" });
 
-let dark = false;
+const dark = signal(false);
+const name = signal("");
 const greeting = <label text="Type a name and press Return." color="secondaryLabel" />;
 const log = <label text="" color="secondaryLabel" font={{ monospace: true, size: 11 }} />;
 let count = 0;
@@ -24,10 +31,7 @@ const win = (
         <checkbox
           title="Dark mode"
           checked={dark}
-          onChange={(on: boolean) => {
-            dark = on;
-            setTheme(on ? "dark" : "light", { background: on ? "#14141F" : "#FAFAFA" });
-          }}
+          onChange={() => setTheme(dark.value ? "dark" : "light", { background: dark.value ? "#14141F" : "#FAFAFA" })}
         />
       </hstack>
 
@@ -37,10 +41,8 @@ const win = (
           grow={1}
           border
           borderRadius={4}
-          onSubmit={(v: string) => {
-            console.log(v);
-            greeting.text = `Hello, ${v || "stranger"}!`;
-          }}
+          value={name}
+          onSubmit={() => greeting.text = `Hello, ${name.value || "stranger"}!`}
         />
         <button
           title="Greet"
@@ -52,6 +54,7 @@ const win = (
         />
       </hstack>
 
+      <label text={name} color="secondaryLabel" font={{ size: 11 }} />
       {greeting}
       {log}
 

@@ -23,10 +23,11 @@ import {
     VStack,
     Window,
     beep,
+    bind,
     describeViewTree,
     getClipboardText,
     input, popUpMenu, saveFile, setClipboardText,
-    setTheme, snapshotView,
+    setTheme, signal, snapshotView,
 } from "bunkit";
 import { writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -224,6 +225,34 @@ const styledControls = new GroupBox({ title: "Styled controls", padding: 10, spa
   }),
 ]);
 
+// --- signals, imperative style ------------------------------------------------
+// bind() is the imperative twin of the JSX binding: it wires a signal to a
+// control both ways — typing writes back into the signal, signal.set() updates
+// the control. Two-way props are value/checked/on/selected; text/title are
+// one-way (signal → control). This is exactly what <textfield value={sig} />
+// does in JSX.
+const name = signal("");
+const nameField = new TextField({
+  placeholder: "type a name",
+  value: name.value,
+  grow: 1,
+  onSubmit: () => say(`hello, ${name.value || "stranger"}!`),
+});
+const nameEcho = new Label({ text: name.value, color: "#7A2E00", font: { size: 11 } });
+bind(nameField, "value", name); // two-way
+bind(nameEcho, "text", name);   // one-way: live echo
+
+const flag = signal(false);
+const flagBox = new Checkbox({ title: "Signal flag", checked: flag.value });
+const flagLabel = new Label({ text: "off", color: "#7A2E00", font: { size: 11 } });
+bind(flagBox, "checked", flag);
+flag.subscribe((on) => { flagLabel.text = on ? "on" : "off"; });
+
+const signalsBox = new GroupBox({ title: "Signals", padding: 10, spacing: 8 }, [
+  new HStack({ spacing: 8, align: "center" }, [nameField, flagBox]),
+  new HStack({ spacing: 8, align: "center" }, [nameEcho, flagLabel]),
+]);
+
 const detail = new ScrollView({ border: false }, new VStack({ spacing: 12, padding: 12 }, [
   new HStack({ spacing: 12, align: "center" }, [
     new ImageView({ src: covers[0]!, width: 96, height: 96 }),
@@ -237,6 +266,7 @@ const detail = new ScrollView({ border: false }, new VStack({ spacing: 12, paddi
   notesBox,
   styleBox,
   styledControls,
+  signalsBox,
 ]));
 
 // --- left pane: a vibrancy sidebar ---------------------------------------------

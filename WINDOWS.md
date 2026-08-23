@@ -113,6 +113,47 @@ the only imports you need are `Application` (and helpers like `setTheme`)
 from `"bunkit"`. `src/jsx-runtime.tsx` is the reference. The same file runs
 on macOS and Windows.
 
+### Reactive bindings (signals)
+
+`signal()` (from `"bunkit"`) is a tiny reactive cell in the SolidJS style,
+and the JSX runtime binds it to a control when you pass it as a prop:
+
+```tsx
+import { Application, signal } from "bunkit";
+
+const name = signal("");
+const dark = signal(false);
+
+<textfield value={name} />                       // two-way: typing updates
+                                                 // the signal, name.set(...)
+                                                 // updates the field
+<label text={name} />                            // one-way live echo
+<checkbox checked={dark} />                      // two-way boolean
+<switch on={sig} /> <slider value={sig} />
+<select selected={sig} /> <segmented selected={sig} />
+<textarea value={sig} /> <progress value={sig} />
+<button title={sig} />                           // one-way
+```
+
+Bindable props are `value`, `checked`, `on`, `selected` (two-way — the
+controls' change event writes the new value back into the signal) and
+`text`/`title` (one-way — signal to control only). A user-supplied
+`onChange` still runs, after the signal is written back. The typing accepts
+`T | Signal<T>` for these props, so `<textfield value={name} />` checks at
+compile time. Signals work without JSX too: `name.value`, `name.set(v)`,
+`name.subscribe(fn)`, and `bind(control, prop, signal)` — the imperative
+twin of the JSX binding:
+
+```ts
+const name = signal("");
+const field = new TextField({ value: name.value });
+bind(field, "value", name);  // two-way: typing updates name, name.set() the field
+const echo = new Label({ text: name.value });
+bind(echo, "text", name);    // one-way live echo
+```
+
+(`examples/gallery.ts` has a "Signals" section using this.)
+
 The Windows backend implements the same control set the examples use:
 `GroupBox` (bordered panel + header), `Segmented` (SelectorBar), `Table`
 (ListView with column headers; cells are computed in JS), the async dialogs
