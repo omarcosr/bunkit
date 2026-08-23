@@ -97,21 +97,22 @@ compiles `.tsx` directly). Configure it once in `tsconfig.json`:
 }
 ```
 
-Tag names are lowercase and map 1:1 onto the constructors — `<window>`,
-`<vstack>/<hstack>/<stack>`, `<label>`, `<button>`, `<textfield>`,
-`<checkbox>`, `<switch>`, `<slider>`, `<select>`, `<segmented>`,
-`<textarea>`, `<progress>`, `<groupbox>`, `<scrollview>`, `<splitview>`,
-`<container>`, `<imageview>`, `<blurview>`, `<spacer>`, `<separator>`.
-Props go straight to the constructor options, so the event props are exactly
-the option names (`onClick`, `onChange`, `onSubmit`…). Props are checked
-against the real option types — a typo, a wrong value type (`<label
-text={123} />`), a prop the tag doesn't take (`<scrollview padding={8} />`),
-or children on a leaf tag (`<label>text</label>`) all fail `tsc`. Bare text
-between tags is dropped — put text in `text`/`title`/`placeholder` props.
-Function types are custom components (plain functions returning more JSX);
-the only imports you need are `Application` (and helpers like `setTheme`)
-from `"bunkit"`. `src/jsx-runtime.tsx` is the reference. The same file runs
-on macOS and Windows.
+Elements are the **imported constructors** — `<Window>`, `<VStack>`,
+`<HStack>`, `<Stack>`, `<Label>`, `<Button>`, `<TextField>`, `<Checkbox>`,
+`<Switch>`, `<Slider>`, `<Select>`, `<Segmented>`, `<TextArea>`,
+`<Progress>`, `<GroupBox>`, `<ScrollView>`, `<SplitView>`, `<Container>`,
+`<ImageView>`, `<BlurView>`, `<Spacer>`, `<Separator>`. Because they're the
+real classes, props are type-checked against each control's option types —
+a typo, a wrong value type (`<Label text={123} />`), or a prop the control
+doesn't take (`<ScrollView padding={8} />`) all fail `tsc`. There is no
+global `IntrinsicElements` table, so nothing can collide with React's. Props
+go straight to the constructor options, so the event props are exactly the
+option names (`onClick`, `onChange`, `onSubmit`…). Bare text between tags is
+dropped — put text in `text`/`title`/`placeholder` props. Plain functions
+are custom components (functions returning more JSX). The only imports you
+need are the controls, `Application`, and helpers like `setTheme` from
+`"bunkit"`. `src/jsx-runtime.tsx` is the reference. The same file runs on
+macOS and Windows.
 
 ### Reactive bindings (signals)
 
@@ -119,30 +120,30 @@ on macOS and Windows.
 and the JSX runtime binds it to a control when you pass it as a prop:
 
 ```tsx
-import { Application, signal } from "bunkit";
+import { Application, signal, TextField, Label, Checkbox } from "bunkit";
 
 const name = signal("");
 const dark = signal(false);
 
-<textfield value={name} />                       // two-way: typing updates
-                                                 // the signal, name.set(...)
-                                                 // updates the field
-<label text={name} />                            // one-way live echo
-<checkbox checked={dark} />                      // two-way boolean
-<switch on={sig} /> <slider value={sig} />
-<select selected={sig} /> <segmented selected={sig} />
-<textarea value={sig} /> <progress value={sig} />
-<button title={sig} />                           // one-way
+<TextField value={name} />                      // two-way: typing updates
+                                                // the signal, name.set(...)
+                                                // updates the field
+<Label text={name} />                           // one-way live echo
+<Checkbox checked={dark} />                     // two-way boolean
+<Switch on={sig} /> <Slider value={sig} />
+<Select selected={sig} /> <Segmented selected={sig} />
+<TextArea value={sig} /> <Progress value={sig} />
+<Button title={sig} />                          // one-way
 ```
 
 Bindable props are `value`, `checked`, `on`, `selected` (two-way — the
 controls' change event writes the new value back into the signal) and
 `text`/`title` (one-way — signal to control only). A user-supplied
-`onChange` still runs, after the signal is written back. The typing accepts
-`T | Signal<T>` for these props, so `<textfield value={name} />` checks at
-compile time. Signals work without JSX too: `name.value`, `name.set(v)`,
-`name.subscribe(fn)`, and `bind(control, prop, signal)` — the imperative
-twin of the JSX binding:
+`onChange` still runs, after the signal is written back. The option types
+accept `T | Signal<T>` for these props, so `<TextField value={name} />`
+checks at compile time. Signals work without JSX too: `name.value`,
+`name.set(v)`, `name.subscribe(fn)`, and `bind(control, prop, signal)` —
+the imperative twin of the JSX binding:
 
 ```ts
 const name = signal("");

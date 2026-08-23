@@ -5,6 +5,8 @@
 
 import { createDelegate, objc, str } from "../objc.ts";
 import { ACTION_SELECTOR, actionTarget, toNSColor, View, type ViewOptions } from "./view.ts";
+import type { Signal } from "../signal.ts";
+import { unwrap } from "../signal.ts";
 import {
   AutoresizingMask,
   BezelStyle,
@@ -74,7 +76,7 @@ export function makeFont(spec: FontSpec | number | undefined): any {
 // ---------------------------------------------------------------------------
 
 export interface LabelOptions extends ViewOptions {
-  text?: string;
+  text?: string | Signal<string>;
   font?: FontSpec | number;
   color?: any;
   align?: "left" | "center" | "right";
@@ -85,8 +87,10 @@ export interface LabelOptions extends ViewOptions {
 }
 
 export class Label extends View {
+  /** JSX props type (ElementAttributesProperty). */
+  declare readonly props: LabelOptions;
   constructor(options: LabelOptions = {}) {
-    const f = objc.NSTextField.labelWithString_(options.text ?? "");
+    const f = objc.NSTextField.labelWithString_(unwrap(options.text) ?? "");
     super(f, options);
     this.applyLabelOptions(options);
   }
@@ -135,7 +139,7 @@ export class Label extends View {
 // ---------------------------------------------------------------------------
 
 export interface ButtonOptions extends ViewOptions {
-  title?: string;
+  title?: string | Signal<string>;
   onClick?: (button: Button) => void;
   /** Draw as the window's default button and respond to Return. */
   primary?: boolean;
@@ -150,10 +154,12 @@ export interface ButtonOptions extends ViewOptions {
 }
 
 export class Button extends View {
+  /** JSX props type (ElementAttributesProperty). */
+  declare readonly props: ButtonOptions;
   #handler: ((b: Button) => void) | null = null;
 
   constructor(options: ButtonOptions = {}) {
-    const b = objc.NSButton.buttonWithTitle_target_action_(options.title ?? "", null, null);
+    const b = objc.NSButton.buttonWithTitle_target_action_(unwrap(options.title) ?? "", null, null);
     super(b, options);
 
     if (options.symbol) {
@@ -215,18 +221,20 @@ export class Button extends View {
 
 export interface CheckboxOptions extends ViewOptions {
   title?: string;
-  checked?: boolean;
+  checked?: boolean | Signal<boolean>;
   onChange?: (checked: boolean, cb: Checkbox) => void;
   enabled?: boolean;
 }
 
 export class Checkbox extends View {
+  /** JSX props type (ElementAttributesProperty). */
+  declare readonly props: CheckboxOptions;
   #handler: ((checked: boolean, cb: Checkbox) => void) | null = null;
 
   constructor(options: CheckboxOptions = {}) {
     const b = objc.NSButton.checkboxWithTitle_target_action_(options.title ?? "", null, null);
     super(b, options);
-    if (options.checked !== undefined) this.checked = options.checked;
+    if (options.checked !== undefined) this.checked = unwrap(options.checked);
     if (options.enabled !== undefined) b.setEnabled_(options.enabled);
     if (options.onChange) this.onChange(options.onChange);
   }
@@ -258,12 +266,14 @@ export class Checkbox extends View {
 }
 
 export class Switch extends View {
+  /** JSX props type (ElementAttributesProperty). */
+  declare readonly props: ViewOptions & { on?: boolean; onChange?: (on: boolean, s: Switch) => void };
   #handler: ((on: boolean, s: Switch) => void) | null = null;
 
-  constructor(options: { on?: boolean; onChange?: (on: boolean, s: Switch) => void } & ViewOptions = {}) {
+  constructor(options: { on?: boolean | Signal<boolean>; onChange?: (on: boolean, s: Switch) => void } & ViewOptions = {}) {
     const s = objc.NSSwitch.alloc().init();
     super(s, options);
-    if (options.on !== undefined) this.on = options.on;
+    if (options.on !== undefined) this.on = unwrap(options.on);
     if (options.onChange) this.onChange(options.onChange);
   }
 
@@ -290,7 +300,7 @@ export class Switch extends View {
 // ---------------------------------------------------------------------------
 
 export interface TextFieldOptions extends ViewOptions {
-  value?: string;
+  value?: string | Signal<string>;
   placeholder?: string;
   /** Fires on every keystroke. */
   onChange?: (value: string, field: TextField) => void;
@@ -308,6 +318,8 @@ export interface TextFieldOptions extends ViewOptions {
 }
 
 export class TextField extends View {
+  /** JSX props type (ElementAttributesProperty). */
+  declare readonly props: TextFieldOptions;
   #onChange: ((v: string, f: TextField) => void) | null = null;
   #onSubmit: ((v: string, f: TextField) => void) | null = null;
 
@@ -317,7 +329,7 @@ export class TextField extends View {
       : objc.NSTextField.alloc().init();
     super(f, options);
 
-    if (options.value !== undefined) f.setStringValue_(options.value);
+    if (options.value !== undefined) f.setStringValue_(unwrap(options.value));
     if (options.placeholder !== undefined) f.setPlaceholderString_(options.placeholder);
     if (options.textColor !== undefined) f.setTextColor_(toNSColor(options.textColor));
     if (options.placeholderColor !== undefined && options.placeholder !== undefined) {
@@ -395,7 +407,7 @@ export class TextField extends View {
 // ---------------------------------------------------------------------------
 
 export interface TextAreaOptions extends ViewOptions {
-  value?: string;
+  value?: string | Signal<string>;
   onChange?: (value: string, t: TextArea) => void;
   font?: FontSpec | number;
   editable?: boolean;
@@ -405,6 +417,8 @@ export interface TextAreaOptions extends ViewOptions {
 }
 
 export class TextArea extends View {
+  /** JSX props type (ElementAttributesProperty). */
+  declare readonly props: TextAreaOptions;
   readonly textView: any;
   #onChange: ((v: string, t: TextArea) => void) | null = null;
 
@@ -423,7 +437,7 @@ export class TextArea extends View {
     if (options.editable !== undefined) tv.setEditable_(options.editable);
     if (options.font !== undefined) tv.setFont_(makeFont(options.font));
     if (options.textColor !== undefined) tv.setTextColor_(toNSColor(options.textColor));
-    if (options.value !== undefined) tv.setString_(options.value);
+    if (options.value !== undefined) tv.setString_(unwrap(options.value));
     scroll.setDocumentView_(tv);
 
     super(scroll, options);
@@ -460,7 +474,7 @@ export class TextArea extends View {
 // ---------------------------------------------------------------------------
 
 export interface SliderOptions extends ViewOptions {
-  value?: number;
+  value?: number | Signal<number>;
   min?: number;
   max?: number;
   ticks?: number;
@@ -469,13 +483,15 @@ export interface SliderOptions extends ViewOptions {
 }
 
 export class Slider extends View {
+  /** JSX props type (ElementAttributesProperty). */
+  declare readonly props: SliderOptions;
   #handler: ((v: number, s: Slider) => void) | null = null;
 
   constructor(options: SliderOptions = {}) {
     const s = objc.NSSlider.alloc().init();
     s.setMinValue_(options.min ?? 0);
     s.setMaxValue_(options.max ?? 1);
-    s.setDoubleValue_(options.value ?? options.min ?? 0);
+    s.setDoubleValue_(unwrap(options.value) ?? options.min ?? 0);
     if (options.ticks) {
       s.setNumberOfTickMarks_(options.ticks);
       s.setAllowsTickMarkValuesOnly_(false);
@@ -510,12 +526,14 @@ export class Slider extends View {
 
 export interface SelectOptions extends ViewOptions {
   items?: string[];
-  selected?: number;
+  selected?: number | Signal<number>;
   onChange?: (index: number, title: string, s: Select) => void;
   enabled?: boolean;
 }
 
 export class Select extends View {
+  /** JSX props type (ElementAttributesProperty). */
+  declare readonly props: SelectOptions;
   #handler: ((i: number, t: string, s: Select) => void) | null = null;
 
   constructor(options: SelectOptions = {}) {
@@ -524,7 +542,7 @@ export class Select extends View {
     );
     super(p, options);
     if (options.items) this.items = options.items;
-    if (options.selected !== undefined) this.selectedIndex = options.selected;
+    if (options.selected !== undefined) this.selectedIndex = unwrap(options.selected);
     if (options.enabled !== undefined) p.setEnabled_(options.enabled);
     if (options.onChange) this.onChange(options.onChange);
   }
@@ -558,11 +576,13 @@ export class Select extends View {
 
 export interface SegmentedOptions extends ViewOptions {
   items: string[];
-  selected?: number;
+  selected?: number | Signal<number>;
   onChange?: (index: number, s: Segmented) => void;
 }
 
 export class Segmented extends View {
+  /** JSX props type (ElementAttributesProperty). */
+  declare readonly props: SegmentedOptions;
   #handler: ((i: number, s: Segmented) => void) | null = null;
 
   constructor(options: SegmentedOptions) {
@@ -573,7 +593,7 @@ export class Segmented extends View {
       sc.setWidth_forSegment_(0, i);
     });
     sc.setSegmentStyle_(SegmentStyle.Rounded);
-    sc.setSelectedSegment_(options.selected ?? 0);
+    sc.setSelectedSegment_(unwrap(options.selected) ?? 0);
     super(sc, options);
     if (options.onChange) this.onChange(options.onChange);
   }
@@ -601,20 +621,22 @@ export class Segmented extends View {
 // ---------------------------------------------------------------------------
 
 export interface ProgressOptions extends ViewOptions {
-  value?: number;
+  value?: number | Signal<number>;
   max?: number;
   indeterminate?: boolean;
   spinner?: boolean;
 }
 
 export class Progress extends View {
+  /** JSX props type (ElementAttributesProperty). */
+  declare readonly props: ProgressOptions;
   constructor(options: ProgressOptions = {}) {
     const p = objc.NSProgressIndicator.alloc().init();
     p.setStyle_(options.spinner ? ProgressIndicatorStyle.Spinning : ProgressIndicatorStyle.Bar);
     p.setIndeterminate_(options.indeterminate ?? !!options.spinner);
     p.setMinValue_(0);
     p.setMaxValue_(options.max ?? 1);
-    p.setDoubleValue_(options.value ?? 0);
+    p.setDoubleValue_(unwrap(options.value) ?? 0);
     super(p, options);
     if (options.indeterminate || options.spinner) p.startAnimation_(null);
   }
@@ -647,6 +669,8 @@ export interface ImageOptions extends ViewOptions {
 }
 
 export class ImageView extends View {
+  /** JSX props type (ElementAttributesProperty). */
+  declare readonly props: ImageOptions;
   constructor(options: ImageOptions = {}) {
     const v = objc.NSImageView.alloc().init();
     v.setImageScaling_(options.scaling ?? ImageScaling.ProportionallyUpOrDown);

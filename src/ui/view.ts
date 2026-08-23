@@ -71,6 +71,8 @@ export interface ViewOptions {
   /** "solid" (default), "dashed" or "dotted". */
   borderStyle?: "solid" | "dashed" | "dotted";
   alpha?: number;
+  /** JSX children; ignored by controls that don't take content. */
+  children?: any;
 }
 
 /** A corner-radius spec: one number for all four corners, [tl, tr, br, bl],
@@ -175,6 +177,16 @@ export class View {
   /** @internal */ _keepAlive: any[] = [];
   /** @internal Set once `grow` has been chosen explicitly. */
   _growExplicit = false;
+
+  // React-compat stubs. If @types/react is in the program, its JSX namespace
+  // requires class components to satisfy `Component<any, any, any>` (the
+  // ElementClass gate). These make every control structurally valid as a JSX
+  // element in that environment too; they are never called.
+  declare context: unknown;
+  declare state: any;
+  setState(state: any, callback?: () => void): void {}
+  forceUpdate(callback?: () => void): void {}
+  render(): any { return null; }
 
   constructor(native: any, options: ViewOptions = {}) {
     this.native = native;

@@ -61,6 +61,13 @@ export function isSignal(v: unknown): v is Signal<unknown> {
   );
 }
 
+/** Resolve a `T | Signal<T>` to the plain value (signals give their current
+ *  value). Options accept signals so JSX props can carry them; the JSX runtime
+ *  unwraps before construction, and this is the imperative equivalent. */
+export function unwrap<T>(v: T | Signal<T>): T {
+  return isSignal(v) ? v.get() : v;
+}
+
 // Bindable props and the change event that writes them back. `value`/`checked`/
 // `on`/`selected` are two-way; `text`/`title` (no event) are one-way.
 export const WRITE_BACK_EVENT: Record<string, string> = {

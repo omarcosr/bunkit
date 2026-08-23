@@ -54,6 +54,8 @@ function insets(p: StackOptions["padding"]): NSEdgeInsets {
 }
 
 export class Stack extends View {
+  /** JSX props type (ElementAttributesProperty). */
+  declare readonly props: StackOptions & { orientation?: number };
   readonly orientation: number;
   readonly align: "leading" | "center" | "trailing" | "fill";
   #insets: NSEdgeInsets;
@@ -223,12 +225,16 @@ export class Stack extends View {
 }
 
 export class VStack extends Stack {
+  /** JSX props type (ElementAttributesProperty). */
+  declare readonly props: StackOptions;
   constructor(options: StackOptions = {}, children: View[] = []) {
     super(Orientation.Vertical, options, children);
   }
 }
 
 export class HStack extends Stack {
+  /** JSX props type (ElementAttributesProperty). */
+  declare readonly props: StackOptions;
   constructor(options: StackOptions = {}, children: View[] = []) {
     super(Orientation.Horizontal, options, children);
   }
@@ -236,6 +242,8 @@ export class HStack extends Stack {
 
 /** Flexible empty space. Put one between two views to push them apart. */
 export class Spacer extends View {
+  /** JSX props type (ElementAttributesProperty). */
+  declare readonly props: { min?: number };
   constructor(options: { min?: number } = {}) {
     const v = objc.NSView.alloc().init();
     super(v, {});
@@ -252,6 +260,8 @@ export class Spacer extends View {
 
 /** A 1px separator line. */
 export class Separator extends View {
+  /** JSX props type (ElementAttributesProperty). */
+  declare readonly props: { orientation?: number };
   constructor(orientation: number = Orientation.Horizontal) {
     const b = objc.NSBox.alloc().init();
     b.setBoxType_(BoxType.Separator);
@@ -271,6 +281,8 @@ export interface ScrollOptions extends ViewOptions {
 
 /** A scrolling container around a single content view. */
 export class ScrollView extends View {
+  /** JSX props type (ElementAttributesProperty). */
+  declare readonly props: ScrollOptions;
   #content: View | null = null;
 
   constructor(options: ScrollOptions = {}, content?: View) {
@@ -344,6 +356,8 @@ export interface BoxOptions extends ViewOptions {
  * nothing. This is a plain bordered container instead, which behaves.
  */
 export class GroupBox extends View {
+  /** JSX props type (ElementAttributesProperty). */
+  declare readonly props: BoxOptions;
   readonly contentStack: VStack;
   readonly titleLabel: View | null = null;
 
@@ -405,6 +419,8 @@ export interface BlurOptions extends ViewOptions {
 
 /** A translucent "vibrancy" background, as used by sidebars and HUDs. */
 export class BlurView extends View {
+  /** JSX props type (ElementAttributesProperty). */
+  declare readonly props: BlurOptions;
   constructor(options: BlurOptions = {}, content?: View) {
     const v = objc.NSVisualEffectView.alloc().init();
     v.setMaterial_(options.material ?? VisualEffectMaterial.Sidebar);
@@ -417,6 +433,8 @@ export class BlurView extends View {
 
 /** A plain container you can fill or position children in yourself. */
 export class Container extends View {
+  /** JSX props type (ElementAttributesProperty). */
+  declare readonly props: ViewOptions;
   constructor(options: ViewOptions = {}, children: View[] = []) {
     super(objc.NSView.alloc().init(), options);
     for (const c of children) this.add(c);
@@ -431,6 +449,8 @@ export interface SplitOptions extends ViewOptions {
 }
 
 export class SplitView extends View {
+  /** JSX props type (ElementAttributesProperty). */
+  declare readonly props: SplitOptions;
   constructor(options: SplitOptions = {}, panes: View[] = []) {
     const sv = objc.NSSplitView.alloc().init();
     sv.setVertical_(options.vertical !== false);

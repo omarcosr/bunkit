@@ -37,6 +37,8 @@ export interface WindowOptions {
   onFocus?: (w: Window) => void;
   onBlur?: (w: Window) => void;
   content?: View;
+  /** JSX children (the content view); ignored by the imperative API. */
+  children?: any;
   /** Show the window as soon as it is constructed. Default true. */
   show?: boolean;
 }
@@ -44,6 +46,15 @@ export interface WindowOptions {
 const openWindows = new Set<Window>();
 
 export class Window {
+  /** JSX props type (ElementAttributesProperty). */
+  declare readonly props: WindowOptions;
+  // React-compat stubs (Window is not a View): satisfy React's ElementClass
+  // gate when @types/react is in the program. Never called.
+  declare context: unknown;
+  declare state: any;
+  setState(state: any, callback?: () => void): void {}
+  forceUpdate(callback?: () => void): void {}
+  render(): any { return null; }
   readonly native: any;
   #root!: Container;
   #content: View | null = null;

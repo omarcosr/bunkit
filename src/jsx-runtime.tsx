@@ -1,18 +1,20 @@
 // JSX runtime — a thin declarative skin over the imperative API.
 //
 //   tsconfig:  "jsx": "react-jsx", "jsxImportSource": "bunkit"
-//   example:   <vstack spacing={12}><label text="hi" /><button title="Go" onClick={…}/></vstack>
+//   example:   <VStack spacing={12}><Label text="hi" /><Button title="Go" onClick={…}/></VStack>
 //
-// Tag names map to the Layer 3 constructors; props are passed through
-// unchanged (so event props are exactly the constructor option names:
-// onClick, onChange, onSubmit…). String children are dropped — text goes in
-// `text`/`title`/`placeholder` props. Function types are treated as custom
-// components. The runtime is platform-agnostic and works on macOS and Windows.
+// Elements are the imported constructors themselves — <Window>, <VStack>,
+// <Label>, … — so props are type-checked against the real option types with
+// no global IntrinsicElements table. Props are passed through unchanged (so
+// event props are exactly the constructor option names: onClick, onChange,
+// onSubmit…). String children are dropped — text goes in `text`/`title`/
+// `placeholder` props. Plain functions are custom components. The runtime is
+// platform-agnostic and works on macOS and Windows.
 import {
   Application, Window, VStack, HStack, Stack, Label, Button, TextField,
   Checkbox, Switch, Slider, Select, Segmented, TextArea, Progress,
   GroupBox, ScrollView, SplitView, Container, ImageView, BlurView,
-  Spacer, Separator, View, isSignal,
+  Spacer, Separator, isSignal,
 } from "./index.ts";
 import type { Signal } from "./index.ts";
 
@@ -36,12 +38,24 @@ function flatten(value: any, out: any[]): void {
 // write back from).
 import { WRITE_BACK_EVENT } from "./signal.ts";
 
+// The control constructors, for two purposes: distinguishing them from plain
+// function components, and picking how each one takes children.
+const CONTROLS: ReadonlySet<Function> = new Set([
+  Window, VStack, HStack, Stack, Label, Button, TextField,
+  Checkbox, Switch, Slider, Select, Segmented, TextArea, Progress,
+  GroupBox, ScrollView, SplitView, Container, ImageView, BlurView,
+  Spacer, Separator,
+]);
+
 function create(type: any, props: any, children: any[]): any {
   const p = props ?? {};
 
   // Custom components: a plain function returning more JSX.
-  if (typeof type === "function" && !(type.prototype instanceof View)) {
+  if (typeof type === "function" && !CONTROLS.has(type)) {
     return type({ ...p, children });
+  }
+  if (typeof type !== "function") {
+    throw new Error(`bunkit/jsx-runtime: <${String(type)}> is not a control`);
   }
 
   // Pull signals out of their props (bindings are wired after construction);
@@ -69,76 +83,76 @@ function create(type: any, props: any, children: any[]): any {
   switch (type) {
     case Fragment:
       return children;
-    case "window":
+    case Window:
       control = new Window({ ...p, content: children[0] });
       break;
-    case "vstack":
+    case VStack:
       control = new VStack(p, children);
       break;
-    case "hstack":
+    case HStack:
       control = new HStack(p, children);
       break;
-    case "stack":
+    case Stack:
       control = new Stack(p.orientation ?? 0, p, children);
       break;
-    case "label":
+    case Label:
       control = new Label(p);
       break;
-    case "button":
+    case Button:
       control = new Button(p);
       break;
-    case "textfield":
+    case TextField:
       control = new TextField(p);
       break;
-    case "checkbox":
+    case Checkbox:
       control = new Checkbox(p);
       break;
-    case "switch":
+    case Switch:
       control = new Switch(p);
       break;
-    case "slider":
+    case Slider:
       control = new Slider(p);
       break;
-    case "select":
+    case Select:
       control = new Select(p);
       break;
-    case "segmented":
+    case Segmented:
       control = new Segmented(p);
       break;
-    case "textarea":
+    case TextArea:
       control = new TextArea(p);
       break;
-    case "progress":
+    case Progress:
       control = new Progress(p);
       break;
-    case "groupbox":
+    case GroupBox:
       control = new GroupBox(p, children);
       break;
-    case "scrollview": {
+    case ScrollView: {
       control = new ScrollView(p);
       if (children[0] !== undefined) control.content = children[0];
       break;
     }
-    case "splitview":
+    case SplitView:
       control = new SplitView(p, children);
       break;
-    case "container":
+    case Container:
       control = new Container(p, children);
       break;
-    case "imageview":
+    case ImageView:
       control = new ImageView(p);
       break;
-    case "blurview":
+    case BlurView:
       control = new BlurView(p, children[0]);
       break;
-    case "spacer":
+    case Spacer:
       control = new Spacer();
       break;
-    case "separator":
+    case Separator:
       control = new Separator();
       break;
     default:
-      throw new Error(`bunkit/jsx-runtime: unknown tag <${String(type)}>`);
+      throw new Error(`bunkit/jsx-runtime: <${String(type?.name ?? type)}> is not a control`);
   }
 
   // Wire signal bindings: one-way (signal → control) + two-way (also write-back).
