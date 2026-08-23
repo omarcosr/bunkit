@@ -7,7 +7,7 @@ import {
   Window, VStack, HStack, Label, Button, GroupBox, Table, TextArea,
   ScrollView, Container, SplitView, ImageView, BlurView, Spacer,
   snapshotView, describeViewTree, checkLayout, allWindows, standardMenu,
-  input, beep, setClipboardText, getClipboardText,
+  input, beep, setClipboardText, getClipboardText, setTheme,
 } from "../../src/index.ts";
 import { windowsBackend } from "../../src/platform/windows/backend.ts";
 import { winLib } from "../../src/platform/windows/ffi.ts";
@@ -56,6 +56,13 @@ const widths = (w: number) => Buffer.from(new Float64Array([w, w, w, w]).buffer)
 const radii = (r: number) => Buffer.from(new Float64Array([r, r, r, r]).buffer) as any;
 check((winLib.bk_control_set_border((tipped as any).handle, Buffer.from("#F26419") as any, 7, widths(1), radii(1)) as number) === 0,
   "Label accepts border (Border shell)");
+// Theme: setTheme flips the window subtree (verified by pixel comparison
+// against the system theme elsewhere); here just exercise both directions.
+setTheme("dark");
+for (let i = 0; i < 10; i++) { windowsBackend.pump(); await Bun.sleep(4); }
+setTheme("default");
+for (let i = 0; i < 10; i++) { windowsBackend.pump(); await Bun.sleep(4); }
+check(true, "setTheme dark/default cycles without throwing");
 // Clipboard roundtrip.
 setClipboardText("parité ✓ clipboard");
 check(getClipboardText() === "parité ✓ clipboard", `clipboard roundtrip ("${getClipboardText().slice(0, 20)}")`);

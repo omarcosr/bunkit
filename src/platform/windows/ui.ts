@@ -327,18 +327,36 @@ export function allWindows(): Window[] {
   return [...windowInstances];
 }
 
+// The default theme chosen via Application({ theme }); windows created after
+// it open already themed (applied before show, so there is no flash).
+let appTheme: Theme | null = null;
+
+function themeCode(theme: Theme | null): number {
+  return theme === "light" ? 1 : theme === "dark" ? 2 : 0;
+}
+
 export class Application {
   constructor(private opts: {
     name?: string;
+    theme?: Theme;
     menu?: false | StandardMenuOptions | Menu;
     onReady?: (app: Application) => void | Promise<void>;
     onQuit?: () => void | Promise<void>;
     exitOnQuit?: boolean;
-  } = {}) {}
+  } = {}) {
+    appTheme = opts.theme ?? null;
+  }
 
   async run(): Promise<void> {
     await windowsBackend.init();
     this.installMenu();
+    // Re-apply in case windows predate the Application or the theme changed
+    // between construction and run; idempotent.
+    if (appTheme !== null) {
+      for (const handle of windowsBackend.allWindows) {
+        windowsBackend.setControlTheme(handle, themeCode(appTheme));
+      }
+    }
     if (this.opts.onReady) await this.opts.onReady(this);
     // pumpBlocking sleeps in the DLL until a native event arrives, so an
     // idle app spends ~0% CPU instead of polling every 2 ms.
@@ -384,6 +402,11 @@ export class Window {
     if (opts.minSize) windowsBackend.setWindowMinSize(this.handle, opts.minSize);
     if (opts.content) this.content = opts.content;
     if (opts.onClose) windowsBackend.setWindowCloseCallback(this.handle, opts.onClose);
+    // Inherit the Application theme before the first frame, so the window
+    // opens already in it instead of flashing the system theme.
+    if (appTheme !== null) {
+      windowsBackend.setControlTheme(this.handle, themeCode(appTheme));
+    }
     windowInstances.push(this);
     if (opts.show !== false) this.show();
   }
@@ -840,6 +863,21 @@ export function prompt(title: string, opts: { message?: string; value?: string; 
 
 export function openFile(opts: { title?: string; multiple?: boolean; types?: string[]; chooseDirectories?: boolean; window?: Window } = {}): Promise<string[]> {
   return windowsBackend.openFile({ ...opts, window: opts.window?.handle });
+}
+
+// --- theme -----------------------------------------------------------------------------
+
+export type Theme = "default" | "light" | "dark";
+
+/** Applies a light/dark theme to every live window's content subtree. The
+ *  root is repainted with the standard page background; pass
+ *  `opts.background` (hex) to choose the colour used for that mode instead. */
+export function setTheme(theme: Theme, opts?: { background?: string }): void {
+  appTheme = theme;
+  const code = themeCode(theme);
+  for (const handle of windowsBackend.allWindows) {
+    windowsBackend.setControlTheme(handle, code, opts?.background);
+  }
 }
 
 // --- clipboard ---------------------------------------------------------------------

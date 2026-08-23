@@ -359,6 +359,10 @@ BK_EXPORT int32_t bk_control_set_min_size(bk_handle c, double min_width,
                                           double min_height);
 BK_EXPORT int32_t bk_control_set_max_size(bk_handle c, double max_width,
                                           double max_height);
+// theme: 0 default (follows system), 1 light, 2 dark. Subtree-wide. bg:
+// optional hex overriding the painted page background for that mode.
+BK_EXPORT int32_t bk_control_set_theme(bk_handle c, int32_t theme,
+                                       const char* bg, uint32_t bg_len);
 BK_EXPORT int32_t bk_control_set_tooltip(bk_handle c, const char* text,
                                          uint32_t text_len);
 BK_EXPORT int32_t bk_control_set_alpha(bk_handle c, double alpha);

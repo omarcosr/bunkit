@@ -93,9 +93,15 @@ honors `types` as an extension filter and `chooseDirectories` as a folder
 picker), window menu bars
 (`Application({ menu })` maps the macOS app menu onto each window's MenuBar,
 including About/Settings/Quit, File/Edit/View/Window/Help sections), context
-menus (`popUpMenu` as a MenuFlyout at the pointer; `MenuItemSpec.submenu`
-nests into MenuFlyoutSubItems, any depth), `beep`, the clipboard
-(`setClipboardText`/`getClipboardText`, synchronous Win32), and the styling
+menus (`popUpMenu` as a MenuFlyout at the pointer, opening under the live
+cursor; `MenuItemSpec.submenu` nests into MenuFlyoutSubItems, any depth),
+`beep`, the clipboard
+(`setClipboardText`/`getClipboardText`, synchronous Win32), theming
+(`Application({ theme: "light" | "dark" })` opens every window already in
+that theme without flashing; `setTheme("light" | "dark" | "default",
+{ background }?)` re-tunes live windows via XAML RequestedTheme and
+repaints the page background — pass `{ background: "#14141F" }` to choose
+the colour used for that mode), and the styling
 options (`Button.primary/destructive/symbol`, `Label.color/font/align`,
 `TextField.onSubmit` including secure fields, `Window.minSize`).
 

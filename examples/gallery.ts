@@ -7,6 +7,7 @@ import {
     Application,
     BlurView,
     Button,
+    Checkbox,
     Container,
     GroupBox,
     HStack,
@@ -25,7 +26,7 @@ import {
     describeViewTree,
     getClipboardText,
     input, popUpMenu, saveFile, setClipboardText,
-    snapshotView,
+    setTheme, snapshotView,
 } from "bunkit";
 import { writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -81,7 +82,7 @@ const albums: Album[] = [
   { title: "Vulnicura", artist: "Björk", year: 2015, rating: 8 },
 ];
 
-const app = new Application({ name: "Gallery" });
+const app = new Application({ name: "Gallery", theme: "light" });
 
 // --- log pane ---------------------------------------------------------------
 
@@ -244,8 +245,31 @@ const mode = new Segmented({
   onChange: (i) => say(`mode -> ${i === 0 ? "detail" : "collection"}`),
 });
 
+// Dark/light: one source of truth so the checkbox and the actual theme can
+// never drift apart. The app starts in light (matching `checked: false`);
+// without an explicit startup apply the window would follow the SYSTEM
+// theme instead — which is why it used to boot dark.
+const THEME = {
+  dark: { page: "#14141F", sidebar: "#202020" },
+  light: { page: "#FAFAFA", sidebar: "#F0F0F0" },
+};
+function applyAppTheme(dark: boolean): void {
+  const t = dark ? THEME.dark : THEME.light;
+  setTheme(dark ? "dark" : "light", { background: t.page });
+  sidebar.setBackground(t.sidebar);
+}
+const darkMode = new Checkbox({
+  title: "Dark mode",
+  checked: false,
+  onChange: (on) => {
+    applyAppTheme(on);
+    say(`theme -> ${on ? "dark" : "light"}`);
+  },
+});
+
 const sidebar = new BlurView({
-  background: "#2D7DD2",
+  // background: "#2D7DD2",
+  background: "#bf2dd2",
   border: true,
   borderColor: "#0000ff",
   borderRadius: 8,
@@ -255,6 +279,7 @@ const sidebar = new BlurView({
   new Label({ text: "5 albums", color: "secondaryLabel", font: { size: 11 } }),
   new Separator(),
   mode,
+  darkMode,
   new Spacer(),
   new Button({
     title: "Library ▾",

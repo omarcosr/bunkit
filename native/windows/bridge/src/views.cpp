@@ -374,6 +374,84 @@ BK_EXPORT int32_t bk_control_set_max_size(bk_handle c, double max_width,
   return combine(rc, st);
 }
 
+namespace {
+
+// Controls, Panels (Grids/Stacks) and Borders can all take a Background.
+bool paint_element_background(FrameworkElement const& el,
+                              winrt::Windows::UI::Color color) {
+  try {
+    el.as<cx::Control>().Background(Media::SolidColorBrush(color));
+    return true;
+  } catch (...) {
+  }
+  try {
+    el.as<cx::Panel>().Background(Media::SolidColorBrush(color));
+    return true;
+  } catch (...) {
+  }
+  try {
+    el.as<cx::Border>().Background(Media::SolidColorBrush(color));
+    return true;
+  } catch (...) {
+  }
+  return false;
+}
+
+} // namespace
+
+// theme: 0 default (follows system), 1 light, 2 dark. bg (optional hex)
+// overrides the painted page background for that mode. Applies to the whole
+// subtree of the element — the window content root themes the window.
+BK_EXPORT int32_t bk_control_set_theme(bk_handle c, int32_t theme,
+                                       const char* bg, uint32_t bg_len) {
+  if (require_running() != BK_OK) return BK_NOT_INITIALIZED;
+  int32_t st = BK_ERROR;
+  const int32_t rc = bk::Runtime::instance().dispatch_sync([&] {
+    auto object = element_of(c);
+    if (!object) { st = BK_INVALID_HANDLE; return; }
+    FrameworkElement target{nullptr};
+    // A Window handle maps to its content (Window is not a FrameworkElement).
+    if (auto win = object.try_as<Window>()) {
+      auto content = win.Content();
+      if (!content) { st = BK_ERROR; return; }
+      target = content.as<FrameworkElement>();
+    } else {
+      target = object.as<FrameworkElement>();
+    }
+    try {
+      ElementTheme mapped = ElementTheme::Default;
+      if (theme == 1) mapped = ElementTheme::Light;
+      else if (theme == 2) mapped = ElementTheme::Dark;
+      target.RequestedTheme(mapped);
+      // Repaint the subtree root: XAML content roots are transparent, so
+      // without this the old system backdrop keeps showing through after a
+      // theme flip. Default: light pages white, dark pages near-black; a
+      // custom hex wins.
+      winrt::Windows::UI::Color body{};
+      if (bg && bg_len) {
+        const std::string digits =
+            bg[0] == '#' ? std::string(bg + 1, bg_len - 1) : std::string(bg, bg_len);
+        const auto value = static_cast<uint32_t>(std::stoul(digits, nullptr, 16));
+        body.A = 255;
+        body.R = digits.size() > 6 ? static_cast<uint8_t>((value >> 24) & 0xFF)
+                                   : static_cast<uint8_t>((value >> 16) & 0xFF);
+        body.G = static_cast<uint8_t>((value >> 8) & 0xFF);
+        body.B = static_cast<uint8_t>(value & 0xFF);
+        if (digits.size() > 6) body.R = static_cast<uint8_t>((value >> 16) & 0xFF);
+      } else if (theme == 2) {
+        body = winrt::Windows::UI::Color{255, 0x1C, 0x1C, 0x1C};
+      } else {
+        body = winrt::Windows::UI::Color{255, 255, 255, 255};
+      }
+      paint_element_background(target, body);
+      st = BK_OK;
+    } catch (...) {
+      st = BK_WRONG_TYPE;
+    }
+  });
+  return combine(rc, st);
+}
+
 BK_EXPORT int32_t bk_control_set_tooltip(bk_handle c, const char* text,
                                          uint32_t text_len) {
   if (require_running() != BK_OK) return BK_NOT_INITIALIZED;

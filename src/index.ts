@@ -64,6 +64,8 @@ export const prompt: Ui["prompt"] = mod.prompt;
 export const openFile: Ui["openFile"] = mod.openFile;
 export const setClipboardText: Ui["setClipboardText"] = mod.setClipboardText;
 export const getClipboardText: Ui["getClipboardText"] = mod.getClipboardText;
+export const setTheme: Ui["setTheme"] = mod.setTheme;
+export type { Theme } from "./ui/index.ts";
 export const beep: Ui["beep"] = mod.beep;
 export const objc: Ui["objc"] = mod.objc;
 

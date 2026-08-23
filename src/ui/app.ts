@@ -12,6 +12,7 @@ import {
   type RunOptions,
 } from "../runtime.ts";
 import { Menu, standardMenu, type StandardMenuOptions } from "./menu.ts";
+import { setTheme } from "./theme.ts";
 import { Window, allWindows } from "./window.ts";
 
 export interface ApplicationOptions extends RunOptions {
@@ -30,6 +31,9 @@ export interface ApplicationOptions extends RunOptions {
    * shutdown work in `onQuit`, not after `await app.run()`.
    */
   exitOnQuit?: boolean;
+  /** Light/dark appearance applied before windows open. Omitted (or
+   *  "default") follows the system. */
+  theme?: "light" | "dark" | "default";
 }
 
 export class Application {
@@ -56,6 +60,10 @@ export class Application {
     }
 
     if (options.onQuit) onQuit(options.onQuit);
+
+    if (options.theme === "light" || options.theme === "dark") {
+      setTheme(options.theme);
+    }
   }
 
   get native(): any {

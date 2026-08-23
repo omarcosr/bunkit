@@ -165,6 +165,7 @@ function getLib(): any {
   bk_control_set_size: { args: ["u64", "f64", "f64"], returns: "i32" },
   bk_control_set_min_size: { args: ["u64", "f64", "f64"], returns: "i32" },
   bk_control_set_max_size: { args: ["u64", "f64", "f64"], returns: "i32" },
+  bk_control_set_theme: { args: ["u64", "i32", "ptr", "u32"], returns: "i32" },
   bk_control_set_tooltip: { args: ["u64", "ptr", "u32"], returns: "i32" },
   bk_control_set_alpha: { args: ["u64", "f64"], returns: "i32" },
   bk_control_set_background: { args: ["u64", "ptr", "u32"], returns: "i32" },

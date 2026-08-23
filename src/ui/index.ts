@@ -14,6 +14,7 @@ export * from "./menu.ts";
 export * from "./table.ts";
 export * from "./dialogs.ts";
 export * from "./clipboard.ts";
+export * from "./theme.ts";
 export * from "./input.ts";
 export * from "./app.ts";
 export * from "./snapshot.ts";

@@ -584,6 +584,10 @@ export class WindowsBackend {
   setControlMinSize(h: NativeHandle, w: number, ht: number): void { winLib.bk_control_set_min_size(h, w, ht); }
   setControlMaxSize(h: NativeHandle, w: number, ht: number): void { winLib.bk_control_set_max_size(h, w, ht); }
   setControlTooltip(h: NativeHandle, text: string): void { const b = cstr(text); winLib.bk_control_set_tooltip(h, b as any, b.length); }
+  setControlTheme(h: NativeHandle, theme: number, background?: string): void {
+    const bg = background ? cstr(background) : null;
+    winLib.bk_control_set_theme(h, theme, bg ? (bg as any) : 0, bg ? bg.length : 0);
+  }
   setControlAlpha(h: NativeHandle, alpha: number): void { winLib.bk_control_set_alpha(h, alpha); }
   setControlBackground(h: NativeHandle, hex: string): void { const b = cstr(hex); winLib.bk_control_set_background(h, b as any, b.length); }
   setControlCornerRadius(h: NativeHandle, tl: number, tr: number, br: number, bl: number): void { winLib.bk_control_set_corner_radius4(h, tl, tr, br, bl); }
