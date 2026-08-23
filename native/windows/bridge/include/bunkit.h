@@ -368,15 +368,19 @@ BK_EXPORT int32_t bk_control_set_background(bk_handle c, const char* hex,
 BK_EXPORT int32_t bk_control_set_corner_radius4(bk_handle c, double tl,
                                                 double tr, double br,
                                                 double bl);
-// hex as in set_background; width/radius <= 0 leaves them unchanged.
+// hex as in set_background; widths: double[4] in Thickness order {left, top,
+// right, bottom}; radii: double[4] {tl, tr, br, bl}.
 BK_EXPORT int32_t bk_control_set_border(bk_handle c, const char* hex,
-                                        uint32_t hex_len, double width,
+                                        uint32_t hex_len,
+                                        const double* widths,
                                         const double* radii);
 // style: 1 dashed, 2 dotted. Border-wrapper views (Container, stacks, Table,
 // GroupBox shells) draw the pattern with a Rectangle overlay; plain Controls
-// have no stroke-pattern support and fall back to solid.
+// have no stroke-pattern support and fall back to solid. Per-side widths
+// stroke with the largest value.
 BK_EXPORT int32_t bk_control_set_border_style(bk_handle c, const char* hex,
-                                              uint32_t hex_len, double width,
+                                              uint32_t hex_len,
+                                              const double* widths,
                                               const double* radii,
                                               int32_t style);
 

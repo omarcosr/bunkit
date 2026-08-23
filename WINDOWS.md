@@ -221,15 +221,22 @@ bun test/win/parity2.ts       # views, advanced table, input, snapshot, debug
   `cornerRadius` and `borderRadius` are aliases of the same thing. Both accept
   one number, `[tl, tr, br, bl]`, or per-corner names
   (`{ topLeft, topRight, bottomRight, bottomLeft }` — CSS border-radius
-  vocabulary). CSS-style options (`backgroundColor`, `border`, `borderWidth`,
+  vocabulary). `border` accepts one number, `true`, `[top, right, bottom,
+  left]`, or per-side names (`{ top, right, bottom, left }` — CSS
+  border-width vocabulary) and maps straight onto XAML's per-side
+  `Thickness`. CSS-style options (`backgroundColor`, `border`, `borderWidth`,
   `borderColor`, `borderRadius`, `borderStyle`) mirror the macOS layer API;
   `borderStyle: "dashed" | "dotted"` draws with a pattern overlay on
   Border-based views and falls back to solid on plain Controls (the overlay
-  rounds uniformly with the largest requested radius).
+  rounds uniformly with the largest requested radius, and strokes per-side
+  widths with the largest requested width).
 - bun:ffi corrupts the last `f64` in 8-argument win64 signatures, so the
-  four corner radii cross the ABI as a `double[4]` buffer rather than four
-  trailing doubles. Keep new exports under 7 arguments, or pack extras into
-  a pointer.
+  four corner radii and the four border widths cross the ABI as `double[4]`
+  buffers (radii `{tl, tr, br, bl}`; widths in Thickness order
+  `{left, top, right, bottom}`) rather than trailing doubles. Keep new
+  exports under 7 arguments, or pack extras into a pointer.
+- `Thickness`/`CornerRadius` are plain aggregates — `Thickness(w)` compiles
+  under C++20 but zeroes three of the four sides. Always pass every field.
 - `Stack.remove` drops the child and its row/column definition (a grid
   rebuild under the hood — heavy churn is O(n) per call, not incremental).
   `ImageView.src` swaps the bitmap in place.

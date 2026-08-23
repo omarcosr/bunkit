@@ -59,9 +59,10 @@ export interface ViewOptions {
   background?: any;
   /** CSS-style alias for `background`. */
   backgroundColor?: any;
-  /** Border width in points; `true` means 1. */
-  border?: number | boolean;
-  /** Alias for `border`. */
+  /** Border width — one number for all sides, `true` for 1,
+   *  [top, right, bottom, left], or per-side names (CSS border-width vocabulary). */
+  border?: number | boolean | BorderSideSpec;
+  /** Alias for `border` (uniform number only). */
   borderWidth?: number;
   /** Border colour; a CSS-ish hex string or a Color. */
   borderColor?: any;
@@ -91,6 +92,22 @@ export function normalizeCorners(spec: CornerRadiusSpec | undefined, fallback = 
   ];
 }
 
+/** A per-side border-width spec: one number for all four sides,
+ *  [top, right, bottom, left] (CSS order), or per-side by name. */
+export type BorderSideSpec =
+  | number
+  | [number, number, number, number]
+  | { top?: number; right?: number; bottom?: number; left?: number };
+
+export function normalizeSides(spec: BorderSideSpec | boolean | undefined, fallback = 0): [number, number, number, number] {
+  if (spec === undefined) return [fallback, fallback, fallback, fallback];
+  if (spec === true) return [1, 1, 1, 1];
+  if (spec === false) return [0, 0, 0, 0];
+  if (typeof spec === "number") return [spec, spec, spec, spec];
+  if (Array.isArray(spec)) return [spec[0] ?? 0, spec[1] ?? 0, spec[2] ?? 0, spec[3] ?? 0];
+  return [spec.top ?? 0, spec.right ?? 0, spec.bottom ?? 0, spec.left ?? 0];
+}
+
 /** A bezier path with independent radii per corner (AppKit coordinates,
  *  bottom-left origin, tl/tr/br/bl in CSS terms). */
 function roundedBezier(bounds: any, tl: number, tr: number, br: number, bl: number): any {
@@ -117,6 +134,38 @@ function roundedBezier(bounds: any, tl: number, tr: number, br: number, bl: numb
   }
   path.closePath();
   return path;
+}
+
+/** Four open bezier paths, one per side [top, right, bottom, left], each
+ *  covering its straight edge plus the two adjacent corner arcs (AppKit
+ *  coordinates, same arcs/angles as roundedBezier). An arc shared by two
+ *  active sides is stroked twice at the same geometry — invisible with a
+ *  single border colour. */
+function sideBeziers(bounds: any, tl: number, tr: number, br: number, bl: number): [any, any, any, any] {
+  const x = bounds.x, y = bounds.y, w = bounds.width, h = bounds.height;
+  const arc = (path: any, cx: number, cy: number, r: number, a: number, b: number) =>
+    path.appendBezierPathWithArcWithCenter_radius_startAngle_endAngle_({ x: cx, y: cy }, r, a, b);
+  const top = objc.NSBezierPath.bezierPath();
+  top.moveToPoint_({ x, y: y + h - tl });
+  if (tl > 0) arc(top, x + tl, y + h - tl, tl, 180, 90);
+  top.lineTo_({ x: x + w - tr, y: y + h });
+  if (tr > 0) arc(top, x + w - tr, y + h - tr, tr, 90, 0);
+  const right = objc.NSBezierPath.bezierPath();
+  right.moveToPoint_({ x: x + w - tr, y: y + h });
+  if (tr > 0) arc(right, x + w - tr, y + h - tr, tr, 90, 0);
+  right.lineTo_({ x: x + w, y: y + br });
+  if (br > 0) arc(right, x + w - br, y + br, br, 0, -90);
+  const bottom = objc.NSBezierPath.bezierPath();
+  bottom.moveToPoint_({ x: x + w, y: y + br });
+  if (br > 0) arc(bottom, x + w - br, y + br, br, 0, -90);
+  bottom.lineTo_({ x: x + bl, y });
+  if (bl > 0) arc(bottom, x + bl, y + bl, bl, -90, -180);
+  const left = objc.NSBezierPath.bezierPath();
+  left.moveToPoint_({ x: x + bl, y });
+  if (bl > 0) arc(left, x + bl, y + bl, bl, -90, -180);
+  left.lineTo_({ x, y: y + h - tl });
+  if (tl > 0) arc(left, x + tl, y + h - tl, tl, 180, 90);
+  return [top, right, bottom, left];
 }
 
 export class View {
@@ -154,13 +203,11 @@ export class View {
 
     // CSS-style borders: `border`/`borderWidth` (or `borderColor`/`borderStyle`
     // alone) turn the border on; `borderRadius` rides along when present.
-    const borderWidth =
-      o.border !== undefined ? (o.border === true ? 1 : o.border as number)
-      : o.borderWidth;
-    if (borderWidth !== undefined || o.borderColor !== undefined || o.borderStyle !== undefined) {
+    const borderSpec = o.border !== undefined ? o.border : o.borderWidth;
+    if (borderSpec !== undefined || o.borderColor !== undefined || o.borderStyle !== undefined) {
       this.setBorder(
         o.borderColor ?? "#C6C6C8",
-        borderWidth ?? 1,
+        borderSpec ?? 1,
         (o.borderRadius ?? o.cornerRadius) ?? 0,
         o.borderStyle ?? "solid",
       );
@@ -324,38 +371,55 @@ export class View {
     return this;
   }
 
-  /** Draw a border in `color` with an optional corner radius and style.
-   *  "dashed"/"dotted" swap the layer border for a stroked CAShapeLayer that
-   *  follows the view's frame. */
-  setBorder(color: any, width = 1, radius: CornerRadiusSpec | number = 0, style: "solid" | "dashed" | "dotted" = "solid"): this {
+  /** Draw a border in `color` with a per-side width (see BorderSideSpec), an
+   *  optional corner radius and style. Uniform solid uses the layer's own
+   *  border; dashed/dotted or differing per-side widths swap in stroked
+   *  CAShapeLayers that follow the view's frame. */
+  setBorder(color: any, width: BorderSideSpec | boolean | number = 1, radius: CornerRadiusSpec | number = 0, style: "solid" | "dashed" | "dotted" = "solid"): this {
     this.native.setWantsLayer_(true);
     const layer = this.native.layer();
     const nsColor = toNSColor(color);
-    this.#removeDashedBorder();
-    if (style === "solid") {
+    this.#removeBorderShapes();
+    const [top, right, bottom, left] = normalizeSides(width as BorderSideSpec);
+    const uniform = top === right && right === bottom && bottom === left;
+    if (style === "solid" && uniform) {
       if (nsColor) layer.setBorderColor_(nsColor.send("CGColor"));
-      layer.setBorderWidth_(width);
+      layer.setBorderWidth_(top);
       if (radius !== 0) this.applyCorners(radius);
       return this;
     }
-    // Dashed/dotted: CALayer borders cannot stroke a pattern, so a shape
-    // layer over the border does it, rebuilt whenever the frame changes.
+    // Dashed/dotted or per-side widths: CALayer borders cannot stroke a
+    // pattern or differ per side, so shape layers over the border do it,
+    // rebuilt whenever the frame changes. Uniform widths share one layer
+    // with the full rounded path; differing widths get one per active side.
     layer.setBorderWidth_(0);
-    const shape = objc.CAShapeLayer.layer();
     const cg = nsColor ? nsColor.send("CGColor") : null;
-    if (cg) shape.setStrokeColor_(cg);
-    shape.setLineWidth_(width);
-    shape.setFillColor_(null);
-    const unit = Math.max(1, width);
-    shape.setLineDashPattern_(style === "dashed" ? [unit * 4, unit * 3] : [unit, unit * 3]);
+    const mkShape = (w: number) => {
+      const shape = objc.CAShapeLayer.layer();
+      if (cg) shape.setStrokeColor_(cg);
+      shape.setLineWidth_(w);
+      shape.setFillColor_(null);
+      const unit = Math.max(1, w);
+      if (style === "dashed") shape.setLineDashPattern_([unit * 4, unit * 3]);
+      else if (style === "dotted") shape.setLineDashPattern_([unit, unit * 3]);
+      return shape;
+    };
+    const shapes: (any | null)[] = uniform
+      ? [mkShape(top)]
+      : [top, right, bottom, left].map((w) => (w > 0 ? mkShape(w) : null));
     const [rtl, rtr, rbr, rbl] = normalizeCorners(radius as CornerRadiusSpec);
     const rebuild = () => {
       const bounds = this.native.bounds();
-      shape.setPath_(roundedBezier(bounds, rtl, rtr, rbr, rbl));
+      if (uniform) {
+        shapes[0]!.setPath_(roundedBezier(bounds, rtl, rtr, rbr, rbl));
+      } else {
+        const paths = sideBeziers(bounds, rtl, rtr, rbr, rbl);
+        shapes.forEach((s, i) => s && s.setPath_(paths[i]));
+      }
     };
     rebuild();
-    layer.addSublayer_(shape);
-    this.#dash = shape;
+    for (const s of shapes) if (s) layer.addSublayer_(s);
+    this.#borderShapes = shapes.filter((s) => s);
     this.native.setPostsFrameChangedNotification_(true);
     const block = createBlock("v@?@@", () => rebuild());
     this.retainJS(block);
@@ -393,13 +457,13 @@ export class View {
     return this;
   }
 
-  #dash: any = null;
+  #borderShapes: any[] = [];
 
-  #removeDashedBorder() {
-    if (this.#dash) {
-      try { this.#dash.removeFromSuperlayer(); } catch { /* already gone */ }
-      this.#dash = null;
+  #removeBorderShapes() {
+    for (const shape of this.#borderShapes) {
+      try { shape.removeFromSuperlayer(); } catch { /* already gone */ }
     }
+    this.#borderShapes = [];
   }
 
   needsDisplay(): void {

@@ -135,8 +135,8 @@ BK_EXPORT bk_handle bk_groupbox_create(const char* title, uint32_t title_len,
     grid.Children().Append(header);
 
     cx::Border body;
-    body.CornerRadius(CornerRadius(4));
-    body.BorderThickness(Thickness(1));
+    body.CornerRadius(CornerRadius(4, 4, 4, 4));
+    body.BorderThickness(Thickness(1, 1, 1, 1));
     body.Padding(Thickness(padding, padding, padding, padding));
     try {
       body.BorderBrush(Application::Current()

@@ -177,6 +177,20 @@ const styleBox = new GroupBox({ title: "Palette", padding: 10, spacing: 8 }, [
       border: 2, borderColor: "#1F3B4D", width: 72, height: 56,
     })),
   ]),
+  // per-side widths: named sides (CSS border-width vocabulary)…
+  new HStack({ spacing: 14 }, [
+    swatch("top + left", new Container({
+      border: { top: 4, left: 2 }, borderColor: "#F26419",
+      borderRadius: 8, width: 72, height: 56,
+    })),
+    // …or a [top, right, bottom, left] tuple, like CSS shorthand.
+    swatch("sides", new Container({
+      border: [1, 4, 1, 4], borderColor: "#1F3B4D", width: 72, height: 56,
+    })),
+    // per-side works imperatively too.
+    swatch("bottom", new Container({ width: 72, height: 56 })
+      .setBorder("#F26419", { bottom: 3 }, 8)),
+  ]),
 ]);
 
 // The same styling applies to real controls, not just containers: options at

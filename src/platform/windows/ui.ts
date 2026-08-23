@@ -39,6 +39,22 @@ export function normalizeCorners(spec: CornerRadiusSpec | undefined, fallback = 
   ];
 }
 
+/** A per-side border-width spec: one number for all four sides,
+ *  [top, right, bottom, left] (CSS order), or per-side by name. */
+export type BorderSideSpec =
+  | number
+  | [number, number, number, number]
+  | { top?: number; right?: number; bottom?: number; left?: number };
+
+export function normalizeSides(spec: BorderSideSpec | boolean | undefined, fallback = 0): [number, number, number, number] {
+  if (spec === undefined) return [fallback, fallback, fallback, fallback];
+  if (spec === true) return [1, 1, 1, 1];
+  if (spec === false) return [0, 0, 0, 0];
+  if (typeof spec === "number") return [spec, spec, spec, spec];
+  if (Array.isArray(spec)) return [spec[0] ?? 0, spec[1] ?? 0, spec[2] ?? 0, spec[3] ?? 0];
+  return [spec.top ?? 0, spec.right ?? 0, spec.bottom ?? 0, spec.left ?? 0];
+}
+
 export interface ViewOptions {
   width?: number;
   height?: number;
@@ -58,8 +74,9 @@ export interface ViewOptions {
   cornerRadius?: CornerRadiusSpec;
   /** Alias for `cornerRadius`. */
   borderRadius?: CornerRadiusSpec;
-  /** Border width in px; `true` means 1. */
-  border?: number | boolean;
+  /** Border width — one number for all sides, `true` for 1,
+   *  [top, right, bottom, left], or per-side names (CSS border-width vocabulary). */
+  border?: number | boolean | BorderSideSpec;
   borderWidth?: number;
   borderColor?: string;
   borderStyle?: "solid" | "dashed" | "dotted";
@@ -100,15 +117,13 @@ export class View {
 
     // CSS-style borders: `border`/`borderWidth` (or `borderColor`/`borderStyle`
     // alone) turn the border on; `borderRadius` rides along when present.
-    const borderWidth =
-      options.border !== undefined ? (options.border === true ? 1 : options.border as number)
-      : options.borderWidth;
-    if (borderWidth !== undefined || options.borderColor !== undefined || options.borderStyle !== undefined) {
+    const borderSpec = options.border !== undefined ? options.border : options.borderWidth;
+    if (borderSpec !== undefined || options.borderColor !== undefined || options.borderStyle !== undefined) {
       const corners = normalizeCorners(
         (options.borderRadius ?? options.cornerRadius) as CornerRadiusSpec | undefined);
       this.setBorder(
         options.borderColor ?? "#C6C6C8",
-        borderWidth ?? 1,
+        borderSpec ?? 1,
         corners,
         options.borderStyle ?? "solid",
       );
@@ -136,18 +151,19 @@ export class View {
     return this;
   }
 
-  /** Border colour (hex string), width in px, optional corner radius (one
-   *  number or per-corner — see CornerRadiusSpec) and style.
-   *  dashed/dotted draw with a pattern overlay on Border-based views and
-   *  fall back to solid on plain Controls. */
-  setBorder(color: any, width = 1, radius: CornerRadiusSpec | number = 0, style: "solid" | "dashed" | "dotted" = "solid"): this {
+  /** Border colour (hex string), width in px (one number or per-side — see
+   *  BorderSideSpec), optional corner radius (one number or per-corner — see
+   *  CornerRadiusSpec) and style. dashed/dotted draw with a pattern overlay on
+   *  Border-based views and fall back to solid on plain Controls. */
+  setBorder(color: any, width: BorderSideSpec | boolean | number = 1, radius: CornerRadiusSpec | number = 0, style: "solid" | "dashed" | "dotted" = "solid"): this {
     if (typeof color === "string") {
       const [tl, tr, br, bl] = normalizeCorners(radius as CornerRadiusSpec);
+      const [top, right, bottom, left] = normalizeSides(width as BorderSideSpec);
       if (style === "solid") {
-        windowsBackend.setControlBorder(this.handle, color, width, tl, tr, br, bl);
+        windowsBackend.setControlBorder(this.handle, color, top, right, bottom, left, tl, tr, br, bl);
       } else {
         const code = style === "dotted" ? 2 : 1;
-        windowsBackend.setControlBorderStyle(this.handle, color, width, tl, tr, br, bl, code);
+        windowsBackend.setControlBorderStyle(this.handle, color, top, right, bottom, left, tl, tr, br, bl, code);
       }
     }
     return this;

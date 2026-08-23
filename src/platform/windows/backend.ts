@@ -588,7 +588,8 @@ export class WindowsBackend {
   setControlBackground(h: NativeHandle, hex: string): void { const b = cstr(hex); winLib.bk_control_set_background(h, b as any, b.length); }
   setControlCornerRadius(h: NativeHandle, tl: number, tr: number, br: number, bl: number): void { winLib.bk_control_set_corner_radius4(h, tl, tr, br, bl); }
   // radii cross as a double[4] buffer — bun:ffi corrupts trailing f64s in
-  // 8-argument win64 signatures (documented in WINDOWS.md).
+  // 8-argument win64 signatures (documented in WINDOWS.md). Border widths
+  // cross the same way, packed in Thickness order (left, top, right, bottom).
   private radiiBuf(tl: number, tr: number, br: number, bl: number): Buffer {
     const b = Buffer.alloc(32);
     b.writeDoubleLE(tl, 0);
@@ -597,13 +598,22 @@ export class WindowsBackend {
     b.writeDoubleLE(bl, 24);
     return b;
   }
-  setControlBorder(h: NativeHandle, hex: string, width: number, tl: number, tr: number, br: number, bl: number): void {
-    const b = cstr(hex);
-    winLib.bk_control_set_border(h, b as any, b.length, width, this.radiiBuf(tl, tr, br, bl) as any);
+  private sidesBuf(left: number, top: number, right: number, bottom: number): Buffer {
+    const b = Buffer.alloc(32);
+    b.writeDoubleLE(left, 0);
+    b.writeDoubleLE(top, 8);
+    b.writeDoubleLE(right, 16);
+    b.writeDoubleLE(bottom, 24);
+    return b;
   }
-  setControlBorderStyle(h: NativeHandle, hex: string, width: number, tl: number, tr: number, br: number, bl: number, style: number): void {
+  /** Sides are CSS-ordered [top, right, bottom, left]; corners [tl, tr, br, bl]. */
+  setControlBorder(h: NativeHandle, hex: string, top: number, right: number, bottom: number, left: number, tl: number, tr: number, br: number, bl: number): void {
     const b = cstr(hex);
-    winLib.bk_control_set_border_style(h, b as any, b.length, width, this.radiiBuf(tl, tr, br, bl) as any, style);
+    winLib.bk_control_set_border(h, b as any, b.length, this.sidesBuf(left, top, right, bottom) as any, this.radiiBuf(tl, tr, br, bl) as any);
+  }
+  setControlBorderStyle(h: NativeHandle, hex: string, top: number, right: number, bottom: number, left: number, tl: number, tr: number, br: number, bl: number, style: number): void {
+    const b = cstr(hex);
+    winLib.bk_control_set_border_style(h, b as any, b.length, this.sidesBuf(left, top, right, bottom) as any, this.radiiBuf(tl, tr, br, bl) as any, style);
   }
 
   // --- input ------------------------------------------------------------------------

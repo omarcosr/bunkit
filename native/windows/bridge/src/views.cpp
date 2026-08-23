@@ -56,7 +56,7 @@ BK_EXPORT bk_handle bk_scrollview_create(int32_t vertical, int32_t horizontal,
     viewer.HorizontalScrollBarVisibility(
         horizontal ? cx::ScrollBarVisibility::Auto : cx::ScrollBarVisibility::Disabled);
     if (border) {
-      viewer.BorderThickness(Thickness(1));
+      viewer.BorderThickness(Thickness(1, 1, 1, 1));
       try {
         viewer.BorderBrush(Application::Current()
                                .Resources()
@@ -458,15 +458,18 @@ BK_EXPORT int32_t bk_control_set_background(bk_handle c, const char* hex,
   return combine(rc, st);
 }
 
-// radii: double[4] {tl, tr, br, bl}. A pointer instead of four trailing
-// doubles: bun:ffi corrupts the last f64 in 8-argument signatures on win64.
-// CornerRadius is a plain aggregate — CornerRadius(r) would zero three of
-// the four corners, so every field is always set explicitly.
+// widths: double[4] in Thickness order {left, top, right, bottom}; radii:
+// double[4] {tl, tr, br, bl}. Buffers instead of trailing doubles: bun:ffi
+// corrupts the last f64 in 8-argument signatures on win64. Thickness and
+// CornerRadius are plain aggregates — Thickness(w) would zero three of the
+// four sides, so every field is always set explicitly.
 BK_EXPORT int32_t bk_control_set_border(bk_handle c, const char* hex,
-                                        uint32_t hex_len, double width,
+                                        uint32_t hex_len,
+                                        const double* widths,
                                         const double* radii) {
   if (require_running() != BK_OK) return BK_NOT_INITIALIZED;
-  if (radii == nullptr) return BK_INVALID_ARGUMENT;
+  if (widths == nullptr || radii == nullptr) return BK_INVALID_ARGUMENT;
+  const double l = widths[0], t = widths[1], r = widths[2], b = widths[3];
   const double tl = radii[0], tr = radii[1], br = radii[2], bl = radii[3];
   const std::string s = hex && hex_len ? std::string(hex, hex_len) : "";
   int32_t st = BK_ERROR;
@@ -496,10 +499,11 @@ BK_EXPORT int32_t bk_control_set_border(bk_handle c, const char* hex,
     }
     const Media::SolidColorBrush brush(color);
     const CornerRadius radius{tl, tr, br, bl};
+    const Thickness thickness{l, t, r, b};
     try {
       auto control = element.as<cx::Control>();
       control.BorderBrush(brush);
-      if (width > 0) control.BorderThickness(Thickness(width));
+      control.BorderThickness(thickness);
       control.CornerRadius(radius);
       st = BK_OK;
       return;
@@ -508,7 +512,7 @@ BK_EXPORT int32_t bk_control_set_border(bk_handle c, const char* hex,
     try {
       auto border = element.as<cx::Border>();
       border.BorderBrush(brush);
-      if (width > 0) border.BorderThickness(Thickness(width));
+      border.BorderThickness(thickness);
       border.CornerRadius(radius);
       st = BK_OK;
     } catch (...) {
@@ -520,13 +524,18 @@ BK_EXPORT int32_t bk_control_set_border(bk_handle c, const char* hex,
 
 // style: 1 dashed, 2 dotted. XAML borders cannot stroke a dash pattern, so
 // Border-based views get a Rectangle overlay whose StrokeDashArray draws it;
-// plain Controls have no equivalent and fall back to solid.
+// plain Controls have no equivalent and fall back to solid. A Rectangle also
+// has a uniform StrokeThickness, so per-side widths stroke with the largest
+// requested value. widths: double[4] in Thickness order {left, top, right,
+// bottom}.
 BK_EXPORT int32_t bk_control_set_border_style(bk_handle c, const char* hex,
-                                              uint32_t hex_len, double width,
+                                              uint32_t hex_len,
+                                              const double* widths,
                                               const double* radii,
                                               int32_t style) {
   if (require_running() != BK_OK) return BK_NOT_INITIALIZED;
-  if (radii == nullptr) return BK_INVALID_ARGUMENT;
+  if (widths == nullptr || radii == nullptr) return BK_INVALID_ARGUMENT;
+  const double l = widths[0], t = widths[1], r = widths[2], b = widths[3];
   const double tl = radii[0], tr = radii[1], br = radii[2], bl = radii[3];
   const std::string s = hex && hex_len ? std::string(hex, hex_len) : "";
   int32_t st = BK_ERROR;
@@ -553,11 +562,12 @@ BK_EXPORT int32_t bk_control_set_border_style(bk_handle c, const char* hex,
       color.G = (value >> 8) & 0xFF;
       color.B = value & 0xFF;
     }
-    const double w = width > 0 ? width : 1.0;
+    const double widest = std::max(std::max(l, t), std::max(r, b));
+    const double w = widest > 0 ? widest : 1.0;
     try {
       auto border = element.as<cx::Border>();
       // Hide the solid border; the overlay draws the pattern instead.
-      border.BorderThickness(Thickness(0));
+      border.BorderThickness(Thickness{});
 
       // The overlay joins whatever grid hosts the content — including the
       // one inside a ScrollViewer on scrolled stacks.
@@ -596,7 +606,7 @@ BK_EXPORT int32_t bk_control_set_border_style(bk_handle c, const char* hex,
       st = BK_OK;
     } catch (...) {
       // Not a Border: solid is the only honest fallback.
-      st = bk_control_set_border(c, hex, hex_len, width, radii);
+      st = bk_control_set_border(c, hex, hex_len, widths, radii);
     }
   });
   return combine(rc, st);

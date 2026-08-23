@@ -50,7 +50,11 @@ check(true, "tuple and per-name corner specs do not throw");
 // Labels render inside a Border shell, so styling now applies to them too.
 check((winLib.bk_control_set_background((tipped as any).handle, Buffer.from("#336699") as any, 7) as number) === 0,
   "Label accepts background (Border shell)");
-check((winLib.bk_control_set_border((tipped as any).handle, Buffer.from("#F26419") as any, 7, 1, (Buffer.from(new Float64Array([1,1,1,1]).buffer) as any)) as number) === 0,
+// Border widths cross the ABI as a double[4] in Thickness order (l, t, r, b);
+// corner radii as double[4] {tl, tr, br, bl}.
+const widths = (w: number) => Buffer.from(new Float64Array([w, w, w, w]).buffer) as any;
+const radii = (r: number) => Buffer.from(new Float64Array([r, r, r, r]).buffer) as any;
+check((winLib.bk_control_set_border((tipped as any).handle, Buffer.from("#F26419") as any, 7, widths(1), radii(1)) as number) === 0,
   "Label accepts border (Border shell)");
 // Clipboard roundtrip.
 setClipboardText("parité ✓ clipboard");
@@ -93,9 +97,16 @@ const dotted = new Container({ width: 60, height: 44 }).setBorder("#1F3B4D", 2, 
 check(describeViewTree(dotted).includes("Rectangle"), "setBorder dotted draws a pattern overlay");
 const solidControl = new Button({ title: "s" }).setBorder("#F26419", 2, 4, "dashed");
 check(true, "dashed on a plain Control falls back to solid without throwing");
+// Per-side border widths: named object and CSS-order tuple specs.
+const sided = new Container({ width: 60, height: 44, border: { top: 3, left: 5 }, borderColor: "#F26419" });
+check(true, "per-side border (object spec) does not throw");
+const sidedTuple = new Container({ width: 60, height: 44, border: [1, 2, 3, 4], borderColor: "#1F3B4D" });
+check(true, "per-side border (tuple spec) does not throw");
+const sidedDash = new Container({ width: 60, height: 44, border: { top: 2 }, borderColor: "#F26419", borderStyle: "dashed" });
+check(describeViewTree(sidedDash).includes("Rectangle"), "per-side dashed draws a pattern overlay");
 // Every control kind accepts the styling calls (rc 0), Table/GroupBox included.
 const hexBuf = Buffer.from("#F26419") as any;
-check((winLib.bk_control_set_border((box as any).handle, hexBuf, 7, 2, (Buffer.from(new Float64Array([8,8,8,8]).buffer) as any)) as number) === 0, "groupbox is stylable");
+check((winLib.bk_control_set_border((box as any).handle, hexBuf, 7, widths(2), radii(8)) as number) === 0, "groupbox is stylable");
 
 // BlurView: both setters exist at runtime and tint the acrylic, not kill it.
 const blur = new BlurView({}, new Label({ text: "acrylic" }));
@@ -127,7 +138,7 @@ const multi = new Table<{ n: string; tag: string }>({
   onSelect: (_r, i) => { selected = i; },
 });
 check(true, "multiSelect/alternatingRows/font table constructs");
-check((winLib.bk_control_set_border((multi as any).handle, hexBuf, 7, 2, (Buffer.from(new Float64Array([8,8,8,8]).buffer) as any)) as number) === 0, "table is stylable");
+check((winLib.bk_control_set_border((multi as any).handle, hexBuf, 7, widths(2), radii(8)) as number) === 0, "table is stylable");
 
 // render cells embed live views
 let renderCalls = 0;

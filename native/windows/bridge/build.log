@@ -43,9 +43,9 @@ A:\bunkit\native\windows\bridge\src\controls.cpp(584,42): warning C4190: 'resour
   
      Criando biblioteca A:\bunkit\native\windows\bridge\..\build\Release\x64\winbridge.lib e objeto A:\bunkit\native\windows\bridge\..\build\Release\x64\winbridge.exp
   Gerando código
-  125 of 7164 functions ( 1.7%) were compiled, the rest were copied from previous compilation.
+  53 of 7164 functions ( 0.7%) were compiled, the rest were copied from previous compilation.
     42 functions were new in current compilation
-    55 functions had inline decision re-evaluated but remain unchanged
+    2 functions had inline decision re-evaluated but remain unchanged
   Finalizada a geração de código
   bridge.vcxproj -> A:\bunkit\native\windows\build\Release\x64\winbridge.dll
 built A:\bunkit\build\winbridge.dll
