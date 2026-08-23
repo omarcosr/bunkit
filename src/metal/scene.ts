@@ -433,7 +433,6 @@ export class Light {
 // ---------------------------------------------------------------------------
 
 export interface Scene3DOptions extends Omit<GPUViewOptions, "onFrame"> {
-  background?: Color;
   camera?: CameraOptions | Camera;
   light?: LightOptions | Light;
   /**

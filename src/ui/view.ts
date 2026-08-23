@@ -55,17 +55,17 @@ export interface ViewOptions {
   /** Corner radius — same as `borderRadius`. One number, [tl,tr,br,bl], or
    *  per-corner names (CSS border-radius vocabulary). Turns on a layer. */
   cornerRadius?: CornerRadiusSpec;
-  /** Background colour; accepts a Color or a CSS-ish hex string. */
-  background?: any;
+  /** Background colour: a semantic name, a CSS hex string, or an RGB object. */
+  background?: ColorValue;
   /** CSS-style alias for `background`. */
-  backgroundColor?: any;
+  backgroundColor?: ColorValue;
   /** Border width — one number for all sides, `true` for 1,
    *  [top, right, bottom, left], or per-side names (CSS border-width vocabulary). */
   border?: number | boolean | BorderSideSpec;
   /** Alias for `border` (uniform number only). */
   borderWidth?: number;
-  /** Border colour; a CSS-ish hex string or a Color. */
-  borderColor?: any;
+  /** Border colour: a semantic name, a CSS hex string, or an RGB object. */
+  borderColor?: ColorValue;
   /** Alias for `cornerRadius`. */
   borderRadius?: CornerRadiusSpec;
   /** "solid" (default), "dashed" or "dotted". */
@@ -506,10 +506,12 @@ export function toNSColor(v: any): any {
   return null;
 }
 
-const NAMED_COLORS: Record<string, string> = {
+const NAMED_COLORS = {
   label: "labelColor",
   secondaryLabel: "secondaryLabelColor",
   tertiaryLabel: "tertiaryLabelColor",
+  quaternaryLabel: "quaternaryLabelColor",
+  placeholderText: "placeholderTextColor",
   link: "linkColor",
   separator: "separatorColor",
   windowBackground: "windowBackgroundColor",
@@ -519,6 +521,7 @@ const NAMED_COLORS: Record<string, string> = {
   selectedContentBackground: "selectedContentBackgroundColor",
   textBackground: "textBackgroundColor",
   text: "textColor",
+  textColor: "textColor",
   clear: "clearColor",
   white: "whiteColor",
   black: "blackColor",
@@ -536,10 +539,16 @@ const NAMED_COLORS: Record<string, string> = {
   brown: "systemBrownColor",
   mint: "systemMintColor",
   cyan: "systemCyanColor",
-};
+} as const;
+
+/** A semantic colour name understood by both platforms ("secondaryLabel" is
+ *  the system colour for secondary text and adapts to light/dark mode), or a
+ *  CSS hex string like "#ff8800". */
+export type ColorName = keyof typeof NAMED_COLORS;
+export type ColorValue = ColorName | `#${string}` | { r: number; g: number; b: number; a?: number };
 
 function colorFromString(s: string): any {
-  const named = NAMED_COLORS[s];
+  const named = (NAMED_COLORS as Record<string, string | undefined>)[s];
   if (named) return objc.NSColor.send(named);
   const hex = s.replace(/^#/, "");
   const parse = (i: number) => parseInt(hex.substr(i, 2), 16) / 255;

@@ -40,3 +40,5 @@ const bad6 = <Nonexistent />;
 const bad7 = <TextField value={123} />;
 // @ts-expect-error checked must be a boolean or a Signal<boolean>, not a string
 const bad8 = <Checkbox checked="yes" />;
+// @ts-expect-error color is a known name or a hex string, not a random word
+const bad9 = <Label color="not-a-color" />;

@@ -4,7 +4,7 @@
 // delegate and target/action machinery stays out of sight in Layer 2.
 
 import { createDelegate, objc, str } from "../objc.ts";
-import { ACTION_SELECTOR, actionTarget, toNSColor, View, type ViewOptions } from "./view.ts";
+import { ACTION_SELECTOR, actionTarget, toNSColor, View, type ViewOptions, type ColorValue } from "./view.ts";
 import type { Signal } from "../signal.ts";
 import { unwrap } from "../signal.ts";
 import {
@@ -78,7 +78,8 @@ export function makeFont(spec: FontSpec | number | undefined): any {
 export interface LabelOptions extends ViewOptions {
   text?: string | Signal<string>;
   font?: FontSpec | number;
-  color?: any;
+  /** Text colour: a semantic name ("secondaryLabel"…) or a CSS hex string. */
+  color?: ColorValue;
   align?: "left" | "center" | "right";
   /** Wrap onto multiple lines instead of truncating. */
   wrap?: boolean;
@@ -311,10 +312,10 @@ export interface TextFieldOptions extends ViewOptions {
   font?: FontSpec | number;
   align?: "left" | "center" | "right";
   enabled?: boolean;
-  /** Text colour: a CSS-ish hex string or an AppKit color name. */
-  textColor?: any;
-  /** Placeholder colour (hex or AppKit color name). */
-  placeholderColor?: any;
+  /** Text colour: a semantic name ("secondaryLabel"…) or a CSS hex string. */
+  textColor?: ColorValue;
+  /** Placeholder colour (semantic name or CSS hex string). */
+  placeholderColor?: ColorValue;
 }
 
 export class TextField extends View {
@@ -412,8 +413,8 @@ export interface TextAreaOptions extends ViewOptions {
   font?: FontSpec | number;
   editable?: boolean;
   richText?: boolean;
-  /** Text colour: a CSS-ish hex string or an AppKit color name. */
-  textColor?: any;
+  /** Text colour: a semantic name ("secondaryLabel"…) or a CSS hex string. */
+  textColor?: ColorValue;
 }
 
 export class TextArea extends View {
