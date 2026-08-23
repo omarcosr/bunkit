@@ -82,7 +82,7 @@ bun run examples/hello.ts   # smallest useful app
 bun run examples/tour.ts    # Table, GroupBox, dialogs, menu, objc hatch
 bun run examples/demo.ts    # full showcase: Segmented, alert/prompt, openFile…
 bun run examples/gallery.ts # second tour: SplitView, ImageView, Input, snapshot…
-bun run examples/jsx-gallery.tsx # the same gallery written declaratively in JSX
+bun run examples/gallery.tsx # the same gallery written declaratively in JSX
 ```
 
 ### JSX

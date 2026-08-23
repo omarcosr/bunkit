@@ -54,7 +54,7 @@
     "tour": "bun run examples/tour.ts",
     "demo": "bun run examples/demo.ts",
     "gallery": "bun run examples/gallery.ts",
-    "jsx-gallery": "bun run examples/jsx-gallery.tsx",
+    "tsx-gallery": "bun run examples/gallery.tsx",
     "scene": "bun run examples/scene3d.ts",
     "rig": "bun run examples/lighting-rig.ts",
     "playground": "bun run examples/shader-playground.ts",

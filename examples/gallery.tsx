@@ -6,7 +6,7 @@
 //                                // name.set(...) updates the field
 //   <label text={name} />        // one-way: live echo of whatever you type
 //
-//   bun run examples/jsx-gallery.tsx
+//   bun run examples/gallery.tsx
 //
 // Tag names map to bunkit controls (see src/jsx-runtime.tsx); props pass
 // straight to the constructors, so onClick/onChange/onSubmit are the event

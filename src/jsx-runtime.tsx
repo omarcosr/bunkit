@@ -14,13 +14,7 @@ import {
   GroupBox, ScrollView, SplitView, Container, ImageView, BlurView,
   Spacer, Separator, View, isSignal,
 } from "./index.ts";
-import type {
-  WindowOptions, StackOptions, LabelOptions, ButtonOptions,
-  CheckboxOptions, TextFieldOptions, TextAreaOptions, SliderOptions,
-  SelectOptions, SegmentedOptions, ProgressOptions, ImageOptions,
-  BoxOptions, BlurOptions, ScrollOptions, SplitOptions, ViewOptions,
-  Signal,
-} from "./index.ts";
+import type { Signal } from "./index.ts";
 
 export const Fragment = Symbol.for("bunkit.Fragment");
 
@@ -167,48 +161,3 @@ export function jsx(type: any, props: any): any {
 
 export const jsxs = jsx;
 export const jsxDEV = jsx;
-
-// The automatic runtime resolves the JSX namespace globally. Each tag's props
-// are the real constructor options (LabelOptions, ButtonOptions…), so the
-// editor and tsc check prop names and types; `children` stays loose because
-// JSX children include arrays from .map and conditionals. Tags that don't take
-// children (label, button…) reject them, matching the runtime, which drops
-// bare text and only passes children to the container tags.
-declare global {
-  namespace JSX {
-    type Element = any;
-    /** A JSX child: a control, an array from .map, or a conditional. */
-    type Child = any;
-    /** The constructor options plus JSX children, where the runtime takes them. */
-    type ContainerProps<T> = T & { children?: Child };
-    /** A bindable prop: a plain value or a signal the runtime binds both ways. */
-    type Bindable<T, K extends keyof T> = Omit<T, K> & { [P in K]: T[P] | Signal<T[P]> };
-    interface IntrinsicElements {
-      window: ContainerProps<WindowOptions>;
-      vstack: ContainerProps<StackOptions>;
-      hstack: ContainerProps<StackOptions>;
-      stack: ContainerProps<StackOptions> & { orientation?: number };
-      label: Bindable<LabelOptions, "text">;
-      button: Bindable<ButtonOptions, "title">;
-      textfield: Bindable<TextFieldOptions, "value">;
-      checkbox: Bindable<CheckboxOptions, "checked">;
-      switch: Bindable<ViewOptions & { on?: boolean; onChange?: (on: boolean, s: InstanceType<typeof Switch>) => void }, "on">;
-      slider: Bindable<SliderOptions, "value">;
-      select: Bindable<SelectOptions, "selected">;
-      segmented: Bindable<SegmentedOptions, "selected">;
-      textarea: Bindable<TextAreaOptions, "value">;
-      progress: Bindable<ProgressOptions, "value">;
-      groupbox: ContainerProps<BoxOptions>;
-      scrollview: ContainerProps<ScrollOptions>;
-      splitview: ContainerProps<SplitOptions>;
-      container: ContainerProps<ViewOptions>;
-      imageview: ImageOptions;
-      blurview: ContainerProps<BlurOptions>;
-      spacer: {};
-      separator: {};
-    }
-    interface ElementChildrenAttribute {
-      children: {};
-    }
-  }
-}
