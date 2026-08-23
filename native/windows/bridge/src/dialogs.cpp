@@ -21,6 +21,7 @@
 #include <winrt/Windows.Foundation.h>
 #include <winrt/Windows.Foundation.Collections.h>
 #include <winrt/Windows.Storage.Pickers.h>
+#include <winrt/Windows.Storage.Streams.h>
 #include <winrt/Windows.Storage.h>
 #include <Shobjidl.h>
 #include <microsoft.ui.xaml.window.h>
@@ -212,15 +213,29 @@ BK_EXPORT int32_t bk_dialog_prompt(bk_handle window, const char* cfg,
   return rc == BK_OK ? st : rc;
 }
 
+// types: '\n'-joined extensions without the dot ("png\njpg"); empty = all.
 BK_EXPORT int32_t bk_file_open(bk_handle window, const char* title,
                                uint32_t title_len, int32_t multiple,
+                               const char* types, uint32_t types_len,
                                uint64_t dialog_id) {
   if (require_running() != BK_OK) return BK_NOT_INITIALIZED;
   const std::string t = title && title_len ? std::string(title, title_len) : "";
+  const std::string type_list =
+      types && types_len ? std::string(types, types_len) : "";
   int32_t st = BK_ERROR;
   const int32_t rc = bk::Runtime::instance().dispatch_sync([&] {
     winrt::Windows::Storage::Pickers::FileOpenPicker picker;
-    picker.FileTypeFilter().Append(L"*");
+    if (type_list.empty()) {
+      picker.FileTypeFilter().Append(L"*");
+    } else {
+      for (const auto& ext : split(type_list, '\n')) {
+        if (ext.empty()) continue;
+        std::string dotted = ext[0] == '.' ? ext : "." + ext;
+        picker.FileTypeFilter().Append(
+            bk::utf8_to_hstring(dotted.data(),
+                                static_cast<uint32_t>(dotted.size())));
+      }
+    }
     (void)t; // the picker has no title property; nothing to map it onto
 
     // Desktop pickers refuse to show on WinUI 3 without an owner window.
@@ -270,6 +285,84 @@ BK_EXPORT int32_t bk_file_open(bk_handle window, const char* title,
             finish(std::move(paths));
           });
     }
+    st = BK_OK;
+  });
+  return rc == BK_OK ? st : rc;
+}
+
+BK_EXPORT int32_t bk_file_save(bk_handle window, const char* default_name,
+                               uint32_t name_len, uint64_t dialog_id) {
+  if (require_running() != BK_OK) return BK_NOT_INITIALIZED;
+  const std::string n = default_name && name_len ? std::string(default_name, name_len) : "";
+  int32_t st = BK_ERROR;
+  const int32_t rc = bk::Runtime::instance().dispatch_sync([&] {
+    winrt::Windows::Storage::Pickers::FileSavePicker picker;
+    if (!n.empty()) {
+      picker.SuggestedFileName(bk::utf8_to_hstring(n.data(),
+                                                   static_cast<uint32_t>(n.size())));
+    }
+    picker.FileTypeChoices().Insert(
+        L"All files", winrt::single_threaded_vector<winrt::hstring>({L"*"}));
+    if (auto* entry = bk::registry().get(window)) {
+      try {
+        HWND hwnd{};
+        entry->object.as<Window>().as<::IWindowNative>()->get_WindowHandle(&hwnd);
+        if (hwnd) picker.as<::IInitializeWithWindow>()->Initialize(hwnd);
+      } catch (...) {
+      }
+    }
+    auto finish = [dialog_id](std::string path) {
+      push_dialog_event(dialog_id, BK_EVT_FILE_RESULT,
+                        path.empty() ? 0 : 1, 0, path);
+    };
+    picker.PickSaveFileAsync().Completed(
+        [finish](winrt::Windows::Foundation::IAsyncOperation<
+                     winrt::Windows::Storage::StorageFile> const& op,
+                 winrt::Windows::Foundation::AsyncStatus) {
+          std::string path;
+          try {
+            if (auto file = op.GetResults()) {
+              path = bk::hstring_to_utf8(file.Path());
+            }
+          } catch (...) {
+          }
+          finish(std::move(path));
+        });
+    st = BK_OK;
+  });
+  return rc == BK_OK ? st : rc;
+}
+
+// Folder picker (single selection). Payload of FILE_RESULT is the path.
+BK_EXPORT int32_t bk_folder_pick(bk_handle window, uint64_t dialog_id) {
+  if (require_running() != BK_OK) return BK_NOT_INITIALIZED;
+  int32_t st = BK_ERROR;
+  const int32_t rc = bk::Runtime::instance().dispatch_sync([&] {
+    winrt::Windows::Storage::Pickers::FolderPicker picker;
+    picker.SuggestedStartLocation(
+        winrt::Windows::Storage::Pickers::PickerLocationId::DocumentsLibrary);
+    if (auto* entry = bk::registry().get(window)) {
+      try {
+        HWND hwnd{};
+        entry->object.as<Window>().as<::IWindowNative>()->get_WindowHandle(&hwnd);
+        if (hwnd) picker.as<::IInitializeWithWindow>()->Initialize(hwnd);
+      } catch (...) {
+      }
+    }
+    picker.PickSingleFolderAsync().Completed(
+        [dialog_id](winrt::Windows::Foundation::IAsyncOperation<
+                        winrt::Windows::Storage::StorageFolder> const& op,
+                    winrt::Windows::Foundation::AsyncStatus) {
+          std::string path;
+          try {
+            if (auto folder = op.GetResults()) {
+              path = bk::hstring_to_utf8(folder.Path());
+            }
+          } catch (...) {
+          }
+          push_dialog_event(dialog_id, BK_EVT_FILE_RESULT,
+                            path.empty() ? 0 : 1, 0, path);
+        });
     st = BK_OK;
   });
   return rc == BK_OK ? st : rc;

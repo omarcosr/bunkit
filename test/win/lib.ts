@@ -56,7 +56,34 @@ const EVT_CLICK = 1;
 const EVT_TEXT_CHANGED = 2;
 const EVT_WINDOW_CLOSED = 4;
 
-export function load() {
+export interface TestLib {
+  lib: { symbols: Record<string, (...args: any[]) => any> };
+  cstr: (s: string) => Buffer;
+  assert: (cond: boolean, msg: string) => asserts cond;
+  fail: (msg: string) => never;
+  lastError: () => string;
+  drain: () => BkEvent[];
+  waitForEvent: (match: (e: BkEvent) => boolean, ms: number) => Promise<BkEvent | null>;
+  getSize: (handle: bigint) => [number, number];
+  EVT_CLICK: number;
+  EVT_TEXT_CHANGED: number;
+  EVT_WINDOW_CLOSED: number;
+}
+
+// Assertion functions only type-check through explicitly annotated names, so
+// `assert` lives at module scope (destructured calls hit TS2775).
+let current: TestLib | null = null;
+
+export function assert(cond: boolean, msg: string): asserts cond {
+  if (cond) return;
+  if (current) current.fail(msg);
+  else {
+    console.error("FAIL:", msg);
+    process.exit(1);
+  }
+}
+
+export function load(): TestLib {
   const path = new URL("../../build/winbridge.dll", import.meta.url).pathname.slice(1);
   const lib = dlopen(path, symbols);
 
@@ -122,7 +149,7 @@ export function load() {
     return [w.readDoubleLE(0), h.readDoubleLE(0)];
   }
 
-  return {
+  current = {
     lib,
     cstr,
     assert,
@@ -135,4 +162,5 @@ export function load() {
     EVT_TEXT_CHANGED,
     EVT_WINDOW_CLOSED,
   };
+  return current;
 }

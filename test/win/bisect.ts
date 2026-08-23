@@ -1,9 +1,9 @@
 // Isolates which tree shape stows the XAML layout. Usage:
 //   bun run test/win/bisect.ts <case 1..5>
-import { load } from "./lib.ts";
+import { assert, load } from "./lib.ts";
 
 const kase = Number(process.argv[2] ?? "1");
-const { lib, cstr, assert } = load();
+const { lib, cstr } = load();
 
 assert(lib.symbols.bk_runtime_init() === 0, "init");
 const win = lib.symbols.bk_window_create(cstr("bisect" + kase), 9, 320, 220);

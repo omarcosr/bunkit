@@ -81,16 +81,52 @@ platforms:
 bun run examples/hello.ts   # smallest useful app
 bun run examples/tour.ts    # Table, GroupBox, dialogs, menu, objc hatch
 bun run examples/demo.ts    # full showcase: Segmented, alert/prompt, openFile…
+bun run examples/gallery.ts # second tour: SplitView, ImageView, Input, snapshot…
 ```
 
 The Windows backend implements the same control set the examples use:
 `GroupBox` (bordered panel + header), `Segmented` (SelectorBar), `Table`
 (ListView with column headers; cells are computed in JS), the async dialogs
-(`alert` / `confirm` / `prompt` as ContentDialogs, `openFile` as a picker; all
-resolve via the event queue, never blocking Bun), window menu bars
-(`Application({ menu })` maps the macOS app menu onto each window's MenuBar),
-`beep`, and the styling options (`Button.primary/destructive/symbol`,
-`Label.color/font/align`, `TextField.onSubmit`, `Window.minSize`).
+(`alert` / `confirm` / `prompt` / `openFile` / `saveFile` as ContentDialogs and
+pickers; all resolve via the event queue, never blocking Bun — `openFile`
+honors `types` as an extension filter and `chooseDirectories` as a folder
+picker), window menu bars
+(`Application({ menu })` maps the macOS app menu onto each window's MenuBar,
+including About/Settings/Quit, File/Edit/View/Window/Help sections), context
+menus (`popUpMenu` as a MenuFlyout at the pointer), `beep`, the clipboard
+(`setClipboardText`/`getClipboardText`, synchronous Win32), and the styling
+options (`Button.primary/destructive/symbol`, `Label.color/font/align`,
+`TextField.onSubmit` including secure fields, `Window.minSize`).
+
+The run loop is event-driven: `bk_event_wait` blocks the Bun thread on a
+condition variable until a native event arrives (or 15 ms pass), so an idle
+app spends ~0.2% of a core instead of polling every 2 ms.
+
+The rest of the macOS API has Windows equivalents too:
+
+- **Views** — `ScrollView` (ScrollViewer), `Container`, `Stack`/`VStack`/`HStack`
+  (with `scroll: true` to scroll the stack's own axis, or
+  `{ horizontal, vertical }` for explicit axes, instead of clipping when the
+  window is too small), `SplitView` (pane + content; extra panes join the
+  content grid), `ImageView` (BitmapImage from a path/URL), `BlurView`
+  (AcrylicBrush with a translucent fallback), and a `View` base class carrying
+  `width/height/min/max`, `hidden`, `tooltip`, `alpha`, `background` (hex),
+  `cornerRadius`, `frame`, `children`, `setBackground`/`setBorder`.
+- **Table** — `multiSelect` + `selectedIndexes`, `headers: false`,
+  `alternatingRows`, `font`, per-column `minWidth`/`maxWidth`, and `render`
+  cells (each cell view crosses the ABI by handle and is embedded live).
+- **Input** — `input()` with `held/pressed/released/keys` and mouse state.
+  `held()` polls globally (`GetAsyncKeyState`, works unfocused); `pressed()`/
+  `released()` need a focused window (key events bubble through its content).
+  Mouse position is screen-space unless `.track(window)` makes it window-local.
+  Wheel deltas need a message hook and stay 0.
+- **Snapshot/debug** — `snapshotView`/`snapshotWindow` render any element to
+  PNG (RenderTargetBitmap + PngEncoder; the same blind spot as macOS for
+  GPU surfaces), `describeViewTree` dumps the visual tree, `checkLayout`
+  reports children spilling outside their parents, `allWindows()` lists windows.
+- **Layer-2 helpers** — `actionTarget`, `makeFont`, `toNSColor`, `Menu`,
+  `standardMenu`, `SIZE_PRIORITY` exist as pass-throughs so cross-platform
+  imports resolve.
 
 Symbols map to Segoe MDL2 Assets glyphs (`plus` E710, `folder` E8B7, `gear`
 E713, `trash` E74D, `pencil` E70F) rendered alongside the title.
@@ -175,4 +211,23 @@ bun test/win/m2-window.ts
 bun test/win/highlevel.ts
 bun test/win/advanced-controls.ts
 bun test/win/parity.ts        # composite controls, menu, proxies
+bun test/win/parity2.ts       # views, advanced table, input, snapshot, debug
 ```
+
+## Known approximations
+
+- Styling works on every control — `Label` and `ImageView` render inside a
+  Border shell, so `background`/`border`/`cornerRadius` apply to them too.
+  CSS-style options (`backgroundColor`, `border`, `borderWidth`,
+  `borderColor`, `borderRadius`, `borderStyle`) mirror the macOS layer API;
+  `borderStyle: "dashed" | "dotted"` draws with a pattern overlay on
+  Border-based views and falls back to solid on plain Controls.
+- `Stack.remove` drops the child and its row/column definition (a grid
+  rebuild under the hood — heavy churn is O(n) per call, not incremental).
+  `ImageView.src` swaps the bitmap in place.
+- `Container` children stack vertically; absolute positioning has no WinUI
+  equivalent without a canvas.
+- `TextArea` `richText` uses RichEditBox (plain get/set round-trip; no styled
+  runs API yet).
+- Menu `submenu` nesting is flattened out (flat items only).
+- Wheel deltas in `input().mouse` are 0 (needs a message hook).

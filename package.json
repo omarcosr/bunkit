@@ -52,6 +52,7 @@
     "hello": "bun run examples/hello.ts",
     "tour": "bun run examples/tour.ts",
     "demo": "bun run examples/demo.ts",
+    "gallery": "bun run examples/gallery.ts",
     "scene": "bun run examples/scene3d.ts",
     "rig": "bun run examples/lighting-rig.ts",
     "playground": "bun run examples/shader-playground.ts",

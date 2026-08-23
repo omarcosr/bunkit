@@ -15,6 +15,8 @@ const buttonCbMap = new Map<bigint, bigint>();
 const textCbMap = new Map<bigint, bigint>();
 const advancedCbMap = new Map<bigint, bigint>();
 const submitCbMap = new Map<bigint, bigint>();
+const windowCbMap = new Map<bigint, bigint>();
+let frameTickCounter = 0;
 
 // Every live window, so dialogs can find an owner and menus can reach all
 // windows after the fact.
@@ -63,9 +65,27 @@ export class WindowsBackend {
   }
 
   pump(): boolean {
+    frameTickCounter++;
     dispatchEvents();
     return this.isRunning();
   }
+
+  /** One pump iteration that sleeps until an event arrives (or 15 ms), so the
+   *  run loop spends idle time blocked in the DLL instead of polling. JS
+   *  timers still breathe: Bun's event loop wakes us between calls. */
+  pumpBlocking(): boolean {
+    frameTickCounter++;
+    try {
+      winLib.bk_event_wait(15);
+    } catch {
+      // Older DLLs without the export: the caller's sleep still paces us.
+    }
+    dispatchEvents();
+    return this.isRunning();
+  }
+
+  /** Monotonic counter, one per pump iteration — the Windows frameTick. */
+  get tick(): number { return frameTickCounter; }
 
   createWindow(opts: { title?: string; size?: { width: number; height: number } }): NativeHandle {
     this.ensureInited();
@@ -360,18 +380,27 @@ export class WindowsBackend {
   createSeparator(horizontal: boolean): NativeHandle { this.ensureInited(); return winLib.bk_separator_create(horizontal ? 1 : 0) as bigint; }
   createSpacer(): NativeHandle { this.ensureInited(); return winLib.bk_spacer_create() as bigint; }
 
-  createStack(orientation: number, opts: { spacing?: number; padding?: number | { top: number; left: number; bottom: number; right: number } }): NativeHandle {
+  createStack(orientation: number, opts: { spacing?: number; padding?: number | { top: number; left: number; bottom: number; right: number }; scroll?: any }, scrollFlags = 0): NativeHandle {
     this.ensureInited();
     const spacing = opts.spacing ?? 8;
     let pad: { top: number; left: number; bottom: number; right: number };
     if (typeof opts.padding === "number") pad = { top: opts.padding, left: opts.padding, bottom: opts.padding, right: opts.padding };
     else if (opts.padding) pad = { top: (opts.padding as any).top ?? 0, left: (opts.padding as any).left ?? 0, bottom: (opts.padding as any).bottom ?? 0, right: (opts.padding as any).right ?? 0 };
     else pad = { top: 0, left: 0, bottom: 0, right: 0 };
-    return winLib.bk_stack_create(orientation, spacing, pad.left, pad.top, pad.right, pad.bottom) as bigint;
+    return winLib.bk_stack_create_ex(orientation, spacing, pad.left, pad.top, pad.right, pad.bottom, scrollFlags) as bigint;
   }
 
   stackAddChild(stack: NativeHandle, child: NativeHandle, grow?: number): void {
     winLib.bk_stack_add_child(stack, child, grow ?? 0);
+  }
+
+  stackRemoveChild(stack: NativeHandle, child: NativeHandle): void {
+    winLib.bk_stack_remove_child(stack, child);
+  }
+
+  setImageSource(h: NativeHandle, path: string): void {
+    const b = cstr(path);
+    winLib.bk_imageview_set_source(h, b as any, b.length);
   }
 
   // --- composite controls -----------------------------------------------------
@@ -492,12 +521,20 @@ export class WindowsBackend {
     return e.value1 === 0 ? e.text : null;
   }
 
-  async openFile(opts: { title?: string; multiple?: boolean; window?: NativeHandle }): Promise<string[]> {
+  async openFile(opts: { title?: string; multiple?: boolean; types?: string[]; chooseDirectories?: boolean; window?: NativeHandle }): Promise<string[]> {
     this.ensureInited();
     const t = cstr(opts.title ?? "");
     const id = nextDialogId++;
+    if (opts.chooseDirectories) {
+      const e = await this.waitForDialog(id, () => {
+        winLib.bk_folder_pick(this.dialogOwner(opts.window), BigInt(id));
+      });
+      return e.value1 === 1 && e.text ? [e.text] : [];
+    }
+    const types = cstr((opts.types ?? []).join("\n"));
     const e = await this.waitForDialog(id, () => {
-      winLib.bk_file_open(this.dialogOwner(opts.window), t as any, t.length, opts.multiple ? 1 : 0, BigInt(id));
+      winLib.bk_file_open(this.dialogOwner(opts.window), t as any, t.length,
+        opts.multiple ? 1 : 0, types as any, types.length, BigInt(id));
     });
     return e.value1 === 1 && e.text ? e.text.split("\n") : [];
   }
@@ -513,6 +550,192 @@ export class WindowsBackend {
   get allWindows(): readonly NativeHandle[] { return windows; }
 
   beep(): void { winLib.bk_beep(); }
+
+  // --- views (scroll / container / split / image / blur) ------------------------
+
+  createScrollView(opts: { vertical?: boolean; horizontal?: boolean; border?: boolean }): NativeHandle {
+    this.ensureInited();
+    return winLib.bk_scrollview_create(opts.vertical !== false ? 1 : 0, opts.horizontal ? 1 : 0, opts.border ? 1 : 0) as bigint;
+  }
+  setScrollViewContent(h: NativeHandle, child: NativeHandle): void { winLib.bk_scrollview_set_content(h, child); }
+  scrollScrollViewTo(h: NativeHandle, where: 0 | 1): void { winLib.bk_scrollview_scroll_to(h, where); }
+
+  createContainer(): NativeHandle { this.ensureInited(); return winLib.bk_container_create() as bigint; }
+  containerAdd(h: NativeHandle, child: NativeHandle): void { winLib.bk_container_add(h, child); }
+
+  createSplitView(): NativeHandle { this.ensureInited(); return winLib.bk_splitview_create() as bigint; }
+  setSplitViewPane(h: NativeHandle, pane: NativeHandle): void { winLib.bk_splitview_set_pane(h, pane); }
+  setSplitViewContent(h: NativeHandle, content: NativeHandle): void { winLib.bk_splitview_set_content(h, content); }
+  addSplitViewPane(h: NativeHandle, pane: NativeHandle): void { winLib.bk_splitview_add_pane(h, pane); }
+  setSplitViewPosition(h: NativeHandle, points: number): void { winLib.bk_splitview_set_position(h, points); }
+
+  createImageView(path: string): NativeHandle {
+    this.ensureInited();
+    const b = cstr(path ?? "");
+    return winLib.bk_imageview_create(b as any, b.length) as bigint;
+  }
+
+  createBlurView(): NativeHandle { this.ensureInited(); return winLib.bk_blurview_create() as bigint; }
+  setBlurViewContent(h: NativeHandle, child: NativeHandle): void { winLib.bk_blurview_set_content(h, child); }
+
+  // --- generic view options -------------------------------------------------------
+
+  setControlSize(h: NativeHandle, w: number, ht: number): void { winLib.bk_control_set_size(h, w, ht); }
+  setControlMinSize(h: NativeHandle, w: number, ht: number): void { winLib.bk_control_set_min_size(h, w, ht); }
+  setControlMaxSize(h: NativeHandle, w: number, ht: number): void { winLib.bk_control_set_max_size(h, w, ht); }
+  setControlTooltip(h: NativeHandle, text: string): void { const b = cstr(text); winLib.bk_control_set_tooltip(h, b as any, b.length); }
+  setControlAlpha(h: NativeHandle, alpha: number): void { winLib.bk_control_set_alpha(h, alpha); }
+  setControlBackground(h: NativeHandle, hex: string): void { const b = cstr(hex); winLib.bk_control_set_background(h, b as any, b.length); }
+  setControlCornerRadius(h: NativeHandle, radius: number): void { winLib.bk_control_set_corner_radius(h, radius); }
+  setControlBorder(h: NativeHandle, hex: string, width: number, radius: number): void { const b = cstr(hex); winLib.bk_control_set_border(h, b as any, b.length, width, radius); }
+  setControlBorderStyle(h: NativeHandle, hex: string, width: number, radius: number, style: number): void { const b = cstr(hex); winLib.bk_control_set_border_style(h, b as any, b.length, width, radius, style); }
+
+  // --- input ------------------------------------------------------------------------
+
+  readMouse(): { x: number; y: number; buttons: number } {
+    const x = Buffer.alloc(8), y = Buffer.alloc(8), b = Buffer.alloc(4);
+    if ((winLib.bk_input_mouse(x, y, b) as number) !== 0) return { x: 0, y: 0, buttons: 0 };
+    return { x: x.readDoubleLE(0), y: y.readDoubleLE(0), buttons: b.readInt32LE(0) };
+  }
+
+  readMouseLocal(window: NativeHandle): { x: number; y: number; inside: boolean } {
+    const x = Buffer.alloc(8), y = Buffer.alloc(8), inside = Buffer.alloc(4);
+    if ((winLib.bk_input_mouse_local(window, x, y, inside) as number) !== 0) {
+      return { x: 0, y: 0, inside: false };
+    }
+    return { x: x.readDoubleLE(0), y: y.readDoubleLE(0), inside: inside.readInt32LE(0) !== 0 };
+  }
+
+  asyncKeyState(vkey: number): boolean { return (winLib.bk_input_key(vkey) as number) !== 0; }
+
+  trackInput(window: NativeHandle, onKey: (vkey: number, down: boolean) => void): void {
+    const prev = windowCbMap.get(window);
+    if (prev) { callbacks.unregister(prev); windowCbMap.delete(window); }
+    const id = callbacks.register((_text: string, e: any) => onKey(e.value1, e.value2 === 1));
+    windowCbMap.set(window, id);
+    winLib.bk_input_track_window(window, id);
+  }
+
+  // --- snapshot / debug ----------------------------------------------------------------
+
+  snapshotView(h: NativeHandle, path: string): number {
+    const b = cstr(path);
+    return winLib.bk_snapshot_view(h, b as any, b.length) as number;
+  }
+
+  private copyStringOf(lengthFn: (h: NativeHandle) => number, copyFn: (h: NativeHandle, buf: Buffer, cap: number) => number, h: NativeHandle): string {
+    const len = lengthFn(h) as number;
+    if (len === 0) return "";
+    const buf = Buffer.alloc(len);
+    copyFn(h, buf, len);
+    return buf.toString("utf8", 0, len - 1);
+  }
+
+  describeTree(h: NativeHandle): string {
+    return this.copyStringOf(
+      (x) => winLib.bk_describe_length(x),
+      (x, buf, cap) => winLib.bk_describe_copy(x, buf as any, cap),
+      h,
+    );
+  }
+
+  checkLayoutRaw(h: NativeHandle): string {
+    return this.copyStringOf(
+      (x) => winLib.bk_check_layout_length(x),
+      (x, buf, cap) => winLib.bk_check_layout_copy(x, buf as any, cap),
+      h,
+    );
+  }
+
+  // --- table upgrades ---------------------------------------------------------------------
+
+  createTableEx(opts: {
+    columns: Array<{ title: string; width?: number; align?: string; flex?: boolean; minWidth?: number; maxWidth?: number }>;
+    rowHeight?: number;
+    multiSelect?: boolean;
+    headers?: boolean;
+    alternatingRows?: boolean;
+    font?: any;
+  }): NativeHandle {
+    this.ensureInited();
+    const spec = opts.columns.map((c) =>
+      [c.title, String(c.width ?? 0), c.align === "center" ? 1 : c.align === "right" ? 2 : 0,
+       c.flex ? 1 : 0, c.minWidth ?? 0, c.maxWidth ?? 0].join("\x1f"),
+    ).join("\n");
+    const b = cstr(spec);
+    let flags = 0;
+    if (opts.multiSelect) flags |= 1;
+    if (opts.headers === false) flags |= 2;
+    if (opts.alternatingRows) flags |= 4;
+    const font = opts.font;
+    const fontSize = typeof font === "number" ? font : (font?.size ?? 0);
+    if (font?.monospace) flags |= 8;
+    return winLib.bk_table_create_ex(b as any, b.length, opts.rowHeight ?? 0, flags, fontSize) as bigint;
+  }
+
+  tableSelectedCount(h: NativeHandle): number { return winLib.bk_table_selected_count(h) as number; }
+  tableSelectedAt(h: NativeHandle, index: number): number { return winLib.bk_table_selected_at(h, index) as number; }
+
+  // --- password submit ----------------------------------------------------------------------
+
+  setPasswordSubmitCallback(h: NativeHandle, cb: (() => void) | null): void {
+    const prev = submitCbMap.get(h);
+    if (prev) { callbacks.unregister(prev); submitCbMap.delete(h); }
+    if (cb) {
+      const id = callbacks.register(() => cb());
+      submitCbMap.set(h, id);
+      winLib.bk_passwordbox_set_submit_callback(h, id);
+    } else winLib.bk_passwordbox_set_submit_callback(h, 0n);
+  }
+
+  createTextAreaEx(rich: boolean): NativeHandle {
+    this.ensureInited();
+    return winLib.bk_textarea_create_ex(rich ? 1 : 0) as bigint;
+  }
+
+  // --- save dialog / popup menu ---------------------------------------------------------------
+
+  async saveFile(opts: { defaultName?: string; window?: NativeHandle }): Promise<string | null> {
+    this.ensureInited();
+    const n = cstr(opts.defaultName ?? "");
+    const id = nextDialogId++;
+    const e = await this.waitForDialog(id, () => {
+      winLib.bk_file_save(this.dialogOwner(opts.window), n as any, n.length, BigInt(id));
+    });
+    return e.value1 === 1 && e.text ? e.text : null;
+  }
+
+  popUpMenu(window: NativeHandle, spec: string, handler: (itemId: number, label: string) => void): void {
+    menuHandlers.set(window, handler);
+    const b = cstr(spec);
+    winLib.bk_menu_popup(window, b as any, b.length);
+  }
+
+  // --- clipboard (plain text, synchronous) -------------------------------------
+
+  setClipboardText(text: string): void {
+    const b = cstr(text);
+    winLib.bk_clipboard_set_text(b as any, b.length);
+  }
+
+  getClipboardText(): string {
+    const len = winLib.bk_clipboard_text_length() as number;
+    if (len === 0) return "";
+    const buf = Buffer.alloc(len + 1);
+    winLib.bk_clipboard_copy_text(buf as any, len + 1);
+    return buf.toString("utf8", 0, len);
+  }
+
+
+  getControlSize(h: NativeHandle): [number, number] {
+    const w = Buffer.alloc(8), ht = Buffer.alloc(8);
+    if ((winLib.bk_control_get_size(h, w, ht) as number) !== 0) return [0, 0];
+    return [w.readDoubleLE(0), ht.readDoubleLE(0)];
+  }
+
+  setControlVisible(h: NativeHandle, visible: boolean): void {
+    winLib.bk_control_set_visible(h, visible ? 1 : 0);
+  }
 
   destroy(handle: NativeHandle): void {
     const cb1 = buttonCbMap.get(handle);

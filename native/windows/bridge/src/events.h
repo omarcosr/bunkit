@@ -9,6 +9,8 @@
 #define BK_EVENTS_H
 
 #include "common.h"
+#include <chrono>
+#include <condition_variable>
 #include <cstdint>
 #include <deque>
 #include <mutex>
@@ -28,6 +30,10 @@ class EventQueue {
 public:
   void push(Event event);
 
+  // Block the caller until an event arrives or the timeout elapses.
+  // Returns 1 when the queue is non-empty, 0 on timeout.
+  uint32_t wait(uint32_t timeout_ms);
+
   // Total size of the oldest queued event in bytes, or 0 when empty.
   uint32_t next_size();
 
@@ -37,6 +43,7 @@ public:
 
 private:
   std::mutex mutex_;
+  std::condition_variable cv_;
   std::deque<std::vector<uint8_t>> queue_;
 };
 

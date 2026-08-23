@@ -76,7 +76,11 @@
     <ClCompile Include="src\controls.cpp" />
     <ClCompile Include="src\advanced_controls.cpp" />
     <ClCompile Include="src\composite_controls.cpp" />
+    <ClCompile Include="src\views.cpp" />
+    <ClCompile Include="src\input.cpp" />
+    <ClCompile Include="src\snapshot.cpp" />
     <ClCompile Include="src\dialogs.cpp" />
+    <ClCompile Include="src\clipboard.cpp" />
     <ClCompile Include="src\menu.cpp" />
     <ClCompile Include="src\layout.cpp" />
     <ClCompile Include="src\debug.cpp" />

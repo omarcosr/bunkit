@@ -55,9 +55,13 @@ TextAlignment alignment_of(int32_t code) {
   return TextAlignment::Left;
 }
 
-// A Table handle maps to the root Grid; row 1 child is its ListView.
+// A Table handle maps to a Border wrapper around the root Grid; row 1 child
+// of the grid is its ListView. The wrapper is what makes the table stylable
+// (Grid has no Background/Border of its own).
 cx::Grid grid_of(bk_handle handle) {
-  return bk::registry().get(handle)->object.as<cx::Grid>();
+  auto object = bk::registry().get(handle)->object;
+  if (auto border = object.try_as<cx::Border>()) return border.Child().as<cx::Grid>();
+  return object.as<cx::Grid>();
 }
 
 } // namespace
@@ -69,6 +73,8 @@ struct ColumnSpec {
   double width{0};   // <= 0 -> star-sized
   double flex{1};    // star weight when width <= 0
   int32_t align{0};
+  double min{0};
+  double max{0};
 };
 
 std::vector<ColumnSpec> parse_columns(const std::string& raw) {
@@ -81,6 +87,8 @@ std::vector<ColumnSpec> parse_columns(const std::string& raw) {
     col.width = fields.size() > 1 ? atof(fields[1].c_str()) : 0;
     col.align = fields.size() > 2 ? atoi(fields[2].c_str()) : 0;
     col.flex = fields.size() > 3 ? atof(fields[3].c_str()) : 1;
+    col.min = fields.size() > 4 ? atof(fields[4].c_str()) : 0;
+    col.max = fields.size() > 5 ? atof(fields[5].c_str()) : 0;
     if (col.flex <= 0) col.flex = 1;
     out.push_back(std::move(col));
   }
@@ -142,7 +150,9 @@ BK_EXPORT bk_handle bk_groupbox_create(const char* title, uint32_t title_len,
     cx::Grid::SetRow(body, 1);
     grid.Children().Append(body);
 
-    out = bk::registry().add(bk::NativeType::GroupBox, grid);
+    cx::Border shell;
+    shell.Child(grid);
+    out = bk::registry().add(bk::NativeType::GroupBox, shell);
   });
   return rc == BK_OK ? out : BK_HANDLE_NULL;
 }
@@ -161,7 +171,7 @@ BK_EXPORT int32_t bk_groupbox_set_content(bk_handle g, bk_handle child) {
       st = BK_INVALID_HANDLE;
       return;
     }
-    auto grid = box->object.as<cx::Grid>();
+    auto grid = box->object.as<cx::Border>().Child().as<cx::Grid>();
     auto body = grid.Children().GetAt(1).as<cx::Border>();
     body.Child().as<cx::ContentPresenter>().Content(
         entry->object.as<UIElement>());
@@ -267,6 +277,13 @@ BK_EXPORT int32_t bk_segmented_set_callback(bk_handle s, uint64_t cb) {
 // --- table --------------------------------------------------------------------
 BK_EXPORT bk_handle bk_table_create(const char* columns, uint32_t columns_len,
                                     double row_height) {
+  return bk_table_create_ex(columns, columns_len, row_height, 0, 0.0);
+}
+
+// flags: 1 multiSelect, 2 headers off, 4 alternating rows, 8 monospace font.
+BK_EXPORT bk_handle bk_table_create_ex(const char* columns, uint32_t columns_len,
+                                       double row_height, int32_t flags,
+                                       double font_size) {
   if (require_running() != BK_OK) return BK_HANDLE_NULL;
   const std::string raw =
       columns && columns_len ? std::string(columns, columns_len) : "";
@@ -283,9 +300,12 @@ BK_EXPORT bk_handle bk_table_create(const char* columns, uint32_t columns_len,
     root.RowDefinitions().Append(list_row);
 
     cx::Grid header;
+    if (flags & 2) header.Visibility(Visibility::Collapsed);
     for (const auto& spec : specs) {
       cx::ColumnDefinition def;
       def.Width(column_length(spec));
+      if (spec.min > 0) def.MinWidth(spec.min);
+      if (spec.max > 0) def.MaxWidth(spec.max);
       header.ColumnDefinitions().Append(def);
     }
     for (uint32_t i = 0; i < specs.size(); ++i) {
@@ -310,13 +330,18 @@ BK_EXPORT bk_handle bk_table_create(const char* columns, uint32_t columns_len,
     root.Children().Append(header);
 
     cx::ListView list;
-    list.SelectionMode(cx::ListViewSelectionMode::Single);
+    list.SelectionMode(flags & 1 ? cx::ListViewSelectionMode::Multiple
+                                  : cx::ListViewSelectionMode::Single);
     cx::Grid::SetRow(list, 1);
     root.Children().Append(list);
 
-    out = bk::registry().add(bk::NativeType::Table, root);
+    cx::Border shell;
+    shell.Child(root);
+    out = bk::registry().add(bk::NativeType::Table, shell);
     auto& entry = *bk::registry().get(out);
     entry.auxf = row_height;
+    entry.auxf2 = font_size;
+    entry.aux2 = flags;
     entry.token1 = list.SelectionChanged([handle = out](auto const&, auto const&) {
       auto* e = bk::registry().get(handle);
       if (!e || e->cb1 == 0) return;
@@ -357,7 +382,7 @@ BK_EXPORT int32_t bk_table_set_rows(bk_handle t, const char* rows,
       st = BK_INVALID_HANDLE;
       return;
     }
-    auto root = entry->object.as<cx::Grid>();
+    auto root = grid_of(t);
     const auto header = root.Children().GetAt(0).as<cx::Grid>();
     const auto list = root.Children().GetAt(1).as<cx::ListView>();
 
@@ -365,15 +390,37 @@ BK_EXPORT int32_t bk_table_set_rows(bk_handle t, const char* rows,
     // rebuild flag (aux) swallows those until the final selection is in.
     entry->aux = 1;
     list.Items().Clear();
+    size_t row_index = 0;
     for (const auto& line : split(raw, kSep2)) {
       const auto cells = split(line, kSep1);
       cx::Grid row;
+      if ((entry->aux2 & 4) && (row_index & 1)) {
+        row.Background(Media::SolidColorBrush(
+            winrt::Windows::UI::Color{20, 128, 128, 128}));
+      }
       for (uint32_t c = 0; c < header.ColumnDefinitions().Size(); ++c) {
+        const auto& column = header.ColumnDefinitions().GetAt(c);
         cx::ColumnDefinition def;
-        def.Width(header.ColumnDefinitions().GetAt(c).Width());
+        def.Width(column.Width());
+        if (column.MinWidth() > 0) def.MinWidth(column.MinWidth());
+        if (column.MaxWidth() > 0) def.MaxWidth(column.MaxWidth());
         row.ColumnDefinitions().Append(def);
         const std::string text =
             c < cells.size() ? cells[c] : std::string();
+        // "\x01<handle>" embeds a live element (Table render cells).
+        if (!text.empty() && text[0] == '\x01') {
+          const bk_handle cell_handle = strtoull(text.c_str() + 1, nullptr, 10);
+          auto* cell_entry = bk::registry().get(cell_handle);
+          if (cell_entry && cell_entry->object) {
+            auto presenter = cx::ContentPresenter();
+            presenter.VerticalAlignment(VerticalAlignment::Center);
+            presenter.Margin(Thickness(8, 3, 8, 3));
+            presenter.Content(cell_entry->object);
+            cx::Grid::SetColumn(presenter, static_cast<int32_t>(c));
+            row.Children().Append(presenter);
+          }
+          continue;
+        }
         auto cell = cx::TextBlock();
         cell.Text(bk::utf8_to_hstring(text.data(),
                                       static_cast<uint32_t>(text.size())));
@@ -381,11 +428,17 @@ BK_EXPORT int32_t bk_table_set_rows(bk_handle t, const char* rows,
             header.Children().GetAt(c).as<cx::TextBlock>().TextAlignment());
         cell.Margin(Thickness(8, 3, 8, 3));
         cell.VerticalAlignment(VerticalAlignment::Center);
+        if (entry->auxf2 > 0) cell.FontSize(entry->auxf2);
+        if (entry->aux2 & 8) {
+          cell.FontFamily(winrt::Microsoft::UI::Xaml::Media::FontFamily(
+              L"Cascadia Mono"));
+        }
         cx::Grid::SetColumn(cell, static_cast<int32_t>(c));
         row.Children().Append(cell);
       }
       if (entry->auxf > 0) row.MinHeight(entry->auxf);
       list.Items().Append(row);
+      ++row_index;
     }
     if (selected >= 0 && static_cast<uint32_t>(selected) < list.Items().Size()) {
       list.SelectedIndex(selected);
@@ -407,10 +460,7 @@ BK_EXPORT int32_t bk_table_select(bk_handle t, int32_t index) {
       st = BK_INVALID_HANDLE;
       return;
     }
-    auto list = entry->object.as<cx::Grid>()
-                    .Children()
-                    .GetAt(1)
-                    .as<cx::ListView>();
+    auto list = grid_of(t).Children().GetAt(1).as<cx::ListView>();
     if (index < 0 || static_cast<uint32_t>(index) >= list.Items().Size()) {
       list.SelectedIndex(-1);
     } else {
@@ -430,11 +480,37 @@ BK_EXPORT int32_t bk_table_get_selected(bk_handle t) {
   bk::Runtime::instance().dispatch_sync([&] {
     auto* entry = bk::registry().get(t);
     if (!entry || entry->type != bk::NativeType::Table) return;
-    value = entry->object.as<cx::Grid>()
-                .Children()
-                .GetAt(1)
-                .as<cx::ListView>()
-                .SelectedIndex();
+    value = grid_of(t).Children().GetAt(1).as<cx::ListView>().SelectedIndex();
+  });
+  return value;
+}
+
+BK_EXPORT uint32_t bk_table_selected_count(bk_handle t) {
+  if (require_running() != BK_OK) return 0;
+  uint32_t value = 0;
+  bk::Runtime::instance().dispatch_sync([&] {
+    auto* entry = bk::registry().get(t);
+    if (!entry || entry->type != bk::NativeType::Table) return;
+    value = static_cast<uint32_t>(
+        grid_of(t).Children().GetAt(1).as<cx::ListView>()
+            .SelectedItems().Size());
+  });
+  return value;
+}
+
+BK_EXPORT int32_t bk_table_selected_at(bk_handle t, uint32_t index) {
+  if (require_running() != BK_OK) return -1;
+  int32_t value = -1;
+  bk::Runtime::instance().dispatch_sync([&] {
+    auto* entry = bk::registry().get(t);
+    if (!entry || entry->type != bk::NativeType::Table) return;
+    const auto list = grid_of(t).Children().GetAt(1).as<cx::ListView>();
+    if (index >= list.SelectedItems().Size()) return;
+    const auto picked = list.SelectedItems().GetAt(index);
+    const auto items = list.Items();
+    for (uint32_t i = 0; i < items.Size(); ++i) {
+      if (items.GetAt(i) == picked) { value = static_cast<int32_t>(i); return; }
+    }
   });
   return value;
 }

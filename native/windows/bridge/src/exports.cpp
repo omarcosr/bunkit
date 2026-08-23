@@ -55,6 +55,10 @@ BK_EXPORT int32_t bk_runtime_running(void) {
 
 BK_EXPORT uint32_t bk_event_next_size(void) { return event_queue().next_size(); }
 
+BK_EXPORT int32_t bk_event_wait(uint32_t timeout_ms) {
+  return static_cast<int32_t>(event_queue().wait(timeout_ms));
+}
+
 BK_EXPORT int32_t bk_event_pop(void* buffer, uint32_t capacity) {
   if (buffer == nullptr && capacity > 0) return BK_INVALID_ARGUMENT;
   return guard([&] { return event_queue().pop(buffer, capacity); });

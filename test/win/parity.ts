@@ -54,7 +54,7 @@ const win = new Window({
   content: new VStack({ spacing: 10, padding: 12 }, [title, secondary, box, log]),
 });
 
-windowsBackend.setMenu(win.handle, "File\x1fNew Task|cmd+n|1\x1f|0|0\x1ePreferences\x1fSettings...|cmd+,|2",
+windowsBackend.setMenu((win as any).handle, "File\x1fNew Task|cmd+n|1\x1f|0|0\x1ePreferences\x1fSettings...|cmd+,|2",
   (itemId) => { log.value += `menu ${itemId}\n`; });
 
 await Bun.sleep(600);

@@ -35,7 +35,7 @@ select.selectedIndex = 1;
 textarea.value = "updated";
 progress.value = 80;
 
-if (checkbox.checked || toggle.on || slider.value !== 75 || select.selectedTitle !== "two" || textarea.value !== "updated" || progress.value !== 80) {
+if (checkbox.checked || toggle.on || slider.value !== 75 || String(select.selectedTitle) !== "two" || textarea.value !== "updated" || progress.value !== 80) {
   throw new Error("advanced control setter roundtrip failed");
 }
 

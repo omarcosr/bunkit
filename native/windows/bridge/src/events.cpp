@@ -18,8 +18,18 @@ std::vector<uint8_t> Event::serialize() const {
 
 void EventQueue::push(Event event) {
   auto bytes = event.serialize();
-  std::lock_guard<std::mutex> lock(mutex_);
-  queue_.push_back(std::move(bytes));
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    queue_.push_back(std::move(bytes));
+  }
+  cv_.notify_one();
+}
+
+uint32_t EventQueue::wait(uint32_t timeout_ms) {
+  std::unique_lock<std::mutex> lock(mutex_);
+  cv_.wait_for(lock, std::chrono::milliseconds(timeout_ms),
+               [this] { return !queue_.empty(); });
+  return queue_.empty() ? 0 : 1;
 }
 
 uint32_t EventQueue::next_size() {

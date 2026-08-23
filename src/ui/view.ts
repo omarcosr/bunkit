@@ -5,7 +5,7 @@
 // them like a virtual DOM is a category error. You mutate properties; the view
 // updates.
 
-import { objc, createDelegate, nativeOf, ObjCObject } from "../objc.ts";
+import { objc, createBlock, createDelegate, nativeOf, ObjCObject } from "../objc.ts";
 import { LayoutAttribute, LayoutPriority, LayoutRelation, Orientation } from "./appkit.ts";
 import type { CGRect, CGSize } from "../structs.ts";
 
@@ -56,6 +56,18 @@ export interface ViewOptions {
   cornerRadius?: number;
   /** Background colour; accepts a Color or a CSS-ish hex string. */
   background?: any;
+  /** CSS-style alias for `background`. */
+  backgroundColor?: any;
+  /** Border width in points; `true` means 1. */
+  border?: number | boolean;
+  /** Alias for `border`. */
+  borderWidth?: number;
+  /** Border colour; a CSS-ish hex string or a Color. */
+  borderColor?: any;
+  /** Alias for `cornerRadius`. */
+  borderRadius?: number;
+  /** "solid" (default), "dashed" or "dotted". */
+  borderStyle?: "solid" | "dashed" | "dotted";
   alpha?: number;
 }
 
@@ -86,11 +98,26 @@ export class View {
     if (o.tooltip !== undefined) this.native.setToolTip_(o.tooltip);
     if (o.id !== undefined) this.native.setIdentifier_(o.id);
     if (o.alpha !== undefined) this.native.setAlphaValue_(o.alpha);
-    if (o.cornerRadius !== undefined) {
+    if (o.cornerRadius !== undefined || o.borderRadius !== undefined) {
       this.native.setWantsLayer_(true);
-      this.native.layer().setCornerRadius_(o.cornerRadius);
+      this.native.layer().setCornerRadius_(o.cornerRadius ?? o.borderRadius!);
     }
     if (o.background !== undefined) this.setBackground(o.background);
+    else if (o.backgroundColor !== undefined) this.setBackground(o.backgroundColor);
+
+    // CSS-style borders: `border`/`borderWidth` (or `borderColor`/`borderStyle`
+    // alone) turn the border on; `borderRadius` rides along when present.
+    const borderWidth =
+      o.border !== undefined ? (o.border === true ? 1 : o.border as number)
+      : o.borderWidth;
+    if (borderWidth !== undefined || o.borderColor !== undefined || o.borderStyle !== undefined) {
+      this.setBorder(
+        o.borderColor ?? "#C6C6C8",
+        borderWidth ?? 1,
+        (o.borderRadius ?? o.cornerRadius) ?? 0,
+        o.borderStyle ?? "solid",
+      );
+    }
   }
 
   /** Keep a JS object reachable for as long as this view is. */
@@ -250,15 +277,57 @@ export class View {
     return this;
   }
 
-  /** Draw a 1pt border in `color` with an optional corner radius. */
-  setBorder(color: any, width = 1, radius = 0): this {
+  /** Draw a border in `color` with an optional corner radius and style.
+   *  "dashed"/"dotted" swap the layer border for a stroked CAShapeLayer that
+   *  follows the view's frame. */
+  setBorder(color: any, width = 1, radius = 0, style: "solid" | "dashed" | "dotted" = "solid"): this {
     this.native.setWantsLayer_(true);
     const layer = this.native.layer();
     const nsColor = toNSColor(color);
-    if (nsColor) layer.setBorderColor_(nsColor.send("CGColor"));
-    layer.setBorderWidth_(width);
-    if (radius) layer.setCornerRadius_(radius);
+    this.#removeDashedBorder();
+    if (style === "solid") {
+      if (nsColor) layer.setBorderColor_(nsColor.send("CGColor"));
+      layer.setBorderWidth_(width);
+      if (radius) layer.setCornerRadius_(radius);
+      return this;
+    }
+    // Dashed/dotted: CALayer borders cannot stroke a pattern, so a shape
+    // layer over the border does it, rebuilt whenever the frame changes.
+    layer.setBorderWidth_(0);
+    const shape = objc.CAShapeLayer.layer();
+    const cg = nsColor ? nsColor.send("CGColor") : null;
+    if (cg) shape.setStrokeColor_(cg);
+    shape.setLineWidth_(width);
+    shape.setFillColor_(null);
+    const unit = Math.max(1, width);
+    shape.setLineDashPattern_(style === "dashed" ? [unit * 4, unit * 3] : [unit, unit * 3]);
+    const rebuild = () => {
+      const bounds = this.native.bounds();
+      shape.setPath_(
+        objc.NSBezierPath.bezierPathWithRoundedRect_xRadius_yRadius_(
+          bounds, radius, radius,
+        ).cgPath(),
+      );
+    };
+    rebuild();
+    layer.addSublayer_(shape);
+    this.#dash = shape;
+    this.native.setPostsFrameChangedNotification_(true);
+    const block = createBlock("v@?@@", () => rebuild());
+    this.retainJS(block);
+    this.retainJS(objc.NSNotificationCenter.defaultCenter()
+      .addObserverForName_object_queue_usingBlock_(
+        "NSViewFrameDidChangeNotification", this.native, null, block));
     return this;
+  }
+
+  #dash: any = null;
+
+  #removeDashedBorder() {
+    if (this.#dash) {
+      try { this.#dash.removeFromSuperlayer(); } catch { /* already gone */ }
+      this.#dash = null;
+    }
   }
 
   needsDisplay(): void {

@@ -6,6 +6,7 @@
 
 #include <winrt/Microsoft.UI.Xaml.Controls.h>
 #include <winrt/Microsoft.UI.Xaml.Controls.Primitives.h>
+#include <winrt/Microsoft.UI.Text.h>
 #include <winrt/Windows.Foundation.Collections.h>
 
 using namespace winrt::Microsoft::UI::Xaml;
@@ -326,10 +327,38 @@ BK_EXPORT int32_t bk_select_set_callback(bk_handle s, uint64_t cb) {
   return combine(rc, status);
 }
 
-BK_EXPORT bk_handle bk_textarea_create(void) {
+namespace {
+
+std::string textarea_text(bk::NativeObject* e) {
+  if (e->type == bk::NativeType::RichTextArea) {
+    winrt::hstring text;
+    e->object.as<cx::RichEditBox>().Document().GetText(
+        winrt::Microsoft::UI::Text::TextGetOptions::UseCrlf, text);
+    return bk::hstring_to_utf8(text);
+  }
+  return bk::hstring_to_utf8(e->object.as<cx::TextBox>().Text());
+}
+
+} // namespace
+
+BK_EXPORT bk_handle bk_textarea_create_ex(int32_t rich) {
   if (require_running() != BK_OK) return BK_HANDLE_NULL;
   bk_handle out = BK_HANDLE_NULL;
   const int32_t rc = bk::Runtime::instance().dispatch_sync([&] {
+    if (rich) {
+      cx::RichEditBox box;
+      cx::ScrollViewer::SetVerticalScrollBarVisibility(box, cx::ScrollBarVisibility::Auto);
+      out = bk::registry().add(bk::NativeType::RichTextArea, box);
+      auto& entry = *bk::registry().get(out);
+      entry.token1 = box.TextChanged([handle = out](auto const&, auto const&) {
+        auto* e = bk::registry().get(handle);
+        if (!e) return;
+        if (e->suppress > 0) { --e->suppress; return; }
+        if (e->cb1 == 0) return;
+        push_value_event(handle, BK_EVT_TEXT_CHANGED, 0, textarea_text(e));
+      });
+      return;
+    }
     cx::TextBox box;
     box.AcceptsReturn(true);
     box.TextWrapping(TextWrapping::Wrap);
@@ -348,14 +377,31 @@ BK_EXPORT bk_handle bk_textarea_create(void) {
   return rc == BK_OK ? out : BK_HANDLE_NULL;
 }
 
+BK_EXPORT bk_handle bk_textarea_create(void) {
+  return bk_textarea_create_ex(0);
+}
+
 BK_EXPORT int32_t bk_textarea_set_text(bk_handle t, const char* text, uint32_t text_len) {
   if (require_running() != BK_OK) return BK_NOT_INITIALIZED;
   const std::string value = text && text_len ? std::string(text, text_len) : "";
   int32_t status = BK_ERROR;
   const int32_t rc = bk::Runtime::instance().dispatch_sync([&] {
     auto* entry = bk::registry().get(t);
-    if (!entry || entry->type != bk::NativeType::TextArea) status = BK_INVALID_HANDLE;
-    else { entry->suppress++; entry->object.as<cx::TextBox>().Text(bk::utf8_to_hstring(value.data(), static_cast<uint32_t>(value.size()))); status = BK_OK; }
+    if (!entry || (entry->type != bk::NativeType::TextArea &&
+                   entry->type != bk::NativeType::RichTextArea)) {
+      status = BK_INVALID_HANDLE;
+      return;
+    }
+    entry->suppress++;
+    if (entry->type == bk::NativeType::RichTextArea) {
+      entry->object.as<cx::RichEditBox>().Document().SetText(
+          winrt::Microsoft::UI::Text::TextSetOptions::None,
+          bk::utf8_to_hstring(value.data(), static_cast<uint32_t>(value.size())));
+    } else {
+      entry->object.as<cx::TextBox>().Text(
+          bk::utf8_to_hstring(value.data(), static_cast<uint32_t>(value.size())));
+    }
+    status = BK_OK;
   });
   return combine(rc, status);
 }
@@ -365,7 +411,10 @@ BK_EXPORT uint32_t bk_textarea_value_length(bk_handle t) {
   uint32_t length = 0;
   bk::Runtime::instance().dispatch_sync([&] {
     auto* entry = bk::registry().get(t);
-    if (entry && entry->type == bk::NativeType::TextArea) length = static_cast<uint32_t>(bk::hstring_to_utf8(entry->object.as<cx::TextBox>().Text()).size());
+    if (entry && (entry->type == bk::NativeType::TextArea ||
+                  entry->type == bk::NativeType::RichTextArea)) {
+      length = static_cast<uint32_t>(textarea_text(entry).size());
+    }
   });
   return length;
 }
@@ -375,7 +424,10 @@ BK_EXPORT int32_t bk_textarea_copy_value(bk_handle t, char* buffer, uint32_t cap
   int32_t status = BK_INVALID_HANDLE;
   bk::Runtime::instance().dispatch_sync([&] {
     auto* entry = bk::registry().get(t);
-    if (entry && entry->type == bk::NativeType::TextArea) status = copy_out(bk::hstring_to_utf8(entry->object.as<cx::TextBox>().Text()), buffer, capacity);
+    if (entry && (entry->type == bk::NativeType::TextArea ||
+                  entry->type == bk::NativeType::RichTextArea)) {
+      status = copy_out(textarea_text(entry), buffer, capacity);
+    }
   });
   return status;
 }
@@ -385,7 +437,8 @@ BK_EXPORT int32_t bk_textarea_set_callback(bk_handle t, uint64_t cb) {
   int32_t status = BK_ERROR;
   const int32_t rc = bk::Runtime::instance().dispatch_sync([&] {
     auto* entry = bk::registry().get(t);
-    if (!entry || entry->type != bk::NativeType::TextArea) status = BK_INVALID_HANDLE;
+    if (!entry || (entry->type != bk::NativeType::TextArea &&
+                   entry->type != bk::NativeType::RichTextArea)) status = BK_INVALID_HANDLE;
     else { entry->cb1 = cb; status = BK_OK; }
   });
   return combine(rc, status);

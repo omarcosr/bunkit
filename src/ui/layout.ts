@@ -39,6 +39,12 @@ export interface StackOptions extends ViewOptions {
    * A child with `grow` always wins over either.
    */
   pack?: "start" | "fill";
+  /**
+   * Scroll instead of clipping when the content outgrows the available
+   * space. `true` scrolls the stack's own axis (a row scrolls horizontally,
+   * a column vertically); pass axes explicitly to scroll both.
+   */
+  scroll?: boolean | { horizontal?: boolean; vertical?: boolean };
 }
 
 function insets(p: StackOptions["padding"]): NSEdgeInsets {
@@ -51,18 +57,54 @@ export class Stack extends View {
   readonly orientation: number;
   readonly align: "leading" | "center" | "trailing" | "fill";
   #insets: NSEdgeInsets;
+  // The NSStackView itself; equals `native` unless the stack scrolls, in
+  // which case `native` is the wrapping NSScrollView.
+  #stack: any = null;
 
   constructor(orientation: number, options: StackOptions = {}, children: View[] = []) {
     const native = objc.NSStackView.alloc().init();
     native.setOrientation_(orientation);
-    super(native, options);
-    this.orientation = orientation;
 
     const horizontal = orientation === Orientation.Horizontal;
-    this.#insets = insets(options.padding);
+    const insetsValue = insets(options.padding);
     native.setSpacing_(options.spacing ?? 8);
-    native.setEdgeInsets_(this.#insets);
+    native.setEdgeInsets_(insetsValue);
     native.setDistribution_(options.distribution ?? StackDistribution.Fill);
+
+    // Wrap in a scroll view when asked for; the bare stack view otherwise.
+    // Everything that touches children goes to `native` (the stack), never
+    // to the scroll view.
+    let host: any = native;
+    if (options.scroll) {
+      const wantH = options.scroll === true ? horizontal : options.scroll.horizontal === true;
+      const wantV = options.scroll === true ? !horizontal : options.scroll.vertical === true;
+      const sv = objc.NSScrollView.alloc().init();
+      sv.setHasHorizontalScroller_(wantH);
+      sv.setHasVerticalScroller_(wantV);
+      sv.setAutohidesScrollers_(true);
+      sv.setBorderType_(BorderType.None);
+      sv.setDrawsBackground_(false);
+      sv.setDocumentView_(native);
+      // Pin the non-scrolling axis to the clip view; a document sized by
+      // constraints otherwise collapses to its intrinsic size.
+      const clip = sv.contentView();
+      for (const [attr, scrolls] of [
+        [LayoutAttribute.Width, wantH],
+        [LayoutAttribute.Height, wantV],
+      ] as Array<[number, boolean]>) {
+        if (scrolls) continue;
+        const pin = objc.NSLayoutConstraint.constraintWithItem_attribute_relatedBy_toItem_attribute_multiplier_constant_(
+          native, attr, LayoutRelation.Equal, clip, attr, 1.0, 0,
+        );
+        pin.setActive_(true);
+      }
+      host = sv;
+    }
+
+    super(host, options);
+    this.orientation = orientation;
+    this.#stack = native;
+    this.#insets = insetsValue;
 
     // A vertical stack almost always wants its rows full width; a horizontal
     // one almost always wants its items vertically centred.
@@ -122,7 +164,7 @@ export class Stack extends View {
       ? this.#insets.top + this.#insets.bottom
       : this.#insets.left + this.#insets.right;
     const c = objc.NSLayoutConstraint.constraintWithItem_attribute_relatedBy_toItem_attribute_multiplier_constant_(
-      child.native, attr, LayoutRelation.Equal, this.native, attr, 1.0, -inset,
+      child.native, attr, LayoutRelation.Equal, this.#stack, attr, 1.0, -inset,
     );
     c.setPriority_(999);
     c.setActive_(true);
@@ -133,9 +175,9 @@ export class Stack extends View {
   // bookkeeping rather than calling View.add (which would add it twice).
   add(child: View): this {
     if (this.#filler) {
-      this.native.insertArrangedSubview_atIndex_(child.native, this._children.length);
+      this.#stack.insertArrangedSubview_atIndex_(child.native, this._children.length);
     } else {
-      this.native.addArrangedSubview_(child.native);
+      this.#stack.addArrangedSubview_(child.native);
     }
     this._children.push(child);
     child._parent = this;
@@ -145,7 +187,7 @@ export class Stack extends View {
   }
 
   insert(child: View, index: number): this {
-    this.native.insertArrangedSubview_atIndex_(child.native, index);
+    this.#stack.insertArrangedSubview_atIndex_(child.native, index);
     this._children.splice(index, 0, child);
     child._parent = this;
     this.#applyFill(child);
@@ -154,7 +196,7 @@ export class Stack extends View {
   }
 
   remove(child: View): this {
-    this.native.removeArrangedSubview_(child.native);
+    this.#stack.removeArrangedSubview_(child.native);
     child.native.removeFromSuperview();
     const i = this._children.indexOf(child);
     if (i >= 0) this._children.splice(i, 1);
@@ -168,12 +210,12 @@ export class Stack extends View {
   }
 
   set spacing(v: number) {
-    this.native.setSpacing_(v);
+    this.#stack.setSpacing_(v);
   }
 
   /** Pin a view to a gravity area (leading/center/trailing). */
   addToGravity(child: View, gravity: number): this {
-    this.native.addView_inGravity_(child.native, gravity);
+    this.#stack.addView_inGravity_(child.native, gravity);
     this._children.push(child);
     child._parent = this;
     return this;

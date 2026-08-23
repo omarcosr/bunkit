@@ -12,6 +12,7 @@ const EVT_TEXT_SUBMIT = 8;
 const EVT_DIALOG_RESULT = 9;
 const EVT_MENU_CLICK = 10;
 const EVT_FILE_RESULT = 11;
+const EVT_INPUT_KEY = 12;
 
 // Dialog results and menu clicks are matched by id, not by callback registry.
 export const dialogResolvers = new Map<number, (e: NativeEvent) => void>();
@@ -77,7 +78,7 @@ export function dispatch(): void {
     const fn = callbacks.get(e.callback);
     if (fn) {
       try {
-        if (e.type === EVT_TEXT_CHANGED || e.type === EVT_TEXT_SUBMIT) fn(e.text, e);
+        if (e.type === EVT_TEXT_CHANGED || e.type === EVT_TEXT_SUBMIT || e.type === EVT_INPUT_KEY) fn(e.text, e);
         else if (e.type === EVT_VALUE_CHANGED) fn(e.text ? Number(e.text) : e.value1, e);
         else if (e.type === EVT_SELECTION_CHANGED) fn(e.value1, e.text, e);
         else if (e.type === EVT_TABLE_DOUBLE_CLICK) fn(e.value1, e);

@@ -1,8 +1,8 @@
 // Milestones 3-6: click events, label roundtrip, textbox value/TextChanged,
 // and stack layout with grow. Run: bun run test/win/m3-to-m6.ts
-import { load } from "./lib.ts";
+import { assert, load } from "./lib.ts";
 
-const { lib, cstr, assert, drain, waitForEvent, getSize, EVT_CLICK, EVT_TEXT_CHANGED } = load();
+const { lib, cstr, drain, waitForEvent, getSize, EVT_CLICK, EVT_TEXT_CHANGED } = load();
 
 assert(lib.symbols.bk_runtime_init() === 0, "runtime init");
 

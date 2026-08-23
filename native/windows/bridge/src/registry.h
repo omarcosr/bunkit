@@ -32,6 +32,12 @@ enum class NativeType : uint8_t {
   GroupBox,
   Segmented,
   Table,
+  Container,
+  ScrollView,
+  SplitView,
+  ImageView,
+  BlurView,
+  RichTextArea,
 };
 
 struct NativeObject {
@@ -42,11 +48,14 @@ struct NativeObject {
   winrt::event_token close_token{}; // Window
   winrt::event_token token1{};      // Button click / TextBox text change
   winrt::event_token token2{};      // PasswordBox password change
+  winrt::event_token token3{};      // PasswordBox submit KeyDown
   uint64_t cb1{0};                  // callback id for token1's event
   uint64_t cb2{0};                  // second callback (Table double click, TextBox submit)
   int32_t aux{0};                   // Stack: bk_stack_orientation
   int32_t suppress{0};              // >0 while a programmatic set is in flight
   double auxf{0};                   // Table: row height
+  double auxf2{0};                  // Table: font size
+  int32_t aux2{0};                  // Table flags: 1 multi, 4 alt rows, 8 mono
 };
 
 class ObjectRegistry {

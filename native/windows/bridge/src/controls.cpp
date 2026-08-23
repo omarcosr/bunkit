@@ -145,15 +145,27 @@ BK_EXPORT int32_t bk_button_click(bk_handle b) {
 
 // --- label ------------------------------------------------------------------
 
+namespace {
+
+// Labels register their Border shell, not the bare TextBlock: Grid has no
+// Background/Border either, and the shell is what makes labels stylable.
+cx::TextBlock label_text_of(bk::NativeObject* e) {
+  return e->object.as<cx::Border>().Child().as<cx::TextBlock>();
+}
+
+} // namespace
+
 BK_EXPORT bk_handle bk_label_create(const char* text, uint32_t text_len) {
   if (require_running() != BK_OK) return BK_HANDLE_NULL;
   std::string t = (text && text_len) ? std::string(text, text_len)
                                      : std::string();
   bk_handle out = BK_HANDLE_NULL;
   const int32_t rc = bk::Runtime::instance().dispatch_sync([&] {
-    cx::TextBlock label;
-    label.Text(bk::utf8_to_hstring(t.data(), static_cast<uint32_t>(t.size())));
-    out = bk::registry().add(bk::NativeType::Label, label);
+    auto text = cx::TextBlock();
+    text.Text(bk::utf8_to_hstring(t.data(), static_cast<uint32_t>(t.size())));
+    cx::Border shell;
+    shell.Child(text);
+    out = bk::registry().add(bk::NativeType::Label, shell);
   });
   return rc == BK_OK ? out : BK_HANDLE_NULL;
 }
@@ -170,7 +182,7 @@ BK_EXPORT int32_t bk_label_set_text(bk_handle l, const char* text,
       st = BK_INVALID_HANDLE;
       return;
     }
-    entry->object.as<cx::TextBlock>().Text(
+    label_text_of(entry).Text(
         bk::utf8_to_hstring(t.data(), static_cast<uint32_t>(t.size())));
     st = BK_OK;
   });
@@ -184,7 +196,7 @@ BK_EXPORT uint32_t bk_label_text_length(bk_handle l) {
     auto* entry = bk::registry().get(l);
     if (!entry || entry->type != bk::NativeType::Label) return;
     len = static_cast<uint32_t>(
-        bk::hstring_to_utf8(entry->object.as<cx::TextBlock>().Text()).size());
+        bk::hstring_to_utf8(label_text_of(entry).Text()).size());
   });
   return len;
 }
@@ -200,7 +212,7 @@ BK_EXPORT int32_t bk_label_copy_text(bk_handle l, char* buffer,
       st = BK_INVALID_HANDLE;
       return;
     }
-    s = bk::hstring_to_utf8(entry->object.as<cx::TextBlock>().Text());
+    s = bk::hstring_to_utf8(label_text_of(entry).Text());
     st = copy_out(s, buffer, capacity);
   });
   return combine(rc, st);
@@ -233,6 +245,20 @@ BK_EXPORT bk_handle bk_textbox_create(int32_t secure,
       }
       out = bk::registry().add(type, box);
       auto& entry = *bk::registry().get(out);
+      entry.token3 = box.KeyDown(
+          [handle = out](winrt::Windows::Foundation::IInspectable const& sender,
+                         winrt::Microsoft::UI::Xaml::Input::KeyRoutedEventArgs const& args) {
+            if (args.Key() != winrt::Windows::System::VirtualKey::Enter) return;
+            auto* e = bk::registry().get(handle);
+            if (!e || e->cb2 == 0) return;
+            bk::Event ev;
+            ev.header.type = BK_EVT_TEXT_SUBMIT;
+            ev.header.target = handle;
+            ev.header.callback = e->cb2;
+            ev.payload =
+                bk::hstring_to_utf8(sender.as<cx::PasswordBox>().Password());
+            bk::event_queue().push(std::move(ev));
+          });
       entry.token1 = box.PasswordChanged(
           [handle = out](winrt::Windows::Foundation::IInspectable const&,
                          winrt::Windows::Foundation::IInspectable const&) {
@@ -646,10 +672,32 @@ BK_EXPORT bk_handle bk_label_create_ex(const char* text, uint32_t text_len,
   std::string c = (color && color_len) ? std::string(color, color_len) : std::string();
   bk_handle out = BK_HANDLE_NULL;
   const int32_t rc = bk::Runtime::instance().dispatch_sync([&] {
-    cx::TextBlock label;
+    auto label = cx::TextBlock();
     label.Text(bk::utf8_to_hstring(t.data(), static_cast<uint32_t>(t.size())));
-    if (c == "secondaryLabel") {
-      if (auto brush = resource_brush(L"TextFillColorSecondaryBrush")) {
+    // AppKit color names -> nearest theme brush.
+    const wchar_t* brush_key = nullptr;
+    if (c == "secondaryLabel" || c == "placeholderText") {
+      brush_key = L"TextFillColorSecondaryBrush";
+    } else if (c == "tertiaryLabel") {
+      brush_key = L"TextFillColorTertiaryBrush";
+    } else if (c == "quaternaryLabel") {
+      brush_key = L"TextFillColorDisabledBrush";
+    } else if (c == "label" || c == "textColor") {
+      brush_key = L"TextFillColorPrimaryBrush";
+    } else if (c == "systemRed") {
+      brush_key = L"SystemFillColorCriticalBrush";
+    } else if (c == "systemYellow" || c == "systemOrange") {
+      brush_key = L"SystemFillColorCautionBrush";
+    } else if (c == "systemGreen") {
+      brush_key = L"SystemFillColorSuccessBrush";
+    } else if (c == "systemGray" || c == "systemBrown") {
+      brush_key = L"TextFillColorSecondaryBrush";
+    } else if (!c.empty()) {
+      // Blue/purple/teal/pink and link → the accent colour.
+      brush_key = L"AccentFillColorDefaultBrush";
+    }
+    if (brush_key) {
+      if (auto brush = resource_brush(brush_key)) {
         label.Foreground(brush);
       }
     }
@@ -666,11 +714,29 @@ BK_EXPORT bk_handle bk_label_create_ex(const char* text, uint32_t text_len,
     }
     if (align == 1) label.TextAlignment(TextAlignment::Center);
     else if (align == 2) label.TextAlignment(TextAlignment::Right);
-    if (width > 0) label.Width(width);
-    if (height > 0) label.Height(height);
-    out = bk::registry().add(bk::NativeType::Label, label);
+    // Width/height belong to the shell; everything visual stays on the text.
+    cx::Border shell;
+    shell.Child(label);
+    if (width > 0) shell.Width(width);
+    if (height > 0) shell.Height(height);
+    out = bk::registry().add(bk::NativeType::Label, shell);
   });
   return rc == BK_OK ? out : BK_HANDLE_NULL;
+}
+
+BK_EXPORT int32_t bk_passwordbox_set_submit_callback(bk_handle pb, uint64_t cb) {
+  if (require_running() != BK_OK) return BK_NOT_INITIALIZED;
+  int32_t st = BK_ERROR;
+  const int32_t rc = bk::Runtime::instance().dispatch_sync([&] {
+    auto* entry = bk::registry().get(pb);
+    if (!entry || entry->type != bk::NativeType::SecureTextBox) {
+      st = BK_INVALID_HANDLE;
+      return;
+    }
+    entry->cb2 = cb;
+    st = BK_OK;
+  });
+  return combine(rc, st);
 }
 
 BK_EXPORT int32_t bk_textbox_set_submit_callback(bk_handle tb, uint64_t cb) {
