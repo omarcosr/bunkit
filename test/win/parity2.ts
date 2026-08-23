@@ -40,10 +40,17 @@ check(true, "ScrollView/SplitView/Container/BlurView/ImageView construct");
 // view options
 const tipped = new Label({ text: "tip", tooltip: "a tip", alpha: 0.5, background: "#336699" });
 check(true, "view options (tooltip/alpha/background) do not throw");
+// cornerRadius/borderRadius accept per-corner specs.
+const uni = new Container({ background: "#2D7DD2", borderRadius: 24, width: 80, height: 60 });
+const [utl, utr, ubr, ubl] = (uni as any).frame ? [0, 0, 0, 0] : [0, 0, 0, 0];
+check(typeof (uni as any).setBorder === "function", "cornerRadius spec plumbing exists");
+const tupleC = new Container({ cornerRadius: [4, 8, 12, 16], width: 40, height: 30 });
+const namedC = new Container({ borderRadius: { topLeft: 5, bottomRight: 9 }, width: 40, height: 30 });
+check(true, "tuple and per-name corner specs do not throw");
 // Labels render inside a Border shell, so styling now applies to them too.
 check((winLib.bk_control_set_background((tipped as any).handle, Buffer.from("#336699") as any, 7) as number) === 0,
   "Label accepts background (Border shell)");
-check((winLib.bk_control_set_border((tipped as any).handle, Buffer.from("#F26419") as any, 7, 1, 4) as number) === 0,
+check((winLib.bk_control_set_border((tipped as any).handle, Buffer.from("#F26419") as any, 7, 1, (Buffer.from(new Float64Array([1,1,1,1]).buffer) as any)) as number) === 0,
   "Label accepts border (Border shell)");
 // Clipboard roundtrip.
 setClipboardText("parité ✓ clipboard");
@@ -88,7 +95,7 @@ const solidControl = new Button({ title: "s" }).setBorder("#F26419", 2, 4, "dash
 check(true, "dashed on a plain Control falls back to solid without throwing");
 // Every control kind accepts the styling calls (rc 0), Table/GroupBox included.
 const hexBuf = Buffer.from("#F26419") as any;
-check((winLib.bk_control_set_border((box as any).handle, hexBuf, 7, 2, 8) as number) === 0, "groupbox is stylable");
+check((winLib.bk_control_set_border((box as any).handle, hexBuf, 7, 2, (Buffer.from(new Float64Array([8,8,8,8]).buffer) as any)) as number) === 0, "groupbox is stylable");
 
 // BlurView: both setters exist at runtime and tint the acrylic, not kill it.
 const blur = new BlurView({}, new Label({ text: "acrylic" }));
@@ -120,7 +127,7 @@ const multi = new Table<{ n: string; tag: string }>({
   onSelect: (_r, i) => { selected = i; },
 });
 check(true, "multiSelect/alternatingRows/font table constructs");
-check((winLib.bk_control_set_border((multi as any).handle, hexBuf, 7, 2, 8) as number) === 0, "table is stylable");
+check((winLib.bk_control_set_border((multi as any).handle, hexBuf, 7, 2, (Buffer.from(new Float64Array([8,8,8,8]).buffer) as any)) as number) === 0, "table is stylable");
 
 // render cells embed live views
 let renderCalls = 0;

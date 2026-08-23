@@ -52,8 +52,9 @@ export interface ViewOptions {
   tooltip?: string;
   /** Opaque identifier; also used for view reuse in tables. */
   id?: string;
-  /** Corner radius (turns on a backing layer). */
-  cornerRadius?: number;
+  /** Corner radius — same as `borderRadius`. One number, [tl,tr,br,bl], or
+   *  per-corner names (CSS border-radius vocabulary). Turns on a layer. */
+  cornerRadius?: CornerRadiusSpec;
   /** Background colour; accepts a Color or a CSS-ish hex string. */
   background?: any;
   /** CSS-style alias for `background`. */
@@ -65,10 +66,57 @@ export interface ViewOptions {
   /** Border colour; a CSS-ish hex string or a Color. */
   borderColor?: any;
   /** Alias for `cornerRadius`. */
-  borderRadius?: number;
+  borderRadius?: CornerRadiusSpec;
   /** "solid" (default), "dashed" or "dotted". */
   borderStyle?: "solid" | "dashed" | "dotted";
   alpha?: number;
+}
+
+/** A corner-radius spec: one number for all four corners, [tl, tr, br, bl],
+ *  or per-corner by name (CSS border-radius vocabulary). */
+export type CornerRadiusSpec =
+  | number
+  | [number, number, number, number]
+  | { topLeft?: number; topRight?: number; bottomRight?: number; bottomLeft?: number };
+
+export function normalizeCorners(spec: CornerRadiusSpec | undefined, fallback = 0): [number, number, number, number] {
+  if (spec === undefined) return [fallback, fallback, fallback, fallback];
+  if (typeof spec === "number") return [spec, spec, spec, spec];
+  if (Array.isArray(spec)) return [spec[0] ?? 0, spec[1] ?? 0, spec[2] ?? 0, spec[3] ?? 0];
+  return [
+    spec.topLeft ?? 0,
+    spec.topRight ?? 0,
+    spec.bottomRight ?? 0,
+    spec.bottomLeft ?? 0,
+  ];
+}
+
+/** A bezier path with independent radii per corner (AppKit coordinates,
+ *  bottom-left origin, tl/tr/br/bl in CSS terms). */
+function roundedBezier(bounds: any, tl: number, tr: number, br: number, bl: number): any {
+  const x = bounds.x, y = bounds.y, w = bounds.width, h = bounds.height;
+  const path = objc.NSBezierPath.bezierPath();
+  path.moveToPoint_({ x: x + tl, y: y + h });
+  if (tr > 0) {
+    path.appendBezierPathWithArcWithCenter_radius_startAngle_endAngle_({ x: x + w - tr, y: y + h - tr }, tr, 90, 0);
+    path.lineTo_({ x: x + w, y: y + h - tr });
+  } else {
+    path.lineTo_({ x: x + w, y: y + h });
+  }
+  path.lineTo_({ x: x + w, y: y + br });
+  if (br > 0) {
+    path.appendBezierPathWithArcWithCenter_radius_startAngle_endAngle_({ x: x + w - br, y: y + br }, br, 0, -90);
+  }
+  path.lineTo_({ x: x + bl, y: y });
+  if (bl > 0) {
+    path.appendBezierPathWithArcWithCenter_radius_startAngle_endAngle_({ x: x + bl, y: y + bl }, bl, -90, -180);
+  }
+  path.lineTo_({ x: x, y: y + h - tl });
+  if (tl > 0) {
+    path.appendBezierPathWithArcWithCenter_radius_startAngle_endAngle_({ x: x + tl, y: y + h - tl }, tl, 180, 90);
+  }
+  path.closePath();
+  return path;
 }
 
 export class View {
@@ -99,8 +147,7 @@ export class View {
     if (o.id !== undefined) this.native.setIdentifier_(o.id);
     if (o.alpha !== undefined) this.native.setAlphaValue_(o.alpha);
     if (o.cornerRadius !== undefined || o.borderRadius !== undefined) {
-      this.native.setWantsLayer_(true);
-      this.native.layer().setCornerRadius_(o.cornerRadius ?? o.borderRadius!);
+      this.applyCorners(o.cornerRadius ?? o.borderRadius!);
     }
     if (o.background !== undefined) this.setBackground(o.background);
     else if (o.backgroundColor !== undefined) this.setBackground(o.backgroundColor);
@@ -280,7 +327,7 @@ export class View {
   /** Draw a border in `color` with an optional corner radius and style.
    *  "dashed"/"dotted" swap the layer border for a stroked CAShapeLayer that
    *  follows the view's frame. */
-  setBorder(color: any, width = 1, radius = 0, style: "solid" | "dashed" | "dotted" = "solid"): this {
+  setBorder(color: any, width = 1, radius: CornerRadiusSpec | number = 0, style: "solid" | "dashed" | "dotted" = "solid"): this {
     this.native.setWantsLayer_(true);
     const layer = this.native.layer();
     const nsColor = toNSColor(color);
@@ -288,7 +335,7 @@ export class View {
     if (style === "solid") {
       if (nsColor) layer.setBorderColor_(nsColor.send("CGColor"));
       layer.setBorderWidth_(width);
-      if (radius) layer.setCornerRadius_(radius);
+      if (radius !== 0) this.applyCorners(radius);
       return this;
     }
     // Dashed/dotted: CALayer borders cannot stroke a pattern, so a shape
@@ -301,17 +348,42 @@ export class View {
     shape.setFillColor_(null);
     const unit = Math.max(1, width);
     shape.setLineDashPattern_(style === "dashed" ? [unit * 4, unit * 3] : [unit, unit * 3]);
+    const [rtl, rtr, rbr, rbl] = normalizeCorners(radius as CornerRadiusSpec);
     const rebuild = () => {
       const bounds = this.native.bounds();
-      shape.setPath_(
-        objc.NSBezierPath.bezierPathWithRoundedRect_xRadius_yRadius_(
-          bounds, radius, radius,
-        ).cgPath(),
-      );
+      shape.setPath_(roundedBezier(bounds, rtl, rtr, rbr, rbl));
     };
     rebuild();
     layer.addSublayer_(shape);
     this.#dash = shape;
+    this.native.setPostsFrameChangedNotification_(true);
+    const block = createBlock("v@?@@", () => rebuild());
+    this.retainJS(block);
+    this.retainJS(objc.NSNotificationCenter.defaultCenter()
+      .addObserverForName_object_queue_usingBlock_(
+        "NSViewFrameDidChangeNotification", this.native, null, block));
+    return this;
+  }
+
+  /** Corner radii on the backing layer. Uniform is a plain cornerRadius;
+   *  per-corner needs a bezier path mask (CACornerMask covers rounding but
+   *  not differing radii, so the path is the general answer). */
+  applyCorners(spec: CornerRadiusSpec): this {
+    this.native.setWantsLayer_(true);
+    const layer = this.native.layer();
+    const [tl, tr, br, bl] = normalizeCorners(spec);
+    if (tl === tr && tr === br && br === bl) {
+      layer.setCornerRadius_(tl);
+      layer.setMask_(null);
+      return this;
+    }
+    const rebuild = () => {
+      const bounds = this.native.bounds();
+      layer.setMask_(objc.CAShapeLayer.layer());
+      layer.mask().setPath_(roundedBezier(bounds, tl, tr, br, bl));
+      layer.setCornerRadius_(0);
+    };
+    rebuild();
     this.native.setPostsFrameChangedNotification_(true);
     const block = createBlock("v@?@@", () => rebuild());
     this.retainJS(block);

@@ -3,13 +3,13 @@
 //   bun run examples/hello.ts
 
 import {
-  Application,
-  Button,
-  HStack,
-  Label,
-  TextField,
-  VStack,
-  Window,
+    Application,
+    Button,
+    HStack,
+    Label,
+    TextField,
+    VStack,
+    Window,
 } from "bunkit";
 
 const app = new Application({ name: "Hello" });
@@ -23,12 +23,12 @@ const greet = () => {
 
 new Window({
   title: "Hello",
-  size: { width: 380, height: 160 },
+  size: { width: 380, height: 260 },
   content: new VStack({ spacing: 14, padding: 20 }, [
     new Label({ text: "Greeter", font: { style: "title", weight: "semibold" } }),
     new HStack({ spacing: 8 }, [
       name,
-      new Button({ title: "Greet", primary: true, onClick: greet }),
+      new Button({ title: "Greet", onClick: greet, background: "#2D7DD2", cornerRadius: 4, bordered: true, border: 8, borderColor: "#4d1f1f", borderWidth: 2 }),
     ]),
     greeting,
   ]),

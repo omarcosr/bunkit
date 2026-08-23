@@ -364,17 +364,21 @@ BK_EXPORT int32_t bk_control_set_tooltip(bk_handle c, const char* text,
 BK_EXPORT int32_t bk_control_set_alpha(bk_handle c, double alpha);
 BK_EXPORT int32_t bk_control_set_background(bk_handle c, const char* hex,
                                             uint32_t hex_len);
-BK_EXPORT int32_t bk_control_set_corner_radius(bk_handle c, double radius);
+// tl/tr/br/bl: per-corner radii; pass one value four times for uniform.
+BK_EXPORT int32_t bk_control_set_corner_radius4(bk_handle c, double tl,
+                                                double tr, double br,
+                                                double bl);
 // hex as in set_background; width/radius <= 0 leaves them unchanged.
 BK_EXPORT int32_t bk_control_set_border(bk_handle c, const char* hex,
                                         uint32_t hex_len, double width,
-                                        double radius);
+                                        const double* radii);
 // style: 1 dashed, 2 dotted. Border-wrapper views (Container, stacks, Table,
 // GroupBox shells) draw the pattern with a Rectangle overlay; plain Controls
 // have no stroke-pattern support and fall back to solid.
 BK_EXPORT int32_t bk_control_set_border_style(bk_handle c, const char* hex,
                                               uint32_t hex_len, double width,
-                                              double radius, int32_t style);
+                                              const double* radii,
+                                              int32_t style);
 
 // --- input ---------------------------------------------------------------------
 // Global mouse state in screen coordinates; buttons bit 0 = left, 1 = right,

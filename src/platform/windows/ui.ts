@@ -20,6 +20,25 @@ function tolerantProxy(label: string, known: Record<string, any> = {}): any {
   });
 }
 
+/** A corner-radius spec: one number for all four corners, [tl, tr, br, bl],
+ *  or per-corner by name (CSS border-radius vocabulary). */
+export type CornerRadiusSpec =
+  | number
+  | [number, number, number, number]
+  | { topLeft?: number; topRight?: number; bottomRight?: number; bottomLeft?: number };
+
+export function normalizeCorners(spec: CornerRadiusSpec | undefined, fallback = 0): [number, number, number, number] {
+  if (spec === undefined) return [fallback, fallback, fallback, fallback];
+  if (typeof spec === "number") return [spec, spec, spec, spec];
+  if (Array.isArray(spec)) return [spec[0] ?? 0, spec[1] ?? 0, spec[2] ?? 0, spec[3] ?? 0];
+  return [
+    spec.topLeft ?? 0,
+    spec.topRight ?? 0,
+    spec.bottomRight ?? 0,
+    spec.bottomLeft ?? 0,
+  ];
+}
+
 export interface ViewOptions {
   width?: number;
   height?: number;
@@ -34,9 +53,11 @@ export interface ViewOptions {
   background?: any;
   /** CSS-style alias for `background`. */
   backgroundColor?: any;
-  cornerRadius?: number;
+  /** Corner radius — same as `borderRadius`. One number, [tl,tr,br,bl], or
+   *  per-corner names (CSS border-radius vocabulary). */
+  cornerRadius?: CornerRadiusSpec;
   /** Alias for `cornerRadius`. */
-  borderRadius?: number;
+  borderRadius?: CornerRadiusSpec;
   /** Border width in px; `true` means 1. */
   border?: number | boolean;
   borderWidth?: number;
@@ -68,7 +89,8 @@ export class View {
     if (options.tooltip !== undefined) windowsBackend.setControlTooltip(handle, options.tooltip);
     if (options.alpha !== undefined) windowsBackend.setControlAlpha(handle, options.alpha);
     if (options.cornerRadius !== undefined || options.borderRadius !== undefined) {
-      windowsBackend.setControlCornerRadius(handle, options.cornerRadius ?? options.borderRadius!);
+      const [tl, tr, br, bl] = normalizeCorners(options.cornerRadius ?? options.borderRadius);
+      windowsBackend.setControlCornerRadius(handle, tl, tr, br, bl);
     }
     if (options.background !== undefined && typeof options.background === "string") {
       windowsBackend.setControlBackground(handle, options.background);
@@ -82,10 +104,12 @@ export class View {
       options.border !== undefined ? (options.border === true ? 1 : options.border as number)
       : options.borderWidth;
     if (borderWidth !== undefined || options.borderColor !== undefined || options.borderStyle !== undefined) {
+      const corners = normalizeCorners(
+        (options.borderRadius ?? options.cornerRadius) as CornerRadiusSpec | undefined);
       this.setBorder(
         options.borderColor ?? "#C6C6C8",
         borderWidth ?? 1,
-        (options.borderRadius ?? options.cornerRadius) ?? 0,
+        corners,
         options.borderStyle ?? "solid",
       );
     }
@@ -112,16 +136,18 @@ export class View {
     return this;
   }
 
-  /** Border colour (hex string), width in px, optional corner radius and
-   *  style. dashed/dotted draw with a pattern overlay on Border-based views
-   *  and fall back to solid on plain Controls. */
-  setBorder(color: any, width = 1, radius = 0, style: "solid" | "dashed" | "dotted" = "solid"): this {
+  /** Border colour (hex string), width in px, optional corner radius (one
+   *  number or per-corner — see CornerRadiusSpec) and style.
+   *  dashed/dotted draw with a pattern overlay on Border-based views and
+   *  fall back to solid on plain Controls. */
+  setBorder(color: any, width = 1, radius: CornerRadiusSpec | number = 0, style: "solid" | "dashed" | "dotted" = "solid"): this {
     if (typeof color === "string") {
+      const [tl, tr, br, bl] = normalizeCorners(radius as CornerRadiusSpec);
       if (style === "solid") {
-        windowsBackend.setControlBorder(this.handle, color, width, radius);
+        windowsBackend.setControlBorder(this.handle, color, width, tl, tr, br, bl);
       } else {
         const code = style === "dotted" ? 2 : 1;
-        windowsBackend.setControlBorderStyle(this.handle, color, width, radius, code);
+        windowsBackend.setControlBorderStyle(this.handle, color, width, tl, tr, br, bl, code);
       }
     }
     return this;

@@ -218,10 +218,18 @@ bun test/win/parity2.ts       # views, advanced table, input, snapshot, debug
 
 - Styling works on every control — `Label` and `ImageView` render inside a
   Border shell, so `background`/`border`/`cornerRadius` apply to them too.
-  CSS-style options (`backgroundColor`, `border`, `borderWidth`,
+  `cornerRadius` and `borderRadius` are aliases of the same thing. Both accept
+  one number, `[tl, tr, br, bl]`, or per-corner names
+  (`{ topLeft, topRight, bottomRight, bottomLeft }` — CSS border-radius
+  vocabulary). CSS-style options (`backgroundColor`, `border`, `borderWidth`,
   `borderColor`, `borderRadius`, `borderStyle`) mirror the macOS layer API;
   `borderStyle: "dashed" | "dotted"` draws with a pattern overlay on
-  Border-based views and falls back to solid on plain Controls.
+  Border-based views and falls back to solid on plain Controls (the overlay
+  rounds uniformly with the largest requested radius).
+- bun:ffi corrupts the last `f64` in 8-argument win64 signatures, so the
+  four corner radii cross the ABI as a `double[4]` buffer rather than four
+  trailing doubles. Keep new exports under 7 arguments, or pack extras into
+  a pointer.
 - `Stack.remove` drops the child and its row/column definition (a grid
   rebuild under the hood — heavy churn is O(n) per call, not incremental).
   `ImageView.src` swaps the bitmap in place.

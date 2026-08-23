@@ -23,7 +23,8 @@ import {
     Window,
     beep,
     describeViewTree,
-    input, popUpMenu, saveFile, setClipboardText, getClipboardText,
+    getClipboardText,
+    input, popUpMenu, saveFile, setClipboardText,
     snapshotView,
 } from "bunkit";
 import { writeFileSync } from "node:fs";
@@ -206,7 +207,7 @@ const styledControls = new GroupBox({ title: "Styled controls", padding: 10, spa
   }),
 ]);
 
-const detail = new ScrollView({ border: true }, new VStack({ spacing: 12, padding: 12 }, [
+const detail = new ScrollView({ border: false }, new VStack({ spacing: 12, padding: 12 }, [
   new HStack({ spacing: 12, align: "center" }, [
     new ImageView({ src: covers[0]!, width: 96, height: 96 }),
     new VStack({ spacing: 6 }, [
@@ -230,7 +231,7 @@ const mode = new Segmented({
 });
 
 const sidebar = new BlurView({
-  background: "#ff00ff",
+  background: "#2D7DD2",
   border: true,
   borderColor: "#0000ff",
   borderRadius: 8,

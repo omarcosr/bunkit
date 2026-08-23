@@ -13,6 +13,7 @@
 #include <winrt/Microsoft.UI.Xaml.Media.Imaging.h>
 #include <winrt/Windows.Foundation.Collections.h>
 
+#include <algorithm>
 #include <cmath>
 #include <cstdlib>
 #include <string>
@@ -457,10 +458,16 @@ BK_EXPORT int32_t bk_control_set_background(bk_handle c, const char* hex,
   return combine(rc, st);
 }
 
+// radii: double[4] {tl, tr, br, bl}. A pointer instead of four trailing
+// doubles: bun:ffi corrupts the last f64 in 8-argument signatures on win64.
+// CornerRadius is a plain aggregate — CornerRadius(r) would zero three of
+// the four corners, so every field is always set explicitly.
 BK_EXPORT int32_t bk_control_set_border(bk_handle c, const char* hex,
                                         uint32_t hex_len, double width,
-                                        double radius) {
+                                        const double* radii) {
   if (require_running() != BK_OK) return BK_NOT_INITIALIZED;
+  if (radii == nullptr) return BK_INVALID_ARGUMENT;
+  const double tl = radii[0], tr = radii[1], br = radii[2], bl = radii[3];
   const std::string s = hex && hex_len ? std::string(hex, hex_len) : "";
   int32_t st = BK_ERROR;
   const int32_t rc = bk::Runtime::instance().dispatch_sync([&] {
@@ -488,11 +495,12 @@ BK_EXPORT int32_t bk_control_set_border(bk_handle c, const char* hex,
       color.B = value & 0xFF;
     }
     const Media::SolidColorBrush brush(color);
+    const CornerRadius radius{tl, tr, br, bl};
     try {
       auto control = element.as<cx::Control>();
       control.BorderBrush(brush);
       if (width > 0) control.BorderThickness(Thickness(width));
-      if (radius > 0) control.CornerRadius(CornerRadius(radius));
+      control.CornerRadius(radius);
       st = BK_OK;
       return;
     } catch (...) {
@@ -501,7 +509,7 @@ BK_EXPORT int32_t bk_control_set_border(bk_handle c, const char* hex,
       auto border = element.as<cx::Border>();
       border.BorderBrush(brush);
       if (width > 0) border.BorderThickness(Thickness(width));
-      if (radius > 0) border.CornerRadius(CornerRadius(radius));
+      border.CornerRadius(radius);
       st = BK_OK;
     } catch (...) {
       st = BK_WRONG_TYPE;
@@ -515,8 +523,11 @@ BK_EXPORT int32_t bk_control_set_border(bk_handle c, const char* hex,
 // plain Controls have no equivalent and fall back to solid.
 BK_EXPORT int32_t bk_control_set_border_style(bk_handle c, const char* hex,
                                               uint32_t hex_len, double width,
-                                              double radius, int32_t style) {
+                                              const double* radii,
+                                              int32_t style) {
   if (require_running() != BK_OK) return BK_NOT_INITIALIZED;
+  if (radii == nullptr) return BK_INVALID_ARGUMENT;
+  const double tl = radii[0], tr = radii[1], br = radii[2], bl = radii[3];
   const std::string s = hex && hex_len ? std::string(hex, hex_len) : "";
   int32_t st = BK_ERROR;
   const int32_t rc = bk::Runtime::instance().dispatch_sync([&] {
@@ -568,6 +579,9 @@ BK_EXPORT int32_t bk_control_set_border_style(bk_handle c, const char* hex,
       shp::Rectangle overlay;
       overlay.StrokeThickness(w);
       overlay.Stroke(Media::SolidColorBrush(color));
+      // A Rectangle only has uniform RadiusX/Y, so a per-corner pattern
+      // overlay rounds with the largest requested value.
+      const double radius = std::max(std::max(tl, tr), std::max(br, bl));
       if (radius > 0) {
         overlay.RadiusX(radius);
         overlay.RadiusY(radius);
@@ -582,24 +596,30 @@ BK_EXPORT int32_t bk_control_set_border_style(bk_handle c, const char* hex,
       st = BK_OK;
     } catch (...) {
       // Not a Border: solid is the only honest fallback.
-      st = bk_control_set_border(c, hex, hex_len, width, radius);
+      st = bk_control_set_border(c, hex, hex_len, width, radii);
     }
   });
   return combine(rc, st);
 }
 
-BK_EXPORT int32_t bk_control_set_corner_radius(bk_handle c, double radius) {
+// tl/tr/br/bl: per-corner radii; pass the same value four times for uniform.
+// CornerRadius is a plain aggregate — CornerRadius(r) would zero three of the
+// four corners, so every field is always set explicitly.
+BK_EXPORT int32_t bk_control_set_corner_radius4(bk_handle c, double tl,
+                                                double tr, double br,
+                                                double bl) {
   if (require_running() != BK_OK) return BK_NOT_INITIALIZED;
   int32_t st = BK_ERROR;
   const int32_t rc = bk::Runtime::instance().dispatch_sync([&] {
     auto element = element_of(c);
     if (!element) { st = BK_INVALID_HANDLE; return; }
+    const CornerRadius radius{tl, tr, br, bl};
     try {
-      element.as<cx::Control>().CornerRadius(CornerRadius(radius));
+      element.as<cx::Control>().CornerRadius(radius);
       st = BK_OK;
     } catch (...) {
       try {
-        element.as<cx::Border>().CornerRadius(CornerRadius(radius));
+        element.as<cx::Border>().CornerRadius(radius);
         st = BK_OK;
       } catch (...) {
         st = BK_WRONG_TYPE;

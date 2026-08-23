@@ -586,9 +586,25 @@ export class WindowsBackend {
   setControlTooltip(h: NativeHandle, text: string): void { const b = cstr(text); winLib.bk_control_set_tooltip(h, b as any, b.length); }
   setControlAlpha(h: NativeHandle, alpha: number): void { winLib.bk_control_set_alpha(h, alpha); }
   setControlBackground(h: NativeHandle, hex: string): void { const b = cstr(hex); winLib.bk_control_set_background(h, b as any, b.length); }
-  setControlCornerRadius(h: NativeHandle, radius: number): void { winLib.bk_control_set_corner_radius(h, radius); }
-  setControlBorder(h: NativeHandle, hex: string, width: number, radius: number): void { const b = cstr(hex); winLib.bk_control_set_border(h, b as any, b.length, width, radius); }
-  setControlBorderStyle(h: NativeHandle, hex: string, width: number, radius: number, style: number): void { const b = cstr(hex); winLib.bk_control_set_border_style(h, b as any, b.length, width, radius, style); }
+  setControlCornerRadius(h: NativeHandle, tl: number, tr: number, br: number, bl: number): void { winLib.bk_control_set_corner_radius4(h, tl, tr, br, bl); }
+  // radii cross as a double[4] buffer — bun:ffi corrupts trailing f64s in
+  // 8-argument win64 signatures (documented in WINDOWS.md).
+  private radiiBuf(tl: number, tr: number, br: number, bl: number): Buffer {
+    const b = Buffer.alloc(32);
+    b.writeDoubleLE(tl, 0);
+    b.writeDoubleLE(tr, 8);
+    b.writeDoubleLE(br, 16);
+    b.writeDoubleLE(bl, 24);
+    return b;
+  }
+  setControlBorder(h: NativeHandle, hex: string, width: number, tl: number, tr: number, br: number, bl: number): void {
+    const b = cstr(hex);
+    winLib.bk_control_set_border(h, b as any, b.length, width, this.radiiBuf(tl, tr, br, bl) as any);
+  }
+  setControlBorderStyle(h: NativeHandle, hex: string, width: number, tl: number, tr: number, br: number, bl: number, style: number): void {
+    const b = cstr(hex);
+    winLib.bk_control_set_border_style(h, b as any, b.length, width, this.radiiBuf(tl, tr, br, bl) as any, style);
+  }
 
   // --- input ------------------------------------------------------------------------
 
