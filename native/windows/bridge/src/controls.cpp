@@ -840,6 +840,38 @@ BK_EXPORT int32_t bk_textbox_set_submit_callback(bk_handle tb, uint64_t cb) {
   return combine(rc, st);
 }
 
+// Test hook: queue EVT_TEXT_SUBMIT with the current value, the same event the
+// real Enter KeyDown handler produces. Lets tests exercise the whole JS path
+// (registry -> event queue -> dispatch) without synthesizing keyboard input.
+BK_EXPORT int32_t bk_textbox_simulate_enter(bk_handle tb) {
+  if (require_running() != BK_OK) return BK_NOT_INITIALIZED;
+  int32_t st = BK_ERROR;
+  const int32_t rc = bk::Runtime::instance().dispatch_sync([&] {
+    auto* entry = bk::registry().get(tb);
+    if (!entry || (entry->type != bk::NativeType::TextBox &&
+                   entry->type != bk::NativeType::SecureTextBox)) {
+      st = BK_INVALID_HANDLE;
+      return;
+    }
+    if (entry->cb2 == 0) {
+      st = BK_OK;
+      return;
+    }
+    bk::Event ev;
+    ev.header.type = BK_EVT_TEXT_SUBMIT;
+    ev.header.target = tb;
+    ev.header.callback = entry->cb2;
+    if (entry->type == bk::NativeType::SecureTextBox) {
+      ev.payload = bk::hstring_to_utf8(entry->object.as<cx::PasswordBox>().Password());
+    } else {
+      ev.payload = bk::hstring_to_utf8(entry->object.as<cx::TextBox>().Text());
+    }
+    bk::event_queue().push(std::move(ev));
+    st = BK_OK;
+  });
+  return combine(rc, st);
+}
+
 BK_EXPORT int32_t bk_textarea_set_readonly(bk_handle t, int32_t readonly) {
   if (require_running() != BK_OK) return BK_NOT_INITIALIZED;
   int32_t st = BK_ERROR;

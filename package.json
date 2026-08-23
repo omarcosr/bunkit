@@ -44,7 +44,8 @@
     "./runtime": "./src/runtime.ts",
     "./structs": "./src/structs.ts",
     "./types": "./src/generated/appkit.d.ts",
-    "./metal": "./src/metal/index.ts"
+    "./metal": "./src/metal/index.ts",
+    "./jsx-runtime": "./src/jsx-runtime.tsx"
   },
   "scripts": {
     "build": "./native/build.sh",
@@ -53,6 +54,7 @@
     "tour": "bun run examples/tour.ts",
     "demo": "bun run examples/demo.ts",
     "gallery": "bun run examples/gallery.ts",
+    "jsx-gallery": "bun run examples/jsx-gallery.tsx",
     "scene": "bun run examples/scene3d.ts",
     "rig": "bun run examples/lighting-rig.ts",
     "playground": "bun run examples/shader-playground.ts",

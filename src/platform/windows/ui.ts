@@ -439,7 +439,7 @@ export class Button extends View {
 
 export class TextField extends View {
   secure: boolean;
-  constructor(opts: { value?: string; placeholder?: string; secure?: boolean; textColor?: string; placeholderColor?: string; onChange?: (v: string) => void; onSubmit?: () => void } & ViewOptions = {}) {
+  constructor(opts: { value?: string; placeholder?: string; secure?: boolean; textColor?: string; placeholderColor?: string; onChange?: (v: string) => void; onSubmit?: (v: string) => void } & ViewOptions = {}) {
     super(windowsBackend.createTextField({ value: opts.value, placeholder: opts.placeholder, secure: opts.secure, onChange: opts.onChange }), opts);
     this.secure = !!opts.secure;
     if (opts.textColor !== undefined || opts.placeholderColor !== undefined) {
@@ -450,7 +450,7 @@ export class TextField extends View {
   get value(): string { return windowsBackend.getTextFieldValue(this.handle); }
   set value(v: string) { windowsBackend.setTextFieldValue(this.handle, v ?? ""); }
   onChange(fn: (v: string) => void): this { windowsBackend.setTextFieldChangeCallback(this.handle, fn); return this; }
-  onSubmit(fn: () => void): this {
+  onSubmit(fn: (v: string) => void): this {
     if (this.secure) windowsBackend.setPasswordSubmitCallback(this.handle, fn);
     else windowsBackend.setTextFieldSubmitCallback(this.handle, fn);
     return this;

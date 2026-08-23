@@ -145,6 +145,7 @@ function getLib(): any {
   bk_button_create_ex: { args: ["ptr", "u32", "i32", "i32", "ptr", "u32"], returns: "u64" },
   bk_label_create_ex: { args: ["ptr", "u32", "ptr", "u32", "f64", "i32", "i32", "f64", "f64"], returns: "u64" },
   bk_textbox_set_submit_callback: { args: ["u64", "u64"], returns: "i32" },
+  bk_textbox_simulate_enter: { args: ["u64"], returns: "i32" },
   bk_textarea_set_readonly: { args: ["u64", "i32"], returns: "i32" },
   bk_textarea_set_font: { args: ["u64", "i32", "f64"], returns: "i32" },
   bk_window_set_min_size: { args: ["u64", "f64", "f64"], returns: "i32" },

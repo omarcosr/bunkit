@@ -473,11 +473,11 @@ export class WindowsBackend {
     winLib.bk_textarea_set_foreground(h, b as any, b.length);
   }
 
-  setTextFieldSubmitCallback(h: NativeHandle, cb: (() => void) | null): void {
+  setTextFieldSubmitCallback(h: NativeHandle, cb: ((v: string) => void) | null): void {
     const prev = submitCbMap.get(h);
     if (prev) { callbacks.unregister(prev); submitCbMap.delete(h); }
     if (cb) {
-      const id = callbacks.register(() => cb());
+      const id = callbacks.register((v: string) => cb(v));
       submitCbMap.set(h, id);
       winLib.bk_textbox_set_submit_callback(h, id);
     } else winLib.bk_textbox_set_submit_callback(h, 0n);
@@ -720,11 +720,11 @@ export class WindowsBackend {
 
   // --- password submit ----------------------------------------------------------------------
 
-  setPasswordSubmitCallback(h: NativeHandle, cb: (() => void) | null): void {
+  setPasswordSubmitCallback(h: NativeHandle, cb: ((v: string) => void) | null): void {
     const prev = submitCbMap.get(h);
     if (prev) { callbacks.unregister(prev); submitCbMap.delete(h); }
     if (cb) {
-      const id = callbacks.register(() => cb());
+      const id = callbacks.register((v: string) => cb(v));
       submitCbMap.set(h, id);
       winLib.bk_passwordbox_set_submit_callback(h, id);
     } else winLib.bk_passwordbox_set_submit_callback(h, 0n);

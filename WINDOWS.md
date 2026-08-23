@@ -82,7 +82,36 @@ bun run examples/hello.ts   # smallest useful app
 bun run examples/tour.ts    # Table, GroupBox, dialogs, menu, objc hatch
 bun run examples/demo.ts    # full showcase: Segmented, alert/prompt, openFile…
 bun run examples/gallery.ts # second tour: SplitView, ImageView, Input, snapshot…
+bun run examples/jsx-gallery.tsx # the same gallery written declaratively in JSX
 ```
+
+### JSX
+
+The library ships its own automatic JSX runtime (no React — `bun run`
+compiles `.tsx` directly). Configure it once in `tsconfig.json`:
+
+```jsonc
+"compilerOptions": {
+  "jsx": "react-jsx",
+  "jsxImportSource": "bunkit"
+}
+```
+
+Tag names are lowercase and map 1:1 onto the constructors — `<window>`,
+`<vstack>/<hstack>/<stack>`, `<label>`, `<button>`, `<textfield>`,
+`<checkbox>`, `<switch>`, `<slider>`, `<select>`, `<segmented>`,
+`<textarea>`, `<progress>`, `<groupbox>`, `<scrollview>`, `<splitview>`,
+`<container>`, `<imageview>`, `<blurview>`, `<spacer>`, `<separator>`.
+Props go straight to the constructor options, so the event props are exactly
+the option names (`onClick`, `onChange`, `onSubmit`…). Props are checked
+against the real option types — a typo, a wrong value type (`<label
+text={123} />`), a prop the tag doesn't take (`<scrollview padding={8} />`),
+or children on a leaf tag (`<label>text</label>`) all fail `tsc`. Bare text
+between tags is dropped — put text in `text`/`title`/`placeholder` props.
+Function types are custom components (plain functions returning more JSX);
+the only imports you need are `Application` (and helpers like `setTheme`)
+from `"bunkit"`. `src/jsx-runtime.tsx` is the reference. The same file runs
+on macOS and Windows.
 
 The Windows backend implements the same control set the examples use:
 `GroupBox` (bordered panel + header), `Segmented` (SelectorBar), `Table`

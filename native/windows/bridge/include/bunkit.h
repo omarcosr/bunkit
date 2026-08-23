@@ -177,6 +177,9 @@ BK_EXPORT int32_t bk_textbox_copy_value(bk_handle tb, char* buffer,
 // real edit path (bk_textbox_set_text is echo-suppressed by design).
 BK_EXPORT int32_t bk_textbox_insert_text(bk_handle tb, const char* text,
                                           uint32_t text_len);
+// Test hook: synthesises an Enter KeyDown on the textbox, exactly like the
+// input path would, and queues EVT_TEXT_SUBMIT with the current value.
+BK_EXPORT int32_t bk_textbox_simulate_enter(bk_handle tb);
 
 // --- checkbox / switch ------------------------------------------------------
 BK_EXPORT bk_handle bk_checkbox_create(const char* title, uint32_t title_len,
