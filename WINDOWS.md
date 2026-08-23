@@ -103,7 +103,10 @@ that theme without flashing; `setTheme("light" | "dark" | "default",
 repaints the page background — pass `{ background: "#14141F" }` to choose
 the colour used for that mode), and the styling
 options (`Button.primary/destructive/symbol`, `Label.color/font/align`,
-`TextField.onSubmit` including secure fields, `Window.minSize`).
+`TextField.onSubmit` including secure fields, `Window.minSize`,
+`TextField.textColor`/`placeholderColor` and `TextArea.textColor` as hex —
+secure fields take the text colour only, the placeholder keeps the theme
+colour).
 
 The run loop is event-driven: `bk_event_wait` blocks the Bun thread on a
 condition variable until a native event arrives (or 15 ms pass), so an idle

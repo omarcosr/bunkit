@@ -439,9 +439,12 @@ export class Button extends View {
 
 export class TextField extends View {
   secure: boolean;
-  constructor(opts: { value?: string; placeholder?: string; secure?: boolean; onChange?: (v: string) => void; onSubmit?: () => void } & ViewOptions = {}) {
+  constructor(opts: { value?: string; placeholder?: string; secure?: boolean; textColor?: string; placeholderColor?: string; onChange?: (v: string) => void; onSubmit?: () => void } & ViewOptions = {}) {
     super(windowsBackend.createTextField({ value: opts.value, placeholder: opts.placeholder, secure: opts.secure, onChange: opts.onChange }), opts);
     this.secure = !!opts.secure;
+    if (opts.textColor !== undefined || opts.placeholderColor !== undefined) {
+      windowsBackend.setTextFieldColors(this.handle, opts.textColor, opts.placeholderColor);
+    }
     if (opts.onSubmit) this.onSubmit(opts.onSubmit);
   }
   get value(): string { return windowsBackend.getTextFieldValue(this.handle); }
@@ -503,11 +506,12 @@ export class Segmented extends View {
 }
 
 export class TextArea extends View {
-  constructor(opts: { value?: string; editable?: boolean; richText?: boolean; font?: any; onChange?: (value: string) => void } & ViewOptions = {}) {
+  constructor(opts: { value?: string; editable?: boolean; richText?: boolean; font?: any; textColor?: string; onChange?: (value: string) => void } & ViewOptions = {}) {
     super(windowsBackend.createTextAreaEx(!!opts.richText), opts);
     if (opts.value !== undefined) this.value = opts.value;
     if (opts.editable === false) windowsBackend.setTextAreaReadOnly(this.handle, true);
     if (opts.font) windowsBackend.setTextAreaFont(this.handle, !!opts.font.monospace, opts.font.size ?? 0);
+    if (opts.textColor !== undefined) windowsBackend.setTextAreaForeground(this.handle, opts.textColor);
     if (opts.onChange) windowsBackend.setTextAreaCallback(this.handle, opts.onChange);
   }
   get value(): string { return windowsBackend.getTextAreaValue(this.handle); }

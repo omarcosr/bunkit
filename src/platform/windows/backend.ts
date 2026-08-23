@@ -461,6 +461,18 @@ export class WindowsBackend {
     winLib.bk_table_set_callbacks(h, id1, id2);
   }
 
+  setTextFieldColors(h: NativeHandle, textColor?: string, placeholderColor?: string): void {
+    const t = textColor ? cstr(textColor) : null;
+    const p = placeholderColor ? cstr(placeholderColor) : null;
+    winLib.bk_textbox_set_colors(h, t ? (t as any) : 0, t ? t.length : 0, p ? (p as any) : 0, p ? p.length : 0);
+  }
+
+  setTextAreaForeground(h: NativeHandle, color?: string): void {
+    if (!color) return;
+    const b = cstr(color);
+    winLib.bk_textarea_set_foreground(h, b as any, b.length);
+  }
+
   setTextFieldSubmitCallback(h: NativeHandle, cb: (() => void) | null): void {
     const prev = submitCbMap.get(h);
     if (prev) { callbacks.unregister(prev); submitCbMap.delete(h); }

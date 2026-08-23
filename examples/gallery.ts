@@ -206,6 +206,7 @@ const styledControls = new GroupBox({ title: "Styled controls", padding: 10, spa
     new TextField({
       placeholder: "tinted field", background: "#fdcc05",
       cornerRadius: 8, grow: 1,
+      textColor: "#143C8C", placeholderColor: "#7A2E00",
     }),
     new Select({
       items: ["Alpha", "Beta"], background: "#FDE2E2",
@@ -214,7 +215,7 @@ const styledControls = new GroupBox({ title: "Styled controls", padding: 10, spa
   ]),
   new ScrollView(
     { background: "#E2F3E8", cornerRadius: 10, height: 56, border: true },
-    new Label({ text: "a tinted, rounded, bordered scroll view", font: { size: 11 } }),
+    new Label({ text: "a tinted, rounded, bordered scroll view", font: { size: 11 }, color: "#1F3B4D", align: "center" }),
   ),
   new TextArea({
     value: "…and a tinted text area.", background: "#E8F0FE",

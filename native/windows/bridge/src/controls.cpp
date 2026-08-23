@@ -566,6 +566,70 @@ BK_EXPORT int32_t bk_control_get_size(bk_handle c, double* out_w,
   return combine(rc, st);
 }
 
+// --- text colours -----------------------------------------------------------------
+
+namespace {
+
+bool parse_hex_color(const std::string& raw, winrt::Windows::UI::Color& out) {
+  try {
+    const std::string digits = (!raw.empty() && raw[0] == '#') ? raw.substr(1) : raw;
+    const auto value = static_cast<uint32_t>(std::stoul(digits, nullptr, 16));
+    out.A = 255;
+    if (digits.size() > 6) { // #AARRGGBB
+      out.A = static_cast<uint8_t>((value >> 24) & 0xFF);
+      out.R = static_cast<uint8_t>((value >> 16) & 0xFF);
+    } else {
+      out.R = static_cast<uint8_t>((value >> 16) & 0xFF);
+    }
+    out.G = static_cast<uint8_t>((value >> 8) & 0xFF);
+    out.B = static_cast<uint8_t>(value & 0xFF);
+    return true;
+  } catch (...) {
+    return false;
+  }
+}
+
+} // namespace
+
+// textColor/placeholderColor as hex; pass an empty string to leave a colour
+// unchanged. PasswordBoxes take the text colour only (no PlaceholderForeground
+// on the secure template).
+BK_EXPORT int32_t bk_textbox_set_colors(bk_handle tb, const char* text_hex,
+                                        uint32_t text_len,
+                                        const char* ph_hex,
+                                        uint32_t ph_len) {
+  if (require_running() != BK_OK) return BK_NOT_INITIALIZED;
+  const std::string t = text_hex && text_len ? std::string(text_hex, text_len) : "";
+  const std::string p = ph_hex && ph_len ? std::string(ph_hex, ph_len) : "";
+  int32_t st = BK_ERROR;
+  const int32_t rc = bk::Runtime::instance().dispatch_sync([&] {
+    auto* entry = bk::registry().get(tb);
+    if (!entry || (entry->type != bk::NativeType::TextBox &&
+                   entry->type != bk::NativeType::SecureTextBox)) {
+      st = BK_INVALID_HANDLE;
+      return;
+    }
+    winrt::Windows::UI::Color color{};
+    if (!t.empty()) {
+      if (!parse_hex_color(t, color)) { st = BK_INVALID_ARGUMENT; return; }
+      try {
+        entry->object.as<cx::Control>().Foreground(
+            Media::SolidColorBrush(color));
+      } catch (...) {
+        st = BK_WRONG_TYPE;
+        return;
+      }
+    }
+    if (!p.empty() && entry->type == bk::NativeType::TextBox) {
+      if (!parse_hex_color(p, color)) { st = BK_INVALID_ARGUMENT; return; }
+      entry->object.as<cx::TextBox>().PlaceholderForeground(
+          Media::SolidColorBrush(color));
+    }
+    st = BK_OK;
+  });
+  return combine(rc, st);
+}
+
 // --- option variants (macOS parity) ------------------------------------------
 
 namespace {
@@ -734,6 +798,28 @@ BK_EXPORT int32_t bk_passwordbox_set_submit_callback(bk_handle pb, uint64_t cb) 
       return;
     }
     entry->cb2 = cb;
+    st = BK_OK;
+  });
+  return combine(rc, st);
+}
+
+// Text colour for multiline areas (TextBox-backed TextArea and RichEditBox).
+BK_EXPORT int32_t bk_textarea_set_foreground(bk_handle t, const char* hex,
+                                             uint32_t hex_len) {
+  if (require_running() != BK_OK) return BK_NOT_INITIALIZED;
+  const std::string h = hex && hex_len ? std::string(hex, hex_len) : "";
+  if (h.empty()) return BK_INVALID_ARGUMENT;
+  int32_t st = BK_ERROR;
+  const int32_t rc = bk::Runtime::instance().dispatch_sync([&] {
+    auto* entry = bk::registry().get(t);
+    if (!entry || (entry->type != bk::NativeType::TextArea &&
+                   entry->type != bk::NativeType::RichTextArea)) {
+      st = BK_INVALID_HANDLE;
+      return;
+    }
+    winrt::Windows::UI::Color color{};
+    if (!parse_hex_color(h, color)) { st = BK_INVALID_ARGUMENT; return; }
+    entry->object.as<cx::Control>().Foreground(Media::SolidColorBrush(color));
     st = BK_OK;
   });
   return combine(rc, st);

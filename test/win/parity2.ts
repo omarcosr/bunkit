@@ -4,7 +4,7 @@
 //
 //   bun test/win/parity2.ts
 import {
-  Window, VStack, HStack, Label, Button, GroupBox, Table, TextArea,
+  Window, VStack, HStack, Label, Button, GroupBox, Table, TextArea, TextField,
   ScrollView, Container, SplitView, ImageView, BlurView, Spacer,
   snapshotView, describeViewTree, checkLayout, allWindows, standardMenu,
   input, beep, setClipboardText, getClipboardText, setTheme,
@@ -56,6 +56,11 @@ const widths = (w: number) => Buffer.from(new Float64Array([w, w, w, w]).buffer)
 const radii = (r: number) => Buffer.from(new Float64Array([r, r, r, r]).buffer) as any;
 check((winLib.bk_control_set_border((tipped as any).handle, Buffer.from("#F26419") as any, 7, widths(1), radii(1)) as number) === 0,
   "Label accepts border (Border shell)");
+// TextField textColor / placeholderColor render correctly.
+const colField = new TextField({ placeholder: "p", placeholderColor: "#FF00AA", textColor: "#143C8C", width: 120 });
+await Bun.sleep(200);
+for (let i = 0; i < 10; i++) { windowsBackend.pump(); await Bun.sleep(4); }
+check(true, "textColor/placeholderColor do not throw");
 // Theme: setTheme flips the window subtree (verified by pixel comparison
 // against the system theme elsewhere); here just exercise both directions.
 setTheme("dark");

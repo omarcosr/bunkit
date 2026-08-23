@@ -186,6 +186,8 @@ function getLib(): any {
   bk_table_create_ex: { args: ["ptr", "u32", "f64", "i32", "f64"], returns: "u64" },
   bk_table_selected_count: { args: ["u64"], returns: "u32" },
   bk_table_selected_at: { args: ["u64", "u32"], returns: "i32" },
+  bk_textbox_set_colors: { args: ["u64", "ptr", "u32", "ptr", "u32"], returns: "i32" },
+  bk_textarea_set_foreground: { args: ["u64", "ptr", "u32"], returns: "i32" },
   bk_passwordbox_set_submit_callback: { args: ["u64", "u64"], returns: "i32" },
   bk_textarea_create_ex: { args: ["i32"], returns: "u64" },
   }).symbols as Record<string, (...args: any[]) => any>;

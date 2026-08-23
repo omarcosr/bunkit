@@ -37,15 +37,15 @@ A:\bunkit\native\windows\bridge\src\controls.cpp(152,15): warning C4190: 'label_
       A:\bunkit\native\windows\build\obj\Release\x64\Generated Files\winrt\impl\Microsoft.UI.Xaml.Controls.2.h(3233,35):
       consulte a declaração de 'winrt::Microsoft::UI::Xaml::Controls::TextBlock'
   
-A:\bunkit\native\windows\bridge\src\controls.cpp(584,42): warning C4190: 'resource_brush' tem o vínculo C especificado, mas retorna 'winrt::Microsoft::UI::Xaml::Media::Brush', que é incompatível com C [A:\bunkit\native\windows\bridge\bridge.vcxproj]
+A:\bunkit\native\windows\bridge\src\controls.cpp(648,42): warning C4190: 'resource_brush' tem o vínculo C especificado, mas retorna 'winrt::Microsoft::UI::Xaml::Media::Brush', que é incompatível com C [A:\bunkit\native\windows\bridge\bridge.vcxproj]
       A:\bunkit\native\windows\build\obj\Release\x64\Generated Files\winrt\impl\Microsoft.UI.Xaml.Media.2.h(77,35):
       consulte a declaração de 'winrt::Microsoft::UI::Xaml::Media::Brush'
   
      Criando biblioteca A:\bunkit\native\windows\bridge\..\build\Release\x64\winbridge.lib e objeto A:\bunkit\native\windows\bridge\..\build\Release\x64\winbridge.exp
   Gerando código
-  110 of 7225 functions ( 1.5%) were compiled, the rest were copied from previous compilation.
-    18 functions were new in current compilation
-    197 functions had inline decision re-evaluated but remain unchanged
+  86 of 7266 functions ( 1.2%) were compiled, the rest were copied from previous compilation.
+    45 functions were new in current compilation
+    678 functions had inline decision re-evaluated but remain unchanged
   Finalizada a geração de código
   bridge.vcxproj -> A:\bunkit\native\windows\build\Release\x64\winbridge.dll
 built A:\bunkit\build\winbridge.dll

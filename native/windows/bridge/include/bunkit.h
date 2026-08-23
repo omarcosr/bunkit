@@ -438,6 +438,15 @@ BK_EXPORT int32_t bk_table_selected_at(bk_handle t, uint32_t index);
 
 // --- misc parity -------------------------------------------------------------------
 // secure: also raise BK_EVT_TEXT_SUBMIT on Enter in a PasswordBox.
+// textColor/placeholderColor as hex ("" = unchanged). Secure boxes take the
+// text colour only.
+BK_EXPORT int32_t bk_textbox_set_colors(bk_handle tb, const char* text_hex,
+                                        uint32_t text_len,
+                                        const char* ph_hex,
+                                        uint32_t ph_len);
+// Text colour for multiline areas.
+BK_EXPORT int32_t bk_textarea_set_foreground(bk_handle t, const char* hex,
+                                             uint32_t hex_len);
 BK_EXPORT int32_t bk_passwordbox_set_submit_callback(bk_handle pb, uint64_t cb);
 // 1 = RichEditBox instead of TextBox.
 BK_EXPORT bk_handle bk_textarea_create_ex(int32_t rich);

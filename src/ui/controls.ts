@@ -301,6 +301,10 @@ export interface TextFieldOptions extends ViewOptions {
   font?: FontSpec | number;
   align?: "left" | "center" | "right";
   enabled?: boolean;
+  /** Text colour: a CSS-ish hex string or an AppKit color name. */
+  textColor?: any;
+  /** Placeholder colour (hex or AppKit color name). */
+  placeholderColor?: any;
 }
 
 export class TextField extends View {
@@ -315,6 +319,14 @@ export class TextField extends View {
 
     if (options.value !== undefined) f.setStringValue_(options.value);
     if (options.placeholder !== undefined) f.setPlaceholderString_(options.placeholder);
+    if (options.textColor !== undefined) f.setTextColor_(toNSColor(options.textColor));
+    if (options.placeholderColor !== undefined && options.placeholder !== undefined) {
+      const attrs = objc.NSDictionary.dictionaryWithObject_forKey_(
+        toNSColor(options.placeholderColor), "NSForegroundColorAttributeName");
+      f.setPlaceholderAttributedString_(
+        objc.NSAttributedString.alloc().initWithString_attributes_(
+          options.placeholder, attrs));
+    }
     if (options.editable !== undefined) f.setEditable_(options.editable);
     if (options.enabled !== undefined) f.setEnabled_(options.enabled);
     if (options.font !== undefined) f.setFont_(makeFont(options.font));
@@ -388,6 +400,8 @@ export interface TextAreaOptions extends ViewOptions {
   font?: FontSpec | number;
   editable?: boolean;
   richText?: boolean;
+  /** Text colour: a CSS-ish hex string or an AppKit color name. */
+  textColor?: any;
 }
 
 export class TextArea extends View {
@@ -408,6 +422,7 @@ export class TextArea extends View {
     tv.setRichText_(options.richText ?? false);
     if (options.editable !== undefined) tv.setEditable_(options.editable);
     if (options.font !== undefined) tv.setFont_(makeFont(options.font));
+    if (options.textColor !== undefined) tv.setTextColor_(toNSColor(options.textColor));
     if (options.value !== undefined) tv.setString_(options.value);
     scroll.setDocumentView_(tv);
 
