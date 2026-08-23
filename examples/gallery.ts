@@ -209,6 +209,7 @@ const styledControls = new GroupBox({ title: "Styled controls", padding: 10, spa
       textColor: "#143C8C", placeholderColor: "#7A2E00",
     }),
     new Select({
+      selected: 0,
       items: ["Alpha", "Beta"], background: "#FDE2E2",
       cornerRadius: 8, width: 110,
     }),
@@ -228,8 +229,8 @@ const detail = new ScrollView({ border: false }, new VStack({ spacing: 12, paddi
     new ImageView({ src: covers[0]!, width: 96, height: 96 }),
     new VStack({ spacing: 6 }, [
       new Label({ text: albums[0]!.title, font: { style: "title", weight: "semibold" } }),
-      new Label({ text: albums[0]!.artist, color: "secondaryLabel" }),
-      new Label({ text: String(albums[0]!.year), color: "secondaryLabel" }),
+      new Label({ text: albums[0]!.artist, color: "#7A2E00" }),
+      new Label({ text: String(albums[0]!.year), color: "#7A2E00" }),
     ]),
   ]),
   new Separator(),
@@ -277,7 +278,7 @@ const sidebar = new BlurView({
   cornerRadius: 8,
 }, new VStack({ spacing: 10, padding: 12 }, [
   new Label({ text: "Gallery", font: { style: "title", weight: "semibold" } }),
-  new Label({ text: "5 albums", color: "secondaryLabel", font: { size: 11 } }),
+  new Label({ text: "5 albums", color: "#7A2E00", font: { size: 11 } }),
   new Separator(),
   mode,
   darkMode,
@@ -300,7 +301,7 @@ const sidebar = new BlurView({
 
 const keys = input();
 
-const clock = new Label({ text: "", font: { monospace: true, size: 11 }, color: "secondaryLabel" });
+const clock = new Label({ text: "", font: { monospace: true, size: 11 }, color: "#7A2E00" });
 
 const win = new Window({
   title: "BunKit Gallery",
