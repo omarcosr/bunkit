@@ -22,6 +22,11 @@
 #include <winrt/Windows.Foundation.Collections.h>
 #include <winrt/Windows.System.h>
 
+#include <windows.h>
+#include <microsoft.ui.xaml.window.h>
+
+#include <algorithm>
+
 using namespace winrt::Microsoft::UI::Xaml;
 namespace cx = winrt::Microsoft::UI::Xaml::Controls;
 namespace wfc = winrt::Windows::Foundation::Collections;
@@ -175,23 +180,9 @@ BK_EXPORT int32_t bk_window_set_menu(bk_handle w, const char* spec,
 }
 
 
-// Context menu at the pointer. The flyout needs a point in a UIElement's own
-// space, so the window root tracks the last pointer position lazily.
-namespace {
-winrt::Windows::Foundation::Point g_last_point{0, 0};
-void track_pointer(Window const& win) {
-  static bool hooked = false;
-  if (hooked) return;
-  if (!win.Content()) return;
-  hooked = true;
-  win.Content().as<FrameworkElement>().PointerMoved(
-      [](auto const&, winrt::Microsoft::UI::Xaml::Input::PointerRoutedEventArgs const& args) {
-        g_last_point = args.GetCurrentPoint(
-            args.OriginalSource().as<FrameworkElement>()).Position();
-      });
-}
-} // namespace
-
+// Context menu at the pointer. ShowAt wants a point in the target element's
+// space, so read the live cursor: screen px -> client px -> DIPs (the XAML
+// coordinate space scales with the monitor's rasterization scale).
 BK_EXPORT int32_t bk_menu_popup(bk_handle window, const char* spec,
                                 uint32_t spec_len) {
   if (!bk::Runtime::instance().running()) return BK_NOT_INITIALIZED;
@@ -206,13 +197,33 @@ BK_EXPORT int32_t bk_menu_popup(bk_handle window, const char* spec,
     auto win = entry->object.as<Window>();
     auto root = win.Content();
     if (!root) { st = BK_ERROR; return; }
-    track_pointer(win);
+
+    POINT pt{};
+    if (!GetCursorPos(&pt)) { st = BK_ERROR; return; }
+    HWND hwnd{};
+    try {
+      entry->object.as<Window>().as<::IWindowNative>()->get_WindowHandle(&hwnd);
+    } catch (...) {
+    }
+    if (hwnd && !ScreenToClient(hwnd, &pt)) { st = BK_ERROR; return; }
+
+    float scale = 1.0f;
+    try {
+      if (root.XamlRoot()) {
+        scale = static_cast<float>(root.XamlRoot().RasterizationScale());
+      }
+    } catch (...) {
+    }
+    scale = std::max(1.0f, scale);
 
     cx::MenuFlyout flyout;
-    auto items = parse_items(raw);
+    auto parsed = parse_items(raw);
     size_t idx = 0;
-    fill_level(flyout.Items(), items, idx, 0, window);
-    flyout.ShowAt(root.as<FrameworkElement>(), g_last_point);
+    fill_level(flyout.Items(), parsed, idx, 0, window);
+    const winrt::Windows::Foundation::Point pos{
+        static_cast<float>(pt.x) / scale,
+        static_cast<float>(pt.y) / scale};
+    flyout.ShowAt(root.as<FrameworkElement>(), pos);
     st = BK_OK;
   });
   return rc == BK_OK ? st : rc;
