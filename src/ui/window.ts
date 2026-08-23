@@ -2,7 +2,7 @@
 
 import { createDelegate, objc, str } from "../objc.ts";
 import { initApp, quit as runtimeQuit } from "../runtime.ts";
-import { View, toNSColor } from "./view.ts";
+import { View, ViewContent, toNSColor } from "./view.ts";
 import { Container } from "./layout.ts";
 import {
   BackingStore,
@@ -36,7 +36,7 @@ export interface WindowOptions {
   onMove?: (origin: { x: number; y: number }, w: Window) => void;
   onFocus?: (w: Window) => void;
   onBlur?: (w: Window) => void;
-  content?: View;
+  content?: ViewContent;
   /** JSX children (the content view); ignored by the imperative API. */
   children?: any;
   /** Show the window as soon as it is constructed. Default true. */
@@ -115,7 +115,7 @@ export class Window {
 
     this.installDelegate();
 
-    if (options.content) this.content = options.content;
+    if (options.content) this.content = options.content as View;
     if (options.position === undefined) this.center();
     if (options.autosaveName) this.native.setFrameAutosaveName_(options.autosaveName);
     if (options.show !== false) this.show();

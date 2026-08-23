@@ -45,7 +45,8 @@
     "./structs": "./src/structs.ts",
     "./types": "./src/generated/appkit.d.ts",
     "./metal": "./src/metal/index.ts",
-    "./jsx-runtime": "./src/jsx-runtime.tsx"
+    "./jsx-runtime": "./src/jsx-runtime.tsx",
+    "./tsconfig": "./tsconfig.base.json"
   },
   "scripts": {
     "build": "./native/build.sh",

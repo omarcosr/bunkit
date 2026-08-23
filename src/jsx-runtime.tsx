@@ -14,9 +14,8 @@ import {
   Application, Window, VStack, HStack, Stack, Label, Button, TextField,
   Checkbox, Switch, Slider, Select, Segmented, TextArea, Progress,
   GroupBox, ScrollView, SplitView, Container, ImageView, BlurView,
-  Spacer, Separator, isSignal,
+  Spacer, Separator, Table, View,
 } from "./index.ts";
-import type { Signal } from "./index.ts";
 
 export const Fragment = Symbol.for("bunkit.Fragment");
 
@@ -31,54 +30,36 @@ function flatten(value: any, out: any[]): void {
   out.push(value);
 }
 
-// Signal binding. Passing a signal as one of these props binds it to the
-// control: typing/flipping writes back into the signal, and signal.set()
-// updates the control. `value`/`checked`/`on`/`selected` are two-way (the
-// controls have change events); `text`/`title` are one-way (no event to
-// write back from).
-import { WRITE_BACK_EVENT } from "./signal.ts";
-
 // The control constructors, for two purposes: distinguishing them from plain
 // function components, and picking how each one takes children.
 const CONTROLS: ReadonlySet<Function> = new Set([
   Window, VStack, HStack, Stack, Label, Button, TextField,
   Checkbox, Switch, Slider, Select, Segmented, TextArea, Progress,
   GroupBox, ScrollView, SplitView, Container, ImageView, BlurView,
-  Spacer, Separator,
+  Spacer, Separator, Table,
 ]);
+
+// True for the controls and for subclasses/aliases of them (e.g. a
+// `const AlbumTable = Table<Album>` alias used as <AlbumTable />).
+function isControl(type: any): boolean {
+  if (CONTROLS.has(type)) return true;
+  if (typeof type !== "function" || !type.prototype) return false;
+  return type.prototype instanceof View;
+}
 
 function create(type: any, props: any, children: any[]): any {
   const p = props ?? {};
 
   // Custom components: a plain function returning more JSX.
-  if (typeof type === "function" && !CONTROLS.has(type)) {
+  if (typeof type === "function" && !isControl(type)) {
     return type({ ...p, children });
   }
   if (typeof type !== "function") {
     throw new Error(`bunkit/jsx-runtime: <${String(type)}> is not a control`);
   }
 
-  // Pull signals out of their props (bindings are wired after construction);
-  // a user-supplied onChange runs after the signal is written back.
-  const bound: Array<[string, Signal<any>]> = [];
-  for (const key of Object.keys(p)) {
-    if (isSignal(p[key])) {
-      const sig = p[key] as Signal<any>;
-      bound.push([key, sig]);
-      p[key] = sig.get();
-    }
-  }
-  for (const [key, sig] of bound) {
-    const ev = WRITE_BACK_EVENT[key];
-    if (ev && typeof p[ev] === "function") {
-      const user = p[ev];
-      p[ev] = (v: any, ...rest: any[]) => {
-        sig.set(v);
-        user(v, ...rest);
-      };
-    }
-  }
-
+  // Signals in props (value={name}) are bound by the control constructors
+  // themselves (bindSignals), so they pass through unchanged here.
   let control: any;
   switch (type) {
     case Fragment:
@@ -151,22 +132,32 @@ function create(type: any, props: any, children: any[]): any {
     case Separator:
       control = new Separator();
       break;
+    case Table:
+      control = new Table(p);
+      break;
     default:
-      throw new Error(`bunkit/jsx-runtime: <${String(type?.name ?? type)}> is not a control`);
+      // Subclasses and aliases (e.g. `const AlbumTable = Table<Album>`): they
+      // take (options, children) like the base controls do; constructors
+      // ignore extra arguments.
+      if (isControl(type)) {
+        control = new type(p, children);
+      } else {
+        throw new Error(`bunkit/jsx-runtime: <${String(type?.name ?? type)}> is not a control`);
+      }
   }
 
-  // Wire signal bindings: one-way (signal → control) + two-way (also write-back).
-  for (const [key, sig] of bound) {
-    sig.subscribe(() => { control[key] = sig.get(); });
-    const ev = WRITE_BACK_EVENT[key];
-    if (ev && typeof control[ev] === "function" && typeof p[ev] !== "function") {
-      control[ev]((v: any) => sig.set(v));
-    }
-  }
   return control;
 }
 
-export function jsx(type: any, props: any): any {
+// A JSX expression evaluates to the control it creates: <TextArea /> is a
+// TextArea, <AlbumTable /> (alias of Table<Album>) is a Table<Album>, and a
+// custom function component evaluates to its return type. This is what makes
+// `const log = <TextArea …/>` typed without a cast.
+type JsxResult<T> = T extends abstract new (...args: any) => any ? InstanceType<T>
+  : T extends (props: any) => any ? ReturnType<T>
+  : any;
+
+export function jsx<T>(type: T, props: any): JsxResult<T> {
   const { children, ...rest } = props ?? {};
   const out: any[] = [];
   flatten(children, out);

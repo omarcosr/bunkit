@@ -141,17 +141,18 @@ controls' change event writes the new value back into the signal) and
 `text`/`title` (one-way — signal to control only). A user-supplied
 `onChange` still runs, after the signal is written back. The option types
 accept `T | Signal<T>` for these props, so `<TextField value={name} />`
-checks at compile time. Signals work without JSX too: `name.value`,
-`name.set(v)`, `name.subscribe(fn)`, and `bind(control, prop, signal)` —
-the imperative twin of the JSX binding:
+checks at compile time. Passing a signal in the options binds it —
+imperatively too, no separate call:
 
 ```ts
 const name = signal("");
-const field = new TextField({ value: name.value });
-bind(field, "value", name);  // two-way: typing updates name, name.set() the field
-const echo = new Label({ text: name.value });
-bind(echo, "text", name);    // one-way live echo
+const field = new TextField({ value: name });  // two-way: typing updates
+                                               // name, name.set() the field
+const echo = new Label({ text: name });        // one-way live echo
 ```
+
+(`bind(control, prop, signal)` still exists for wiring a signal onto a
+control after construction.)
 
 (`examples/gallery.ts` has a "Signals" section using this.)
 

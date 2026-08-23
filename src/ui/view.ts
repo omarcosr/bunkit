@@ -35,6 +35,12 @@ export const ACTION_SELECTOR = "brAction:";
  */
 export const SIZE_PRIORITY = LayoutPriority.Required - 1;
 
+/** A View, or a JSX expression that evaluates to one. Content slots
+ *  (Window.content, ScrollView/BlurView content) accept both: at runtime a
+ *  JSX expression already is the control, and editors that resolve JSX
+ *  through React's runtime (no bunkit tsconfig) type it as ReactElement. */
+export type ViewContent = View | object;
+
 export { nativeOf } from "../objc.ts";
 
 export interface ViewOptions {

@@ -1,0 +1,27 @@
+{
+  // Base tsconfig for apps using bunkit's JSX runtime.
+  //
+  //   {
+  //     "extends": "bunkit/tsconfig",
+  //     "include": ["src"]
+  //   }
+  //
+  // Without jsxImportSource: "bunkit", the editor resolves JSX through
+  // React's runtime, which types every element as ReactElement — so
+  // `const log = <TextArea …/>` loses its control type.
+  "compilerOptions": {
+    "target": "ESNext",
+    "lib": ["ESNext"],
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "moduleDetection": "force",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "jsxImportSource": "bunkit",
+    "strict": true,
+    "skipLibCheck": false
+  }
+}

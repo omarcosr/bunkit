@@ -9,6 +9,15 @@ const app = new Application({ name: "JSX Types", theme: "light" });
 // --- valid props: must compile without error ---
 const name = signal("");
 const dark = signal(false);
+
+// JSX expressions are typed as the control instance (no casts needed).
+const echo = <Label text="hi" />;
+echo.text = "typed";                      // Label.text setter
+const field = <TextField value={name} />;
+field.value = "also typed";               // TextField.value setter
+const list = <Segmented items={["A", "B"]} />;
+list.selectedIndex = 1;                   // Segmented.selectedIndex setter
+
 const ok = (
   <Window title="t" size={{ width: 100, height: 100 }}>
     <VStack spacing={8} padding={12}>

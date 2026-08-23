@@ -94,12 +94,51 @@ export function bind<C, K extends keyof C>(
   control: C,
   prop: K,
   sig: Signal<C[K]>,
+  onChange?: (v: any) => void,
 ): Unsubscriber {
   const unsub = sig.subscribe((v) => { (control as any)[prop] = v; });
   (control as any)[prop] = sig.get();
   const ev = WRITE_BACK_EVENT[String(prop)];
   if (ev && typeof (control as any)[ev] === "function") {
-    (control as any)[ev]((v: any) => sig.set(v));
+    (control as any)[ev]((v: any) => { sig.set(v); onChange?.(v); });
   }
   return unsub;
+}
+
+/**
+ * Wire every signal passed in `options` to the control, so constructors bind
+ * automatically: `new TextField({ value: name })` behaves exactly like
+ * `<TextField value={name} />`. Called at the end of each control constructor;
+ * `options.onChange` still runs, after the signal is written back.
+ *
+ * On platforms that must hand plain values to the native layer, call
+ * `extractSignals(options)` first (it replaces signals with their current
+ * value in place and returns the captured pairs) and pass the pairs here.
+ */
+export function bindSignals(
+  control: any,
+  options: Record<string, any>,
+  bound?: Array<[string, Signal<any>]>,
+): void {
+  const pairs: Array<[string, Signal<any>]> = bound ?? Object.keys(options)
+    .filter((k) => isSignal(options[k]))
+    .map((k) => [k, options[k] as Signal<any>]);
+  for (const [prop, sig] of pairs) {
+    const ev = WRITE_BACK_EVENT[prop];
+    const user = ev ? options[ev] : undefined;
+    bind(control, prop, sig, typeof user === "function" ? user : undefined);
+  }
+}
+
+/** Replace every signal in `options` with its current value and return the
+ *  captured [prop, signal] pairs for `bindSignals`. */
+export function extractSignals(options: Record<string, any>): Array<[string, Signal<any>]> {
+  const bound: Array<[string, Signal<any>]> = [];
+  for (const key of Object.keys(options)) {
+    const v = options[key];
+    if (!isSignal(v)) continue;
+    bound.push([key, v as Signal<any>]);
+    options[key] = v.get();
+  }
+  return bound;
 }

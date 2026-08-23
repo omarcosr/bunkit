@@ -1,6 +1,7 @@
 // src/platform/windows/ui.ts — public API over the Windows backend.
 import { windowsBackend } from "./backend.ts";
 import type { NativeHandle } from "./ffi.ts";
+import { bindSignals, extractSignals } from "../../signal.ts";
 
 // macOS examples reach for raw AppKit through `.native`. WinUI has no Obj-C
 // runtime, so those escape hatches get a tolerant proxy: known names map to
@@ -422,7 +423,9 @@ export class Window {
 
 export class Label extends View {
   constructor(opts: { text?: string; color?: string; font?: any; align?: string; grow?: number } & ViewOptions = {}) {
+    const bound = extractSignals(opts);
     super(windowsBackend.createLabel(opts as any), opts);
+    bindSignals(this, opts, bound);
   }
   get text(): string { return windowsBackend.getLabelText(this.handle); }
   set text(v: string) { windowsBackend.setLabelText(this.handle, v ?? ""); }
@@ -430,8 +433,10 @@ export class Label extends View {
 
 export class Button extends View {
   constructor(opts: { title?: string; primary?: boolean; destructive?: boolean; symbol?: string; onClick?: () => void } & ViewOptions = {}) {
+    const bound = extractSignals(opts);
     super(windowsBackend.createButton(opts), opts);
     if (opts.onClick) windowsBackend.setButtonClickCallback(this.handle, opts.onClick);
+    bindSignals(this, opts, bound);
   }
   set title(v: string) { windowsBackend.setButtonText(this.handle, v); }
   onClick(fn: () => void): this { windowsBackend.setButtonClickCallback(this.handle, fn); return this; }
@@ -440,12 +445,14 @@ export class Button extends View {
 export class TextField extends View {
   secure: boolean;
   constructor(opts: { value?: string; placeholder?: string; secure?: boolean; textColor?: string; placeholderColor?: string; onChange?: (v: string) => void; onSubmit?: (v: string) => void } & ViewOptions = {}) {
+    const bound = extractSignals(opts);
     super(windowsBackend.createTextField({ value: opts.value, placeholder: opts.placeholder, secure: opts.secure, onChange: opts.onChange }), opts);
     this.secure = !!opts.secure;
     if (opts.textColor !== undefined || opts.placeholderColor !== undefined) {
       windowsBackend.setTextFieldColors(this.handle, opts.textColor, opts.placeholderColor);
     }
     if (opts.onSubmit) this.onSubmit(opts.onSubmit);
+    bindSignals(this, opts, bound);
   }
   get value(): string { return windowsBackend.getTextFieldValue(this.handle); }
   set value(v: string) { windowsBackend.setTextFieldValue(this.handle, v ?? ""); }
@@ -459,7 +466,9 @@ export class TextField extends View {
 
 export class Checkbox extends View {
   constructor(opts: { title?: string; checked?: boolean; onChange?: (checked: boolean) => void } & ViewOptions = {}) {
+    const bound = extractSignals(opts);
     super(windowsBackend.createCheckbox(opts), opts);
+    bindSignals(this, opts, bound);
   }
   get checked(): boolean { return windowsBackend.getCheckboxChecked(this.handle); }
   set checked(value: boolean) { windowsBackend.setCheckboxChecked(this.handle, value); }
@@ -468,7 +477,9 @@ export class Checkbox extends View {
 
 export class Switch extends View {
   constructor(opts: { on?: boolean; onChange?: (on: boolean) => void } & ViewOptions = {}) {
+    const bound = extractSignals(opts);
     super(windowsBackend.createSwitch(opts), opts);
+    bindSignals(this, opts, bound);
   }
   get on(): boolean { return windowsBackend.getSwitchOn(this.handle); }
   set on(value: boolean) { windowsBackend.setSwitchOn(this.handle, value); }
@@ -477,7 +488,9 @@ export class Switch extends View {
 
 export class Slider extends View {
   constructor(opts: { min?: number; max?: number; value?: number; onChange?: (value: number) => void } & ViewOptions = {}) {
+    const bound = extractSignals(opts);
     super(windowsBackend.createSlider(opts), opts);
+    bindSignals(this, opts, bound);
   }
   get value(): number { return windowsBackend.getSliderValue(this.handle); }
   set value(value: number) { windowsBackend.setSliderValue(this.handle, value); }
@@ -486,7 +499,9 @@ export class Slider extends View {
 
 export class Select extends View {
   constructor(opts: { items?: readonly string[]; selected?: number; onChange?: (index: number, title: string) => void } & ViewOptions = {}) {
+    const bound = extractSignals(opts);
     super(windowsBackend.createSelect(opts), opts);
+    bindSignals(this, opts, bound);
   }
   set items(value: readonly string[]) { windowsBackend.setSelectItems(this.handle, value, this.selectedIndex); }
   get selectedIndex(): number { return windowsBackend.getSelectSelected(this.handle); }
@@ -497,8 +512,10 @@ export class Select extends View {
 
 export class Segmented extends View {
   constructor(opts: { items?: readonly string[]; selected?: number; onChange?: (index: number) => void } & ViewOptions = {}) {
+    const bound = extractSignals(opts);
     super(windowsBackend.createSegmented(opts), opts);
     if (opts.onChange) windowsBackend.setSegmentedCallback(this.handle, opts.onChange);
+    bindSignals(this, opts, bound);
   }
   get selectedIndex(): number { return windowsBackend.getSegmentedSelected(this.handle); }
   set selectedIndex(i: number) { windowsBackend.setSegmentedSelected(this.handle, i); }
@@ -507,12 +524,14 @@ export class Segmented extends View {
 
 export class TextArea extends View {
   constructor(opts: { value?: string; editable?: boolean; richText?: boolean; font?: any; textColor?: string; onChange?: (value: string) => void } & ViewOptions = {}) {
+    const bound = extractSignals(opts);
     super(windowsBackend.createTextAreaEx(!!opts.richText), opts);
     if (opts.value !== undefined) this.value = opts.value;
     if (opts.editable === false) windowsBackend.setTextAreaReadOnly(this.handle, true);
     if (opts.font) windowsBackend.setTextAreaFont(this.handle, !!opts.font.monospace, opts.font.size ?? 0);
     if (opts.textColor !== undefined) windowsBackend.setTextAreaForeground(this.handle, opts.textColor);
     if (opts.onChange) windowsBackend.setTextAreaCallback(this.handle, opts.onChange);
+    bindSignals(this, opts, bound);
   }
   get value(): string { return windowsBackend.getTextAreaValue(this.handle); }
   set value(value: string) { windowsBackend.setTextAreaValue(this.handle, value); }
@@ -522,7 +541,9 @@ export class TextArea extends View {
 
 export class Progress extends View {
   constructor(opts: { max?: number; value?: number; indeterminate?: boolean; spinner?: boolean } & ViewOptions = {}) {
+    const bound = extractSignals(opts);
     super(windowsBackend.createProgress(opts.spinner ? { indeterminate: true } : opts), opts);
+    bindSignals(this, opts, bound);
   }
   get value(): number { return windowsBackend.getProgressValue(this.handle); }
   set value(value: number) { windowsBackend.setProgressValue(this.handle, value); }

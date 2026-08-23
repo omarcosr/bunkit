@@ -5,7 +5,7 @@
 // View.constrain() and .native for the other 20%.
 
 import { objc } from "../objc.ts";
-import { View, type ViewOptions } from "./view.ts";
+import { View, type ViewContent, type ViewOptions } from "./view.ts";
 import {
   BorderType,
   BoxType,
@@ -285,7 +285,7 @@ export class ScrollView extends View {
   declare readonly props: ScrollOptions;
   #content: View | null = null;
 
-  constructor(options: ScrollOptions = {}, content?: View) {
+  constructor(options: ScrollOptions = {}, content?: ViewContent) {
     const sv = objc.NSScrollView.alloc().init();
     sv.setHasVerticalScroller_(options.vertical !== false);
     sv.setHasHorizontalScroller_(options.horizontal === true);
@@ -299,7 +299,7 @@ export class ScrollView extends View {
     if (options.height === undefined && options.minHeight === undefined) {
       this.constrain("height", ">=", 80);
     }
-    if (content) this.content = content;
+    if (content) this.content = content as View;
   }
 
   get content(): View | null {
@@ -421,13 +421,13 @@ export interface BlurOptions extends ViewOptions {
 export class BlurView extends View {
   /** JSX props type (ElementAttributesProperty). */
   declare readonly props: BlurOptions;
-  constructor(options: BlurOptions = {}, content?: View) {
+  constructor(options: BlurOptions = {}, content?: ViewContent) {
     const v = objc.NSVisualEffectView.alloc().init();
     v.setMaterial_(options.material ?? VisualEffectMaterial.Sidebar);
     v.setBlendingMode_(options.blending ?? VisualEffectBlendingMode.BehindWindow);
     v.setState_(VisualEffectState.Active);
     super(v, options);
-    if (content) this.fill(content);
+    if (content) this.fill(content as View);
   }
 }
 

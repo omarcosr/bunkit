@@ -4,9 +4,9 @@
 // delegate and target/action machinery stays out of sight in Layer 2.
 
 import { createDelegate, objc, str } from "../objc.ts";
-import { ACTION_SELECTOR, actionTarget, toNSColor, View, type ViewOptions, type ColorValue } from "./view.ts";
 import type { Signal } from "../signal.ts";
-import { unwrap } from "../signal.ts";
+import { bindSignals, unwrap } from "../signal.ts";
+import { ACTION_SELECTOR, actionTarget, toNSColor, View, type ViewOptions, type ColorValue } from "./view.ts";
 import {
   AutoresizingMask,
   BezelStyle,
@@ -94,6 +94,7 @@ export class Label extends View {
     const f = objc.NSTextField.labelWithString_(unwrap(options.text) ?? "");
     super(f, options);
     this.applyLabelOptions(options);
+    bindSignals(this, options);
   }
 
   protected applyLabelOptions(o: LabelOptions) {
@@ -183,6 +184,7 @@ export class Button extends View {
       if (b.respondsTo("setHasDestructiveAction:")) b.setHasDestructiveAction_(true);
     }
     if (options.onClick) this.onClick(options.onClick);
+    bindSignals(this, options);
   }
 
   onClick(fn: (b: Button) => void): this {
@@ -221,7 +223,7 @@ export class Button extends View {
 // ---------------------------------------------------------------------------
 
 export interface CheckboxOptions extends ViewOptions {
-  title?: string;
+  title?: string | Signal<string>;
   checked?: boolean | Signal<boolean>;
   onChange?: (checked: boolean, cb: Checkbox) => void;
   enabled?: boolean;
@@ -238,6 +240,7 @@ export class Checkbox extends View {
     if (options.checked !== undefined) this.checked = unwrap(options.checked);
     if (options.enabled !== undefined) b.setEnabled_(options.enabled);
     if (options.onChange) this.onChange(options.onChange);
+    bindSignals(this, options);
   }
 
   onChange(fn: (checked: boolean, cb: Checkbox) => void): this {
@@ -268,7 +271,7 @@ export class Checkbox extends View {
 
 export class Switch extends View {
   /** JSX props type (ElementAttributesProperty). */
-  declare readonly props: ViewOptions & { on?: boolean; onChange?: (on: boolean, s: Switch) => void };
+  declare readonly props: ViewOptions & { on?: boolean | Signal<boolean>; onChange?: (on: boolean, s: Switch) => void };
   #handler: ((on: boolean, s: Switch) => void) | null = null;
 
   constructor(options: { on?: boolean | Signal<boolean>; onChange?: (on: boolean, s: Switch) => void } & ViewOptions = {}) {
@@ -276,6 +279,7 @@ export class Switch extends View {
     super(s, options);
     if (options.on !== undefined) this.on = unwrap(options.on);
     if (options.onChange) this.onChange(options.onChange);
+    bindSignals(this, options);
   }
 
   onChange(fn: (on: boolean, s: Switch) => void): this {
@@ -356,6 +360,7 @@ export class TextField extends View {
     this.#onChange = options.onChange ?? null;
     this.#onSubmit = options.onSubmit ?? null;
     this.installDelegate();
+    bindSignals(this, options);
   }
 
   private installDelegate() {
@@ -454,6 +459,7 @@ export class TextArea extends View {
     );
     this.retainJS(d);
     tv.setDelegate_(d);
+    bindSignals(this, options);
   }
 
   get value(): string {
@@ -500,6 +506,7 @@ export class Slider extends View {
     if (options.vertical) s.setVertical_(true);
     super(s, options);
     if (options.onChange) this.onChange(options.onChange);
+    bindSignals(this, options);
   }
 
   onChange(fn: (v: number, s: Slider) => void): this {
@@ -546,6 +553,7 @@ export class Select extends View {
     if (options.selected !== undefined) this.selectedIndex = unwrap(options.selected);
     if (options.enabled !== undefined) p.setEnabled_(options.enabled);
     if (options.onChange) this.onChange(options.onChange);
+    bindSignals(this, options);
   }
 
   onChange(fn: (i: number, t: string, s: Select) => void): this {
@@ -597,6 +605,7 @@ export class Segmented extends View {
     sc.setSelectedSegment_(unwrap(options.selected) ?? 0);
     super(sc, options);
     if (options.onChange) this.onChange(options.onChange);
+    bindSignals(this, options);
   }
 
   onChange(fn: (i: number, s: Segmented) => void): this {
@@ -640,6 +649,7 @@ export class Progress extends View {
     p.setDoubleValue_(unwrap(options.value) ?? 0);
     super(p, options);
     if (options.indeterminate || options.spinner) p.startAnimation_(null);
+    bindSignals(this, options);
   }
 
   get value(): number {
@@ -677,6 +687,7 @@ export class ImageView extends View {
     v.setImageScaling_(options.scaling ?? ImageScaling.ProportionallyUpOrDown);
     super(v, options);
     if (options.src !== undefined) this.src = options.src;
+    bindSignals(this, options);
   }
 
   set src(v: string | any) {

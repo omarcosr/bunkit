@@ -1,80 +1,326 @@
-// The same gallery ideas, written declaratively in JSX, with reactive
-// signal bindings (SolidJS-style):
-//
-//   const name = signal("");
-//   <TextField value={name} />   // two-way: typing updates the signal,
-//                                // name.set(...) updates the field
-//   <Label text={name} />        // one-way: live echo of whatever you type
-//
-// Elements are the imported constructors — <Window>, <VStack>, <Label>,
-// <TextField>, … — so props are type-checked against each control's real
-// option types. No global IntrinsicElements table needed.
+// The full gallery — identical to gallery.ts, with the tree written in JSX.
 //
 //   bun run examples/gallery.tsx
-import { Application, setTheme, signal, Window, VStack, HStack, Label,
-  TextField, Button, Checkbox, ScrollView, Spacer } from "bunkit";
+//
+// Controls that are referenced imperatively (log, table, sidebar, clock,
+// win, the signal fields) are constructed with `new X(...)`, exactly like
+// gallery.ts does; everything else is JSX. This keeps the code typed and
+// working whether the editor resolves JSX through bunkit's runtime or
+// (without a tsconfig) through React's.
+import {
+  Application, beep,
+  BlurView,
+  Button,
+  Checkbox,
+  Container,
+  describeViewTree, getClipboardText,
+  GroupBox,
+  HStack,
+  ImageView,
+  input,
+  Label,
+  popUpMenu, saveFile,
+  ScrollView,
+  Segmented,
+  Select,
+  Separator,
+  setClipboardText, setTheme, signal, snapshotView,
+  Spacer,
+  SplitView,
+  Table,
+  TextArea,
+  TextField,
+  VStack,
+  Window,
+} from "bunkit";
+import { writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { deflateSync } from "node:zlib";
 
-const app = new Application({ name: "JSX Gallery", theme: "light" });
+// ─ helper: tiny solid-colour PNG encoder ──────────────────────────────────
+function crc32(buf: Buffer): number {
+  let c = ~0;
+  for (const byte of buf) {
+    c ^= byte;
+    for (let k = 0; k < 8; k++) c = (c >>> 1) ^ (0xEDB88320 & -(c & 1));
+  }
+  return ~c >>> 0;
+}
+function chunk(type: string, data: Buffer): Buffer {
+  const out = Buffer.alloc(12 + data.length);
+  out.writeUInt32BE(data.length, 0);
+  out.write(type, 4, "ascii");
+  data.copy(out, 8);
+  out.writeUInt32BE(crc32(out.subarray(4, 8 + data.length)), 8 + data.length);
+  return out;
+}
+function makePng(width: number, height: number, rgb: (x: number, y: number) => [number, number, number]): Buffer {
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(width, 0);
+  ihdr.writeUInt32BE(height, 4);
+  ihdr[8] = 8; ihdr[9] = 2;
+  const raw = Buffer.alloc(height * (1 + width * 3));
+  let p = 0;
+  for (let y = 0; y < height; y++) {
+    raw[p++] = 0;
+    for (let x = 0; x < width; x++) {
+      const [r, g, b] = rgb(x, y);
+      raw[p++] = r; raw[p++] = g; raw[p++] = b;
+    }
+  }
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk("IHDR", ihdr),
+    chunk("IDAT", deflateSync(raw)),
+    chunk("IEND", Buffer.alloc(0)),
+  ]);
+}
 
-const dark = signal(false);
-const name = signal("");
-// Constructed (not JSX) so `greeting.text` is typed as Label's setter even
-// when the editor falls back to React's JSX namespace (no tsconfig).
-const greeting = new Label({ text: "Type a name and press Return.", color: "secondaryLabel" });
-const log = new Label({ text: "", color: "secondaryLabel", font: { monospace: true, size: 11 } });
-let count = 0;
+// ─ data ──────────────────────────────────────────────────────────────────
+interface Album { title: string; artist: string; year: number; rating: number; }
+const albums: Album[] = [
+  { title: "Blue", artist: "Joni Mitchell", year: 1971, rating: 10 },
+  { title: "In Rainbows", artist: "Radiohead", year: 2007, rating: 9 },
+  { title: "Kind of Blue", artist: "Miles Davis", year: 1959, rating: 10 },
+  { title: "Dummy", artist: "Portishead", year: 1994, rating: 9 },
+  { title: "Vulnicura", artist: "Björk", year: 2015, rating: 8 },
+];
 
-const win = (
-  <Window title="BunKit JSX" size={{ width: 460, height: 340 }}>
-    <VStack spacing={12} padding={16}>
-      <HStack spacing={8} align="center">
-        <Label text="JSX Gallery" font={{ style: "title", weight: "semibold" }} />
-        <Spacer />
-        <Checkbox
-          title="Dark mode"
-          checked={dark}
-          onChange={() => setTheme(dark.value ? "dark" : "light", { background: dark.value ? "#14141F" : "#FAFAFA" })}
-        />
-      </HStack>
+const app = new Application({ name: "Gallery", theme: "light" });
 
-      <HStack spacing={8}>
-        <TextField
-          placeholder="Your name"
-          grow={1}
-          border
-          borderRadius={4}
-          value={name}
-          onSubmit={() => greeting.text = `Hello, ${name.value || "stranger"}!`}
-        />
-        <Button
-          title="Greet"
-          primary
-          onClick={() => {
-            count++;
-            log.text = `clicked ${count}×`;
-          }}
-        />
-      </HStack>
+// ─ log pane ──────────────────────────────────────────────────────────────
+const log = new TextArea({
+  value: "",
+  editable: false,
+  font: { monospace: true, size: 11 },
+  height: 90,
+});
+let detailIndex = 0;
+function say(msg: string): void {
+  log.value += `[${new Date().toLocaleTimeString()}] ${msg} ${detailIndex}\n`;
+}
 
-      <Label text={name} color="secondaryLabel" font={{ size: 11 }} />
-      {greeting}
-      {log}
+// ─ covers: generated on the fly ──────────────────────────────────────────
+const hue = (i: number, x: number, y: number, w: number, h: number): [number, number, number] => {
+  const t = (x / w + y / h + i) / 3;
+  return [Math.round(40 + 120 * t), Math.round(60 + 90 * (1 - t)), Math.round(90 + 120 * t)];
+};
+const covers = albums.map((a, i) => join(tmpdir(), `bunkit-cover-${i}.png`));
+covers.forEach((path, i) =>
+  writeFileSync(path, makePng(96, 96, (x, y) => hue(i, x, y, 96, 96))));
 
-      <ScrollView border borderColor="#1398eb" borderRadius={4} grow={1}>
-        <VStack spacing={6} padding={8}>
-          {["Blue", "In Rainbows", "Kind of Blue"].map((album, _) => (
-            <Button
-              title={album}
-              grow={1}
-              onClick={() => { log.text = `playing ${album}`; }}
-            />
-          ))}
-        </VStack>
-      </ScrollView>
-    </VStack>
-  </Window>
+// ─ collection table ──────────────────────────────────────────────────────
+const table = new Table<Album>({
+  columns: [
+    { id: "title", title: "Album", flex: true },
+    { id: "artist", title: "Artist", flex: true },
+    { id: "year", title: "Year", width: 56, align: "right" },
+    {
+      id: "rating", title: "", width: 64, align: "center",
+      // A whole view per cell, not just text: render wins over value.
+      render: (a) => (
+        <Button title={"★".repeat(a.rating)} onClick={() => { beep(); say(`${a.title} — ${a.rating}/10`); }} />
+      ),
+    },
+  ],
+  rows: albums,
+  rowHeight: 30,
+  multiSelect: true,
+  alternatingRows: true,
+  onSelect: (row) => { if (row) detailIndex = albums.indexOf(row); },
+});
+function selectedTitles(): string {
+  const titles = table.selectedIndexes.map((i) => albums[i]!.title);
+  return titles.length ? titles.join(", ") : "nothing selected";
+}
+
+// ─ right pane: detail with cover art ─────────────────────────────────────
+const notesBox = (
+  <GroupBox title="Notes" padding={10} spacing={8}>
+    <TextArea
+      value={`${albums[0]!.artist} — ${albums[0]!.title} (${albums[0]!.year})\n\nRich text, editable: the notes field is a real text editor.`}
+      richText font={{ size: 12 }} minHeight={120}
+    />
+  </GroupBox>
 );
 
-void win; // the window is alive; app.run() pumps it
+// Styling swatches
+function swatch(label: string, view: any): any {
+  return (
+    <VStack spacing={4}>
+      {view}
+      <Label text={label} font={{ size: 11 }} color="secondaryLabel" align="center" />
+    </VStack>
+  );
+}
 
+const styleBox = (
+  <GroupBox title="Palette" padding={10} spacing={8}>
+    <VStack spacing={10}>
+      <HStack spacing={14}>
+        {swatch("fill", <Container backgroundColor="#2D7DD2" borderRadius={14} width={72} height={56} />)}
+        {swatch("dashed", <Container border={2} borderColor="#F26419" borderRadius={12} borderStyle="dashed" width={72} height={56} />)}
+        {swatch("dotted", <Container border={2} borderColor="#1F3B4D" borderRadius={12} borderStyle="dotted" width={72} height={56} />)}
+        {swatch("both", <Container backgroundColor="#97D8B2" borderRadius={16} border={2} borderColor="#1F3B4D" width={72} height={56} />)}
+      </HStack>
+      <HStack spacing={14}>
+        {swatch("top + left", <Container border={{ top: 4, left: 2 }} borderColor="#F26419" borderRadius={8} width={72} height={56} />)}
+        {swatch("sides", <Container border={[1, 4, 1, 4]} borderColor="#1F3B4D" width={72} height={56} />)}
+        {swatch("bottom", <Container border={{ bottom: 3 }} borderColor="#F26419" borderRadius={8} width={72} height={56} />)}
+      </HStack>
+    </VStack>
+  </GroupBox>
+);
+
+const styledControls = (
+  <GroupBox title="Styled controls" padding={10} spacing={8}>
+    <VStack spacing={10}>
+      <HStack spacing={10} scroll>
+        <Button title="Go" background="#2D7DD2" cornerRadius={10} border={2} borderColor="#1F3B4D" />
+        <TextField placeholder="tinted field" background="#fdcc05" cornerRadius={8} grow={1} textColor="#143C8C" placeholderColor="#7A2E00" />
+        <Select selected={0} items={["Alpha", "Beta"]} background="#FDE2E2" cornerRadius={8} width={110} />
+      </HStack>
+      <ScrollView background="#E2F3E8" cornerRadius={10} height={56} border>
+        <Label text="a tinted, rounded, bordered scroll view" font={{ size: 11 }} color="#1F3B4D" align="center" />
+      </ScrollView>
+      <TextArea value="…and a tinted text area." background="#E8F0FE" cornerRadius={8} height={40} editable={false} />
+    </VStack>
+  </GroupBox>
+);
+
+// ─ signals: passing a signal in the options binds it (two-way for
+// value/checked/on/selected, one-way for text/title) ──────────────────────
+const name = signal("");
+const nameField = new TextField({
+  placeholder: "type a name",
+  value: name,
+  grow: 1,
+  onSubmit: () => say(`hello, ${name.value || "stranger"}!`),
+});
+const nameEcho = new Label({ text: name, color: "#7A2E00", font: { size: 11 } });
+
+const flag = signal(false);
+const flagBox = new Checkbox({ title: "Signal flag", checked: flag });
+const flagLabel = new Label({ text: "off", color: "#7A2E00", font: { size: 11 } });
+flag.subscribe((on) => {
+  console.log(`flag -> ${on ? "on" : "off"}`);
+  flagLabel.text = on ? "on" : "off";
+});
+
+const signalsBox = (
+  <GroupBox title="Signals" padding={10} spacing={8}>
+    <HStack spacing={8} align="center">{nameField}{flagBox}</HStack>
+    <HStack spacing={8} align="center">{nameEcho}{flagLabel}</HStack>
+  </GroupBox>
+);
+
+// ─ right pane: detail ────────────────────────────────────────────────────
+const detail = (
+  <ScrollView border={false}>
+    <VStack spacing={12} padding={12}>
+      <HStack spacing={12} align="center">
+        <ImageView src={covers[0]!} width={96} height={96} />
+        <VStack spacing={6}>
+          <Label text={albums[0]!.title} font={{ style: "title", weight: "semibold" }} />
+          <Label text={albums[0]!.artist} color="#7A2E00" />
+          <Label text={String(albums[0]!.year)} color="#7A2E00" />
+        </VStack>
+      </HStack>
+      <Separator />
+      {notesBox}
+      {styleBox}
+      {styledControls}
+      {signalsBox}
+    </VStack>
+  </ScrollView>
+);
+
+// ─ left pane: sidebar ────────────────────────────────────────────────────
+const THEME = {
+  dark: { page: "#14141F", sidebar: "#202020" },
+  light: { page: "#FAFAFA", sidebar: "#F0F0F0" },
+};
+// The content slot accepts a JSX expression directly.
+const sidebar = new BlurView({
+  background: "#bf2dd2",
+  border: true,
+  borderColor: "#0000ff",
+  borderRadius: 8,
+  cornerRadius: 8,
+}, (
+  <VStack spacing={10} padding={12}>
+    <Label text="Gallery" font={{ style: "title", weight: "semibold" }} />
+    <Label text="5 albums" color="#7A2E00" font={{ size: 11 }} />
+    <Separator />
+    <Segmented items={["Detail", "Collection"]} selected={1} onChange={(i) => say(`mode -> ${i === 0 ? "detail" : "collection"}`)} />
+    <Checkbox title="Dark mode" checked={false} onChange={(on) => { applyAppTheme(on); say(`theme -> ${on ? "dark" : "light"}`); }} />
+    <Spacer />
+    <Button title="Library ▾" onClick={() => popUpMenu([
+      { title: "Select All", onClick: () => say("select all") },
+      { title: "Clear", onClick: () => say("clear") },
+      { separator: true, title: "" },
+      { title: "Check Layout", onClick: () => say("layout checked") },
+    ])} />
+  </VStack>
+));
+
+function applyAppTheme(dark: boolean): void {
+  const t = dark ? THEME.dark : THEME.light;
+  setTheme(dark ? "dark" : "light", { background: t.page });
+  sidebar.setBackground(t.sidebar);
+}
+
+// ─ footer: clock, snapshot, export, debug, selection, clipboard ──────────
+const keys = input();
+const clock = new Label({
+  text: "", font: { monospace: true, size: 11 }, color: "#7A2E00",
+});
+
+const win = new Window({
+  title: "BunKit Gallery",
+  size: { width: 860, height: 560 },
+  minSize: { width: 640, height: 420 },
+  content: (
+    <VStack spacing={10} padding={12}>
+      <SplitView vertical={false} position={190} grow={1}>
+        {sidebar}
+        <VStack spacing={10} scroll>
+          {table}
+          {detail}
+        </VStack>
+      </SplitView>
+      <HStack spacing={10} align="fill">
+        {clock}
+        <Spacer />
+        <Button title="Snapshot…" onClick={() => {
+          const path = join(tmpdir(), "bunkit-gallery.png");
+          say(`snapshot -> ${snapshotView(win, path)} bytes`);
+        }} />
+        <Button title="Export…" onClick={async () => {
+          const path = await saveFile({ title: "Export the log", defaultName: "gallery-log.txt", window: win });
+          say(`export -> ${path ?? "cancelled"}`);
+        }} />
+        <Button title="Debug…" onClick={() => console.log(describeViewTree(win))} />
+        <Button title="Selection" onClick={() => say(selectedTitles())} />
+        <Button title="Copy" onClick={() => {
+          setClipboardText(log.value);
+          say(`clipboard -> ${getClipboardText().length} chars read back`);
+        }} />
+      </HStack>
+      {log}
+    </VStack>
+  ),
+});
+win.quitOnClose();
+
+// ─ input tracking ────────────────────────────────────────────────────────
+keys.track(table);
+setInterval(() => {
+  const m = keys.mouse;
+  const arrows = ["left", "right", "up", "down"].filter((k) => keys.held(k));
+  clock.text = `${m.x.toFixed(0)},${m.y.toFixed(0)}${m.inside ? "" : " outside"}${arrows.length ? "  " + arrows.join("+") : ""}`;
+}, 100);
+
+say("ready — covers generated in pure JS, no assets on disk");
 await app.run();

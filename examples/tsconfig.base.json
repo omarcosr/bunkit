@@ -1,0 +1,6 @@
+{
+  "extends": "bunkit/tsconfig",
+  "include": [
+    "src"
+  ]
+}

@@ -246,6 +246,11 @@ void set_image_source(cx::Image const& image, const std::string& p) {
   try {
     winrt::Microsoft::UI::Xaml::Media::Imaging::BitmapImage source;
     source.UriSource(winrt::Windows::Foundation::Uri(wide));
+    source.ImageFailed([p](winrt::Windows::Foundation::IInspectable const&,
+                           winrt::Microsoft::UI::Xaml::ExceptionRoutedEventArgs const& args) {
+      bk::set_last_error("image failed to decode: " + p + " -> " +
+                         winrt::to_string(args.ErrorMessage()));
+    });
     image.Source(source);
   } catch (...) {
     bk::set_last_error("image source could not be resolved: " + p);

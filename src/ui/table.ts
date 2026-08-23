@@ -31,7 +31,7 @@ export interface Column<Row = any> {
   /** Produce the cell text for a row. Defaults to `row[id]`. */
   value?: (row: Row, index: number) => string;
   /** Produce a whole view for the cell; wins over `value`. */
-  render?: (row: Row, index: number) => View;
+  render?: (row: Row, index: number) => View | unknown;
 }
 
 export interface TableOptions<Row = any> extends ViewOptions {
@@ -49,6 +49,8 @@ export interface TableOptions<Row = any> extends ViewOptions {
 }
 
 export class Table<Row = any> extends View {
+  /** JSX props type (ElementAttributesProperty). */
+  declare readonly props: TableOptions<Row>;
   readonly tableView: any;
   readonly scrollView: any;
   #rows: Row[] = [];
@@ -137,7 +139,8 @@ export class Table<Row = any> extends View {
           if (!spec || data === undefined) return null;
 
           if (spec.render) {
-            const v = spec.render(data, index);
+            const v = spec.render(data, index) as View | null | undefined;
+            if (!v) return null;
             self.#cellViews.add(v);
             return v.native;
           }
