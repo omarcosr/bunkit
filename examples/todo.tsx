@@ -90,7 +90,7 @@ function makeRow(todo: Todo): any {
     <HStack
       spacing={10}
       alignItems="center"
-      padding={12}
+      padding={10}
       backgroundColor={cardBg}
       borderRadius={10}
     >
@@ -137,8 +137,10 @@ const win = (
           value={draft}
           placeholder="Add a task…"
           grow={1}
-          borderRadius={10}
+          borderRadius={4}
           textColor={textColor}
+          borderColor={{ light: "#DADCE0", dark: "#565675" }}
+          backgroundColor={{ light: "#FFFFFF", dark: "#23233A" }}
           placeholderColor="secondaryLabel"
           onSubmit={addTodo}
         />

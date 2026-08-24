@@ -29,6 +29,10 @@ inline void apply_default_border(
     box.BorderBrush(neutral);
     box.BorderThickness(one);
     box.CornerRadius(winrt::Microsoft::UI::Xaml::CornerRadius(0));
+    // Snap the control to whole device pixels: a 1px border would otherwise
+    // land on fractional pixels at non-integer display scales and render
+    // uneven/jagged.
+    box.UseLayoutRounding(true);
     // Keep the focus/hover states from repainting the border accent-blue.
     auto res = box.Resources();
     for (const wchar_t* state :
