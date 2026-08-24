@@ -83,6 +83,7 @@ bun run examples/tour.ts    # Table, GroupBox, dialogs, menu, objc hatch
 bun run examples/demo.ts    # full showcase: Segmented, alert/prompt, openFile…
 bun run examples/gallery.ts # second tour: SplitView, ImageView, Input, snapshot…
 bun run examples/gallery.tsx # the same gallery written declaratively in JSX
+bun run examples/counter.ts / counter.tsx # a counter: signal + subscribe, imperative & JSX
 ```
 
 ### JSX
@@ -206,7 +207,7 @@ that theme without flashing; `setTheme("light" | "dark" | "default",
 { background }?)` re-tunes live windows via XAML RequestedTheme and
 repaints the page background — pass `{ background: "#14141F" }` to choose
 the colour used for that mode), and the styling
-options (`Button.primary/destructive/symbol`, `Label.color/font/align`,
+options (`Button.primary/destructive/symbol`, `Label.color/font/textAlign`,
 `TextField.onSubmit` including secure fields, `Window.minSize`,
 `TextField.textColor`/`placeholderColor` and `TextArea.textColor` as hex —
 secure fields take the text colour only, the placeholder keeps the theme
@@ -343,6 +344,11 @@ bun test/win/parity2.ts       # views, advanced table, input, snapshot, debug
   Border-based views and falls back to solid on plain Controls (the overlay
   rounds uniformly with the largest requested radius, and strokes per-side
   widths with the largest requested width).
+- Stack layout props are CSS-named too: `alignItems` (cross axis,
+  `align-items`) and `justifyContent` (main axis, `justify-content`), with
+  `justifyContent: "center"` centring a stack's content along its own axis —
+  `<VStack alignItems="center" justifyContent="center">` centres a group
+  both ways, like `display: flex` + `place-items: center`.
 - bun:ffi corrupts the last `f64` in 8-argument win64 signatures, so the
   four corner radii and the four border widths cross the ABI as `double[4]`
   buffers (radii `{tl, tr, br, bl}`; widths in Thickness order

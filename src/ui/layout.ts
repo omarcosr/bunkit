@@ -30,15 +30,17 @@ export interface StackOptions extends ViewOptions {
   padding?: number | Partial<NSEdgeInsets>;
   /** How leftover space is shared out. */
   distribution?: number;
-  /** Cross-axis alignment: "leading" | "center" | "trailing" | "fill". */
-  align?: "leading" | "center" | "trailing" | "fill";
+  /** Cross-axis alignment (CSS `align-items`): "leading" | "center" |
+   *  "trailing" | "fill". */
+  alignItems?: "leading" | "center" | "trailing" | "fill";
   /**
-   * What to do with leftover space along the stack's own axis.
-   * "start" pushes the content to the top/left (the default for a column);
-   * "fill" shares it out among the items (the default for a row).
-   * A child with `grow` always wins over either.
+   * What to do with leftover space along the stack's own axis (CSS
+   * `justify-content`): "start" pushes the content to the top/left (the
+   * default for a column), "center" centres it, "fill" shares it out among
+   * the items (the default for a row). A child with `grow` always wins over
+   * either.
    */
-  pack?: "start" | "fill";
+  justifyContent?: "start" | "center" | "fill";
   /**
    * Scroll instead of clipping when the content outgrows the available
    * space. `true` scrolls the stack's own axis (a row scrolls horizontally,
@@ -57,7 +59,7 @@ export class Stack extends View {
   /** JSX props type (ElementAttributesProperty). */
   declare readonly props: StackOptions & { orientation?: number };
   readonly orientation: number;
-  readonly align: "leading" | "center" | "trailing" | "fill";
+  readonly alignItems: "leading" | "center" | "trailing" | "fill";
   #insets: NSEdgeInsets;
   // The NSStackView itself; equals `native` unless the stack scrolls, in
   // which case `native` is the wrapping NSScrollView.
@@ -110,38 +112,52 @@ export class Stack extends View {
 
     // A vertical stack almost always wants its rows full width; a horizontal
     // one almost always wants its items vertically centred.
-    this.align = options.align ?? (horizontal ? "center" : "fill");
+    this.alignItems = options.alignItems ?? (horizontal ? "center" : "fill");
 
     // NSStackView's `alignment` is a *cross-axis* NSLayoutAttribute, and only a
     // few values are legal per orientation — Width/Height are silently ignored,
     // which is why "fill" is implemented with our own constraints below.
     const attr = horizontal
       ? { leading: LayoutAttribute.Top, center: LayoutAttribute.CenterY,
-          trailing: LayoutAttribute.Bottom, fill: LayoutAttribute.Top }[this.align]
+          trailing: LayoutAttribute.Bottom, fill: LayoutAttribute.Top }[this.alignItems]
       : { leading: LayoutAttribute.Leading, center: LayoutAttribute.CenterX,
-          trailing: LayoutAttribute.Trailing, fill: LayoutAttribute.Leading }[this.align];
+          trailing: LayoutAttribute.Trailing, fill: LayoutAttribute.Leading }[this.alignItems];
     native.setAlignment_(attr);
 
     for (const c of children) this.add(c);
 
     // A column of rows should sit at the top with the slack below it, which is
     // not something NSStackView expresses; a trailing flexible view is how you
-    // say it. Rows default to sharing the slack instead.
-    const pack = options.pack ?? (horizontal ? "fill" : "start");
+    // say it. Rows default to sharing the slack instead. "center" puts an equal
+    // flexible view at each end so the content sits mid-axis.
+    const pack = options.justifyContent ?? (horizontal ? "fill" : "start");
     if (pack === "start") {
-      const filler = objc.NSView.alloc().init();
-      filler.setTranslatesAutoresizingMaskIntoConstraints_(false);
-      for (const a of [Orientation.Horizontal, Orientation.Vertical]) {
-        filler.setContentHuggingPriority_forOrientation_(249, a);
-        filler.setContentCompressionResistancePriority_forOrientation_(1, a);
-      }
+      const filler = this.makeFiller();
       native.addArrangedSubview_(filler);
-      this.#filler = filler;
+      this.#fillers.push(filler);
+    } else if (pack === "center") {
+      const lead = this.makeFiller();
+      const trail = this.makeFiller();
+      native.insertArrangedSubview_atIndex_(lead, 0);
+      native.addArrangedSubview_(trail);
+      this.#fillers.push(lead, trail);
     }
   }
 
+  /** A flexible view with a low hugging priority, so it absorbs the stack's
+   *  spare space along the main axis. */
+  private makeFiller(): any {
+    const filler = objc.NSView.alloc().init();
+    filler.setTranslatesAutoresizingMaskIntoConstraints_(false);
+    for (const a of [Orientation.Horizontal, Orientation.Vertical]) {
+      filler.setContentHuggingPriority_forOrientation_(249, a);
+      filler.setContentCompressionResistancePriority_forOrientation_(1, a);
+    }
+    return filler;
+  }
+
   // Kept out of `children` — it is layout plumbing, not part of the tree.
-  #filler: any = null;
+  #fillers: any[] = [];
 
   // "fill" means every item spans the stack's cross axis. NSStackView will not
   // do this for us, so each arranged subview gets one constraint tying its
@@ -159,7 +175,7 @@ export class Stack extends View {
   }
 
   #applyFill(child: View) {
-    if (this.align !== "fill") return;
+    if (this.alignItems !== "fill") return;
     const horizontal = this.orientation === Orientation.Horizontal;
     const attr = horizontal ? LayoutAttribute.Height : LayoutAttribute.Width;
     const inset = horizontal
@@ -176,8 +192,13 @@ export class Stack extends View {
   // An arranged subview is added by NSStackView itself, so we only mirror the
   // bookkeeping rather than calling View.add (which would add it twice).
   add(child: View): this {
-    if (this.#filler) {
+    const fillers = this.#fillers.length;
+    if (fillers === 1) {
+      // "start": the single trailing filler must stay last.
       this.#stack.insertArrangedSubview_atIndex_(child.native, this._children.length);
+    } else if (fillers === 2) {
+      // "center": a leading filler at 0 and a trailing one at the end.
+      this.#stack.insertArrangedSubview_atIndex_(child.native, this._children.length + 1);
     } else {
       this.#stack.addArrangedSubview_(child.native);
     }

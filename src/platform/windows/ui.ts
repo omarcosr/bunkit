@@ -434,7 +434,7 @@ export class Window {
 // --- controls ---------------------------------------------------------------------
 
 export class Label extends View {
-  constructor(opts: { text?: string; color?: string; font?: any; align?: string; grow?: number } & ViewOptions = {}) {
+  constructor(opts: { text?: string; color?: string; font?: any; textAlign?: string; grow?: number } & ViewOptions = {}) {
     const bound = extractSignals(opts);
     super(windowsBackend.createLabel(opts as any), opts);
     bindSignals(this, opts, bound);
@@ -591,8 +591,11 @@ export interface StackOptions extends ViewOptions {
   spacing?: number;
   /** Uniform padding, or per-edge. */
   padding?: number | any;
-  /** Cross-axis alignment: "leading" | "center" | "trailing" | "fill". */
-  align?: "leading" | "center" | "trailing" | "fill";
+  /** Cross-axis alignment (CSS `align-items`): "leading" | "center" |
+   *  "trailing" | "fill". */
+  alignItems?: "leading" | "center" | "trailing" | "fill";
+  /** Main-axis distribution (CSS `justify-content`): "start" | "center" | "fill". */
+  justifyContent?: "start" | "center" | "fill";
   /**
    * Scroll instead of clipping when the content outgrows the available
    * space. `true` scrolls the stack's own axis (a row scrolls horizontally,
@@ -612,6 +615,11 @@ export class Stack extends View {
       scrollFlags = (wantH ? 1 : 0) | (wantV ? 2 : 0);
     }
     super(windowsBackend.createStack(orientation, opts as any, scrollFlags), opts);
+    const horizontal = orientation === 1;
+    const align = opts.alignItems ?? (horizontal ? "center" : "fill");
+    const pack = opts.justifyContent ?? (horizontal ? "fill" : "start");
+    windowsBackend.stackSetAlign(this.handle, { leading: 0, center: 1, trailing: 2, fill: 3 }[align] ?? 3);
+    windowsBackend.stackSetPack(this.handle, { start: 0, center: 1, fill: 2 }[pack] ?? 0);
     for (const c of children) this.add(c);
   }
   add(child: any): this {

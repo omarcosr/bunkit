@@ -334,7 +334,7 @@ const win = new Window({
   size: { width: 1060, height: 720 },
   minSize: { width: 760, height: 520 },
   content: new VStack({ spacing: 12, padding: 16 }, [
-    new HStack({ spacing: 10, align: "center" }, [
+    new HStack({ spacing: 10, alignItems: "center" }, [
       new Label({ text: "Compute", font: { style: "title", weight: "semibold" } }),
       new Label({ text: "drag inside the view to pull them around", color: "tertiaryLabel" }),
       new Spacer(),
@@ -343,7 +343,7 @@ const win = new Window({
 
     surface,
 
-    new HStack({ spacing: 14, align: "center" }, [
+    new HStack({ spacing: 14, alignItems: "center" }, [
       new Label({ text: "Pull", width: 32 }),
       new Slider({ min: -40, max: 90, value: strength, width: 130, onChange: (v) => { strength = v; } }),
       new Label({ text: "Swirl", width: 40 }),

@@ -25,7 +25,7 @@ export interface Column<Row = any> {
   width?: number;
   minWidth?: number;
   maxWidth?: number;
-  align?: "left" | "center" | "right";
+  textAlign?: "left" | "center" | "right";
   /** Absorb the table's spare width. Defaults to any column with no `width`. */
   flex?: boolean;
   /** Produce the cell text for a row. Defaults to `row[id]`. */
@@ -162,10 +162,10 @@ export class Table<Row = any> extends View {
             text.setBordered_(false);
             text.setDrawsBackground_(false);
             if (self.#font) text.setFont_(self.#font);
-            if (spec.align) {
+            if (spec.textAlign) {
               text.setAlignment_(
-                spec.align === "center" ? TextAlignment.Center
-                : spec.align === "right" ? TextAlignment.Right
+                spec.textAlign === "center" ? TextAlignment.Center
+                : spec.textAlign === "right" ? TextAlignment.Right
                 : TextAlignment.Left,
               );
             }

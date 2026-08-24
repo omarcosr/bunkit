@@ -412,7 +412,7 @@ const win = new Window({
   size: { width: 1080, height: 720 },
   minSize: { width: 780, height: 520 },
   content: new VStack({ spacing: 12, padding: 16 }, [
-    new HStack({ spacing: 8, align: "center" }, [
+    new HStack({ spacing: 8, alignItems: "center" }, [
       new Label({ text: "Rig", font: { style: "title", weight: "semibold" } }),
       new Label({
         text: "right-drag to look · wasd to fly · shift for speed",
@@ -424,7 +424,7 @@ const win = new Window({
 
     scene,
 
-    new HStack({ spacing: 14, align: "center" }, [
+    new HStack({ spacing: 14, alignItems: "center" }, [
       new Segmented({
         items: ["Sweep", "Wave", "Focus", "Wash"],
         selected: 0,

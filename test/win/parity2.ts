@@ -148,7 +148,7 @@ let selected = -1;
 const multi = new Table<{ n: string; tag: string }>({
   columns: [
     { id: "n", title: "N", flex: true },
-    { id: "tag", title: "Tag", width: 70, align: "right", minWidth: 40, maxWidth: 200 },
+    { id: "tag", title: "Tag", width: 70, textAlign: "right", minWidth: 40, maxWidth: 200 },
   ],
   rows: [
     { n: "one", tag: "a" },

@@ -242,6 +242,11 @@ BK_EXPORT int32_t bk_stack_add_child(bk_handle stack, bk_handle child,
                                      double grow);
 // Removes a child and its row/column definition, keeping the rest aligned.
 BK_EXPORT int32_t bk_stack_remove_child(bk_handle stack, bk_handle child);
+// align: 0 leading, 1 center, 2 trailing, 3 fill (cross axis, applies per child).
+// pack: 0 start (content at the top/left), 1 center (content centred along the
+// main axis), 2 fill (leftover shared out). Call before adding children.
+BK_EXPORT int32_t bk_stack_set_align(bk_handle stack, int32_t align);
+BK_EXPORT int32_t bk_stack_set_pack(bk_handle stack, int32_t pack);
 
 // --- group box --------------------------------------------------------------
 // Bordered panel with a header. Children replace the whole content; a second

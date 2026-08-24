@@ -398,6 +398,14 @@ export class WindowsBackend {
     winLib.bk_stack_remove_child(stack, child);
   }
 
+  stackSetAlign(stack: NativeHandle, align: number): void {
+    winLib.bk_stack_set_align(stack, align);
+  }
+
+  stackSetPack(stack: NativeHandle, pack: number): void {
+    winLib.bk_stack_set_pack(stack, pack);
+  }
+
   setImageSource(h: NativeHandle, path: string): void {
     const b = cstr(path);
     winLib.bk_imageview_set_source(h, b as any, b.length);

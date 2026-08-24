@@ -53,6 +53,8 @@ struct NativeObject {
   uint64_t cb2{0};                  // second callback (Table double click, TextBox submit)
   int32_t aux{0};                   // Stack: bk_stack_orientation
   int32_t suppress{0};              // >0 while a programmatic set is in flight
+  int32_t align{0};                 // Stack: 0 leading, 1 center, 2 trailing, 3 fill
+  int32_t pack{0};                  // Stack: 0 start, 1 center, 2 fill
   double auxf{0};                   // Table: row height
   double auxf2{0};                  // Table: font size
   int32_t aux2{0};                  // Table flags: 1 multi, 4 alt rows, 8 mono

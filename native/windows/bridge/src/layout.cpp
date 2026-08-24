@@ -130,9 +130,31 @@ BK_EXPORT int32_t bk_stack_add_child(bk_handle stack, bk_handle child,
     auto grid = grid_of_stack(parent);
     FrameworkElement element = entry->object.as<FrameworkElement>();
 
-    const int32_t index = static_cast<int32_t>(grid.Children().Size());
     const bool horizontal = parent->aux == BK_STACK_HORIZONTAL;
+    const bool center = parent->pack == 1;
+    const int32_t childCount = static_cast<int32_t>(grid.Children().Size());
 
+    // Centre-pack keeps a flexible row/column at each end so the content sits
+    // mid-axis: [Star, Auto x children, Star]. Maintain that invariant as
+    // children are appended.
+    if (center) {
+      if (childCount > 0) {
+        if (horizontal) grid.ColumnDefinitions().RemoveAt(childCount + 1);
+        else grid.RowDefinitions().RemoveAt(childCount + 1);
+      } else {
+        if (horizontal) {
+          cx::ColumnDefinition lead;
+          lead.Width(GridLength(1.0, GridUnitType::Star));
+          grid.ColumnDefinitions().InsertAt(0, lead);
+        } else {
+          cx::RowDefinition lead;
+          lead.Height(GridLength(1.0, GridUnitType::Star));
+          grid.RowDefinitions().InsertAt(0, lead);
+        }
+      }
+    }
+
+    const int32_t index = childCount + (center ? 1 : 0);
     cx::RowDefinition row;
     cx::ColumnDefinition col;
     if (horizontal) {
@@ -145,6 +167,36 @@ BK_EXPORT int32_t bk_stack_add_child(bk_handle stack, bk_handle child,
       cx::Grid::SetRow(element, index);
     }
     grid.Children().Append(element);
+
+    if (center) {
+      if (horizontal) {
+        cx::ColumnDefinition trail;
+        trail.Width(GridLength(1.0, GridUnitType::Star));
+        grid.ColumnDefinitions().Append(trail);
+      } else {
+        cx::RowDefinition trail;
+        trail.Height(GridLength(1.0, GridUnitType::Star));
+        grid.RowDefinitions().Append(trail);
+      }
+    }
+
+    // Cross-axis alignment; fill is the default Stretch, so nothing to set.
+    switch (parent->align) {
+      case 0: // leading
+        if (horizontal) element.VerticalAlignment(VerticalAlignment::Top);
+        else element.HorizontalAlignment(HorizontalAlignment::Left);
+        break;
+      case 1: // center
+        if (horizontal) element.VerticalAlignment(VerticalAlignment::Center);
+        else element.HorizontalAlignment(HorizontalAlignment::Center);
+        break;
+      case 2: // trailing
+        if (horizontal) element.VerticalAlignment(VerticalAlignment::Bottom);
+        else element.HorizontalAlignment(HorizontalAlignment::Right);
+        break;
+      default:
+        break;
+    }
     st = BK_OK;
   });
   return combine(rc, st);
@@ -184,6 +236,36 @@ BK_EXPORT int32_t bk_stack_remove_child(bk_handle stack, bk_handle child) {
       }
     }
     st = BK_WRONG_TYPE; // not a child of this stack
+  });
+  return combine(rc, st);
+}
+
+BK_EXPORT int32_t bk_stack_set_align(bk_handle stack, int32_t align) {
+  if (require_running() != BK_OK) return BK_NOT_INITIALIZED;
+  int32_t st = BK_ERROR;
+  const int32_t rc = bk::Runtime::instance().dispatch_sync([&] {
+    auto* entry = bk::registry().get(stack);
+    if (!entry || entry->type != bk::NativeType::Stack) {
+      st = BK_INVALID_HANDLE;
+      return;
+    }
+    entry->align = align;
+    st = BK_OK;
+  });
+  return combine(rc, st);
+}
+
+BK_EXPORT int32_t bk_stack_set_pack(bk_handle stack, int32_t pack) {
+  if (require_running() != BK_OK) return BK_NOT_INITIALIZED;
+  int32_t st = BK_ERROR;
+  const int32_t rc = bk::Runtime::instance().dispatch_sync([&] {
+    auto* entry = bk::registry().get(stack);
+    if (!entry || entry->type != bk::NativeType::Stack) {
+      st = BK_INVALID_HANDLE;
+      return;
+    }
+    entry->pack = pack;
+    st = BK_OK;
   });
   return combine(rc, st);
 }

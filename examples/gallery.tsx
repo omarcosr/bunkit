@@ -115,9 +115,9 @@ const table = new Table<Album>({
   columns: [
     { id: "title", title: "Album", flex: true },
     { id: "artist", title: "Artist", flex: true },
-    { id: "year", title: "Year", width: 56, align: "right" },
+    { id: "year", title: "Year", width: 56, textAlign: "right" },
     {
-      id: "rating", title: "", width: 64, align: "center",
+      id: "rating", title: "", width: 64, textAlign: "center",
       // A whole view per cell, not just text: render wins over value.
       render: (a) => (
         <Button title={"★".repeat(a.rating)} onClick={() => { beep(); say(`${a.title} — ${a.rating}/10`); }} />
@@ -150,7 +150,7 @@ function swatch(label: string, view: any): any {
   return (
     <VStack spacing={4}>
       {view}
-      <Label text={label} font={{ size: 11 }} color="secondaryLabel" align="center" />
+      <Label text={label} font={{ size: 11 }} color="textBackground" textAlign="center" />
     </VStack>
   );
 }
@@ -187,7 +187,7 @@ const styledControls = (
         <Select selected={0} items={["Alpha", "Beta"]} background="#FDE2E2" borderRadius={8} width={110} />
       </HStack>
       <ScrollView background="#E2F3E8" borderRadius={10} height={56} border>
-        <Label text="a tinted, rounded, bordered scroll view" font={{ size: 11 }} color="#1F3B4D" align="center" />
+        <Label text="a tinted, rounded, bordered scroll view" font={{ size: 11 }} color="#1F3B4D" textAlign="center" />
       </ScrollView>
       <TextArea value="…and a tinted text area." background="#E8F0FE" borderRadius={8} height={40} editable={false} />
     </VStack>
@@ -215,8 +215,8 @@ flag.subscribe((on) => {
 
 const signalsBox = (
   <GroupBox title="Signals" padding={10} spacing={8}>
-    <HStack spacing={8} align="center">{nameField}{flagBox}</HStack>
-    <HStack spacing={8} align="center">{nameEcho}{flagLabel}</HStack>
+    <HStack spacing={8} alignItems="center">{nameField}{flagBox}</HStack>
+    <HStack spacing={8} alignItems="center">{nameEcho}{flagLabel}</HStack>
   </GroupBox>
 );
 
@@ -224,7 +224,7 @@ const signalsBox = (
 const detail = (
   <ScrollView border={false}>
     <VStack spacing={12} padding={12}>
-      <HStack spacing={12} align="center">
+      <HStack spacing={12} alignItems="center">
         <ImageView src={covers[0]!} width={96} height={96} />
         <VStack spacing={6}>
           <Label text={albums[0]!.title} font={{ style: "title", weight: "semibold" }} />
@@ -294,7 +294,7 @@ const win = new Window({
           {detail}
         </VStack>
       </SplitView>
-      <HStack spacing={10} align="fill">
+      <HStack spacing={10} alignItems="fill">
         {clock}
         <Spacer />
         <Button title="Snapshot…" onClick={() => {

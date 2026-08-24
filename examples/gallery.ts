@@ -115,9 +115,9 @@ const table = new Table<Album>({
   columns: [
     { id: "title", title: "Album", flex: true },
     { id: "artist", title: "Artist", flex: true },
-    { id: "year", title: "Year", width: 56, align: "right" },
+    { id: "year", title: "Year", width: 56, textAlign: "right" },
     {
-      id: "rating", title: "", width: 64, align: "center",
+      id: "rating", title: "", width: 64, textAlign: "center",
       // A whole view per cell, not just text: render wins over value.
       render: (a) => new Button({
         title: "★".repeat(a.rating),
@@ -156,7 +156,7 @@ const notesBox = new GroupBox({ title: "Notes", padding: 10, spacing: 8 }, [note
 function swatch(label: string, view: any): any {
   return new VStack({ spacing: 4 }, [
     view,
-    new Label({ text: label, font: { size: 11 }, color: "secondaryLabel", align: "center" }),
+    new Label({ text: label, font: { size: 11 }, color: "secondaryLabel", textAlign: "center" }),
   ]);
 }
 const styleBox = new GroupBox({ title: "Palette", padding: 10, spacing: 8 }, [
@@ -217,7 +217,7 @@ const styledControls = new GroupBox({ title: "Styled controls", padding: 10, spa
   ]),
   new ScrollView(
     { background: "#E2F3E8", borderRadius: 10, height: 56, border: true },
-    new Label({ text: "a tinted, rounded, bordered scroll view", font: { size: 11 }, color: "#1F3B4D", align: "center" }),
+    new Label({ text: "a tinted, rounded, bordered scroll view", font: { size: 11 }, color: "#1F3B4D", textAlign: "center" }),
   ),
   new TextArea({
     value: "…and a tinted text area.", background: "#E8F0FE",
@@ -249,12 +249,12 @@ bind(flagBox, "checked", flag);
 flag.subscribe((on) => { flagLabel.text = on ? "on" : "off"; });
 
 const signalsBox = new GroupBox({ title: "Signals", padding: 10, spacing: 8 }, [
-  new HStack({ spacing: 8, align: "center" }, [nameField, flagBox]),
-  new HStack({ spacing: 8, align: "center" }, [nameEcho, flagLabel]),
+  new HStack({ spacing: 8, alignItems: "center" }, [nameField, flagBox]),
+  new HStack({ spacing: 8, alignItems: "center" }, [nameEcho, flagLabel]),
 ]);
 
 const detail = new ScrollView({ border: false }, new VStack({ spacing: 12, padding: 12 }, [
-  new HStack({ spacing: 12, align: "center" }, [
+  new HStack({ spacing: 12, alignItems: "center" }, [
     new ImageView({ src: covers[0]!, width: 96, height: 96 }),
     new VStack({ spacing: 6 }, [
       new Label({ text: albums[0]!.title, font: { style: "title", weight: "semibold" } }),
@@ -344,7 +344,7 @@ const win = new Window({
         detail,
       ]),
     ]),
-    new HStack({ spacing: 10, align: "fill" }, [
+    new HStack({ spacing: 10, alignItems: "fill" }, [
       clock,
       new Spacer(),
       new Button({

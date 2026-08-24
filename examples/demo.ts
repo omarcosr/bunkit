@@ -62,7 +62,7 @@ const table = new Table<Person>({
   columns: [
     { id: "name", title: "Name", width: 170 },
     { id: "role", title: "Role", width: 140 },
-    { id: "score", title: "Score", width: 60, align: "right" },
+    { id: "score", title: "Score", width: 60, textAlign: "right" },
   ],
   rows: people,
   rowHeight: 26,
@@ -76,15 +76,15 @@ const table = new Table<Person>({
 const nameField = new TextField({ placeholder: "Name", grow: 1 });
 const roleField = new TextField({ placeholder: "Role", grow: 1 });
 const scoreSlider = new Slider({ min: 0, max: 100, value: 50, grow: 1 });
-const scoreLabel = new Label({ text: "50", width: 34, align: "right" });
+const scoreLabel = new Label({ text: "50", width: 34, textAlign: "right" });
 scoreSlider.onChange((v) => {
   scoreLabel.text = String(Math.round(v));
 });
 
 const detail = new GroupBox({ title: "Details", padding: 12 }, [
-  new HStack({ spacing: 8, align: "center" }, [new Label({ text: "Name", width: 52 }), nameField]),
-  new HStack({ spacing: 8, align: "center" }, [new Label({ text: "Role", width: 52 }), roleField]),
-  new HStack({ spacing: 8, align: "center" }, [
+  new HStack({ spacing: 8, alignItems: "center" }, [new Label({ text: "Name", width: 52 }), nameField]),
+  new HStack({ spacing: 8, alignItems: "center" }, [new Label({ text: "Role", width: 52 }), roleField]),
+  new HStack({ spacing: 8, alignItems: "center" }, [
     new Label({ text: "Score", width: 52 }),
     scoreSlider,
     scoreLabel,
@@ -138,7 +138,7 @@ const modeSwitch = new Switch({
 });
 
 const showcase = new GroupBox({ title: "Controls", padding: 12 }, [
-  new HStack({ spacing: 10, align: "center" }, [
+  new HStack({ spacing: 10, alignItems: "center" }, [
     new Checkbox({ title: "Checkbox", checked: true, onChange: (c) => log(`checkbox ${c}`) }),
     modeSwitch,
     new Select({
@@ -151,7 +151,7 @@ const showcase = new GroupBox({ title: "Controls", padding: 12 }, [
       onChange: (i) => log(`segment ${i}`),
     }),
   ]),
-  new HStack({ spacing: 10, align: "center" }, [
+  new HStack({ spacing: 10, alignItems: "center" }, [
     progress,
     spinner,
     new Spacer(),
@@ -188,7 +188,7 @@ const win = new Window({
   size: { width: 900, height: 640 },
   minSize: { width: 720, height: 520 },
   content: new VStack({ spacing: 12, padding: 16 }, [
-    new HStack({ spacing: 8, align: "center" }, [
+    new HStack({ spacing: 8, alignItems: "center" }, [
       new Label({ text: "People", font: { style: "title", weight: "semibold" } }),
       new Spacer(),
       clock,
@@ -196,7 +196,7 @@ const win = new Window({
     ]),
     table,
     new Separator(),
-    new HStack({ spacing: 12, align: "fill" }, [detail, showcase]),
+    new HStack({ spacing: 12, alignItems: "fill" }, [detail, showcase]),
     new Label({
       text: "Event log",
       font: { size: 11, weight: "semibold" },

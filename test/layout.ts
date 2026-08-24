@@ -122,7 +122,7 @@ const H = 500;
   const label = new Label({ text: "Name", width: 60 });
   const field = new TextField({ placeholder: "value", grow: 1 });
   const btn = new Button({ title: "Go" });
-  const row = new HStack({ spacing: 8, align: "center" }, [label, field, btn]);
+  const row = new HStack({ spacing: 8, alignItems: "center" }, [label, field, btn]);
   const stack = new VStack({ spacing: 10, padding: 16 }, [row, new Spacer()]);
   const w = new Window({ title: "form", size: { width: W, height: H }, content: stack, show: false });
   show("03-form", w, stack);
@@ -146,7 +146,7 @@ const H = 500;
     columns: [
       { id: "a", title: "A", width: 200 },
       { id: "b", title: "B", width: 120 },
-      { id: "c", title: "C", width: 80, align: "right" },
+      { id: "c", title: "C", width: 80, textAlign: "right" },
     ],
     rows: [
       { a: "one", b: "uno", c: 1 },
@@ -173,29 +173,29 @@ const H = 500;
 {
   const nameField = new TextField({ placeholder: "Name", width: 200 });
   const detail = new GroupBox({ title: "Details", padding: 12 }, [
-    new HStack({ spacing: 8, align: "center" }, [new Label({ text: "Name", width: 52 }), nameField]),
-    new HStack({ spacing: 8, align: "center" }, [
+    new HStack({ spacing: 8, alignItems: "center" }, [new Label({ text: "Name", width: 52 }), nameField]),
+    new HStack({ spacing: 8, alignItems: "center" }, [
       new Label({ text: "Score", width: 52 }),
       new Slider({ min: 0, max: 100, value: 50, width: 180 }),
-      new Label({ text: "50", width: 34, align: "right" }),
+      new Label({ text: "50", width: 34, textAlign: "right" }),
     ]),
   ]);
   const showcase = new GroupBox({ title: "Controls", padding: 12 }, [
-    new HStack({ spacing: 10, align: "center" }, [
+    new HStack({ spacing: 10, alignItems: "center" }, [
       new Checkbox({ title: "Check", checked: true }),
       new Switch({ on: true }),
       new Select({ items: ["A", "B"], width: 90 }),
     ]),
-    new HStack({ spacing: 10, align: "center" }, [
+    new HStack({ spacing: 10, alignItems: "center" }, [
       new Progress({ max: 100, value: 40, width: 140 }),
       new Spacer(),
       new Button({ title: "Go" }),
     ]),
   ]);
-  const row = new HStack({ spacing: 12, align: "fill" }, [detail, showcase]);
+  const row = new HStack({ spacing: 12, alignItems: "fill" }, [detail, showcase]);
   const log = new TextArea({ value: "log line\n", editable: false, height: 80 });
   const stack = new VStack({ spacing: 12, padding: 16 }, [
-    new HStack({ spacing: 8, align: "center" }, [
+    new HStack({ spacing: 8, alignItems: "center" }, [
       new Label({ text: "Header", font: { style: "title" } }),
       new Spacer(),
       new Button({ title: "Add" }),
@@ -255,33 +255,33 @@ const H = 500;
 {
   for (const width of [900, 828, 760, 720]) {
     const slider = new Slider({ min: 0, max: 100, value: 50, width: 220 });
-    const scoreRow = new HStack({ spacing: 8, align: "center" }, [
+    const scoreRow = new HStack({ spacing: 8, alignItems: "center" }, [
       new Label({ text: "Score", width: 52 }),
       slider,
-      new Label({ text: "50", width: 34, align: "right" }),
+      new Label({ text: "50", width: 34, textAlign: "right" }),
     ]);
     const detail = new GroupBox({ title: "Details", padding: 12 }, [
-      new HStack({ spacing: 8, align: "center" }, [
+      new HStack({ spacing: 8, alignItems: "center" }, [
         new Label({ text: "Name", width: 52 }),
         new TextField({ placeholder: "Name", width: 220 }),
       ]),
       scoreRow,
     ]);
     const controls = new GroupBox({ title: "Controls", padding: 12 }, [
-      new HStack({ spacing: 10, align: "center" }, [
+      new HStack({ spacing: 10, alignItems: "center" }, [
         new Checkbox({ title: "Checkbox", checked: true }),
         new Switch({ on: true }),
         new Select({ items: ["Alpha"], width: 110 }),
         new Segmented({ items: ["List", "Grid", "Cards"] }),
       ]),
-      new HStack({ spacing: 10, align: "center" }, [
+      new HStack({ spacing: 10, alignItems: "center" }, [
         new Progress({ max: 100, value: 40, width: 180 }),
         new Spacer(),
         new Button({ title: "Ask…" }),
       ]),
     ]);
     const stack = new VStack({ spacing: 12, padding: 16 }, [
-      new HStack({ spacing: 12, align: "fill" }, [detail, controls]),
+      new HStack({ spacing: 12, alignItems: "fill" }, [detail, controls]),
     ]);
     const w = new Window({ title: `spill-${width}`, size: { width, height: 420 }, content: stack, show: false });
     settle(w);

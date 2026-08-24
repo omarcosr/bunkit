@@ -205,7 +205,7 @@ const win = new Window({
   size: { width: 1160, height: 700 },
   minSize: { width: 840, height: 500 },
   content: new VStack({ spacing: 10, padding: 14 }, [
-    new HStack({ spacing: 10, align: "center" }, [
+    new HStack({ spacing: 10, alignItems: "center" }, [
       new Label({ text: "MSL", font: { style: "title", weight: "semibold" } }),
       new Segmented({
         items: PRESETS.map(([name]) => name),

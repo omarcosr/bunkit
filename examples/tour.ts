@@ -23,7 +23,7 @@ const input = new TextField({ placeholder: "New task…", grow: 1, onSubmit: add
 const table = new Table<Task>({
   columns: [
     { id: "title", title: "Task", flex: true },
-    { id: "done", title: "Done", width: 60, align: "center",
+    { id: "done", title: "Done", width: 60, textAlign: "center",
       value: (t) => (t.done ? "✓" : "") },
   ],
   rows: tasks,
@@ -50,7 +50,7 @@ const win = new Window({
     new HStack({ spacing: 8 }, [input, new Button({ title: "Add", primary: true, onClick: add })]),
     table,
     new GroupBox({ title: "Selection", padding: 10 }, [
-      new HStack({ spacing: 8, align: "center" }, [
+      new HStack({ spacing: 8, alignItems: "center" }, [
         status,
         new Spacer(),
         // Dialogs are sheets and return promises, so JS never freezes.

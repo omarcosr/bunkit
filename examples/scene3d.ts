@@ -110,7 +110,7 @@ const win = new Window({
   size: { width: 900, height: 620 },
   minSize: { width: 640, height: 460 },
   content: new VStack({ spacing: 12, padding: 16 }, [
-    new HStack({ spacing: 8, align: "center" }, [
+    new HStack({ spacing: 8, alignItems: "center" }, [
       new Label({ text: "Metal", font: { style: "title", weight: "semibold" } }),
       new Spacer(),
       fps,
@@ -118,7 +118,7 @@ const win = new Window({
 
     scene,
 
-    new HStack({ spacing: 14, align: "center" }, [
+    new HStack({ spacing: 14, alignItems: "center" }, [
       new Label({ text: "Spin", width: 34 }),
       new Slider({
         min: 0, max: 4, value: spin, grow: 1,

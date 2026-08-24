@@ -23,7 +23,7 @@ let selected = -1;
 const table = new Table<{ name: string; score: number }>({
   columns: [
     { id: "name", title: "Name", width: 120 },
-    { id: "score", title: "Score", width: 60, align: "right" },
+    { id: "score", title: "Score", width: 60, textAlign: "right" },
   ],
   rows: [
     { name: "Ada", score: 98 },

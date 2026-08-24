@@ -80,7 +80,7 @@ export interface LabelOptions extends ViewOptions {
   font?: FontSpec | number;
   /** Text colour: a semantic name ("secondaryLabel"…) or a CSS hex string. */
   color?: ColorValue;
-  align?: "left" | "center" | "right";
+  textAlign?: "left" | "center" | "right";
   /** Wrap onto multiple lines instead of truncating. */
   wrap?: boolean;
   selectable?: boolean;
@@ -101,10 +101,10 @@ export class Label extends View {
     const f = this.native;
     if (o.font !== undefined) f.setFont_(makeFont(o.font));
     if (o.color !== undefined) f.setTextColor_(toNSColor(o.color));
-    if (o.align !== undefined) {
+    if (o.textAlign !== undefined) {
       f.setAlignment_(
-        o.align === "center" ? TextAlignment.Center
-        : o.align === "right" ? TextAlignment.Right
+        o.textAlign === "center" ? TextAlignment.Center
+        : o.textAlign === "right" ? TextAlignment.Right
         : TextAlignment.Left,
       );
     }
@@ -314,7 +314,7 @@ export interface TextFieldOptions extends ViewOptions {
   secure?: boolean;
   editable?: boolean;
   font?: FontSpec | number;
-  align?: "left" | "center" | "right";
+  textAlign?: "left" | "center" | "right";
   enabled?: boolean;
   /** Text colour: a semantic name ("secondaryLabel"…) or a CSS hex string. */
   textColor?: ColorValue;
@@ -347,10 +347,10 @@ export class TextField extends View {
     if (options.editable !== undefined) f.setEditable_(options.editable);
     if (options.enabled !== undefined) f.setEnabled_(options.enabled);
     if (options.font !== undefined) f.setFont_(makeFont(options.font));
-    if (options.align !== undefined) {
+    if (options.textAlign !== undefined) {
       f.setAlignment_(
-        options.align === "center" ? TextAlignment.Center
-        : options.align === "right" ? TextAlignment.Right
+        options.textAlign === "center" ? TextAlignment.Center
+        : options.textAlign === "right" ? TextAlignment.Right
         : TextAlignment.Left,
       );
     }
