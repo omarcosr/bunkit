@@ -3,6 +3,7 @@
 #include "registry.h"
 #include "runtime.h"
 #include "strings.h"
+#include "border_state.h"
 
 #include <winrt/Microsoft.UI.Xaml.Controls.h>
 #include <winrt/Microsoft.UI.Xaml.Controls.Primitives.h>
@@ -252,6 +253,7 @@ BK_EXPORT bk_handle bk_select_create(void) {
   bk_handle out = BK_HANDLE_NULL;
   const int32_t rc = bk::Runtime::instance().dispatch_sync([&] {
     cx::ComboBox combo;
+    bk::apply_default_border(combo, L"ComboBoxBorder");
     out = bk::registry().add(bk::NativeType::Select, combo);
     auto& entry = *bk::registry().get(out);
     entry.token1 = combo.SelectionChanged([handle = out](auto const&, cx::SelectionChangedEventArgs const&) {
@@ -371,6 +373,7 @@ BK_EXPORT bk_handle bk_textarea_create_ex(int32_t rich) {
   const int32_t rc = bk::Runtime::instance().dispatch_sync([&] {
     if (rich) {
       cx::RichEditBox box;
+      bk::apply_default_border(box);
       cx::ScrollViewer::SetVerticalScrollBarVisibility(box, cx::ScrollBarVisibility::Auto);
       out = bk::registry().add(bk::NativeType::RichTextArea, box);
       auto& entry = *bk::registry().get(out);
@@ -386,6 +389,7 @@ BK_EXPORT bk_handle bk_textarea_create_ex(int32_t rich) {
     cx::TextBox box;
     box.AcceptsReturn(true);
     box.TextWrapping(TextWrapping::Wrap);
+    bk::apply_default_border(box);
     cx::ScrollViewer::SetVerticalScrollBarVisibility(box, cx::ScrollBarVisibility::Auto);
     out = bk::registry().add(bk::NativeType::TextArea, box);
     auto& entry = *bk::registry().get(out);

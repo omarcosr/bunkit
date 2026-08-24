@@ -10,6 +10,7 @@
 #include "registry.h"
 #include "runtime.h"
 #include "strings.h"
+#include "border_state.h"
 
 #include <winrt/Microsoft.UI.Xaml.h>
 #include <winrt/Microsoft.UI.Xaml.Controls.h>
@@ -235,13 +236,10 @@ BK_EXPORT bk_handle bk_textbox_create(int32_t secure,
   const int32_t rc = bk::Runtime::instance().dispatch_sync([&] {
     if (secure) {
       cx::PasswordBox box;
+      bk::apply_default_border(box);
       if (!p.empty()) {
         box.PlaceholderText(bk::utf8_to_hstring(
             p.data(), static_cast<uint32_t>(p.size())));
-      }
-      try {
-        box.Template(nullptr);
-      } catch (...) {
       }
       out = bk::registry().add(type, box);
       auto& entry = *bk::registry().get(out);
@@ -281,6 +279,7 @@ BK_EXPORT bk_handle bk_textbox_create(int32_t secure,
           });
     } else {
       cx::TextBox box;
+      bk::apply_default_border(box);
       try {
         box.IsSpellCheckEnabled(false);
         box.IsTextPredictionEnabled(false);

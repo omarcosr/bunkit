@@ -736,4 +736,64 @@ BK_EXPORT int32_t bk_theme_is_dark(void) {
   return rc == ERROR_SUCCESS && value == 0 ? 1 : 0;
 }
 
+// Debug helper: read back the BorderThickness of any registered control.
+// out4 receives {left, top, right, bottom} on success.
+BK_EXPORT int32_t bk_control_border_thickness(bk_handle c, double* out4) {
+  if (require_running() != BK_OK) return BK_NOT_INITIALIZED;
+  int32_t st = BK_ERROR;
+  const int32_t rc = bk::Runtime::instance().dispatch_sync([&] {
+    auto element = element_of(c);
+    if (!element) { st = BK_INVALID_HANDLE; return; }
+    winrt::Microsoft::UI::Xaml::Thickness t;
+    if (auto control = element.try_as<cx::Control>()) { t = control.BorderThickness(); }
+    else if (auto border = element.try_as<cx::Border>()) { t = border.BorderThickness(); }
+    else { st = BK_WRONG_TYPE; return; }
+    out4[0] = t.Left; out4[1] = t.Top; out4[2] = t.Right; out4[3] = t.Bottom;
+    st = BK_OK;
+  });
+  return combine(rc, st);
+}
+
+// Give a registered control programmatic keyboard focus (FocusState::Programmatic).
+BK_EXPORT int32_t bk_control_focus(bk_handle c) {
+  if (require_running() != BK_OK) return BK_NOT_INITIALIZED;
+  int32_t st = BK_ERROR;
+  const int32_t rc = bk::Runtime::instance().dispatch_sync([&] {
+    auto element = element_of(c);
+    if (!element) { st = BK_INVALID_HANDLE; return; }
+    auto control = element.try_as<cx::Control>();
+    if (!control) { st = BK_WRONG_TYPE; return; }
+    control.Focus(winrt::Microsoft::UI::Xaml::FocusState::Programmatic);
+    st = BK_OK;
+  });
+  return combine(rc, st);
+}
+
+// Debug: resolve a theme brush key from the application resources and copy its
+// solid colour to out_hex ("RRGGBB"). Returns 1 when the key resolves to a
+// SolidColorBrush, 0 otherwise.
+BK_EXPORT int32_t bk_debug_theme_brush(const char* key, uint32_t key_len,
+                                       char* out_hex) {
+  if (require_running() != BK_OK) return BK_NOT_INITIALIZED;
+  const std::string k = key && key_len ? std::string(key, key_len) : "";
+  int32_t found = 0;
+  bk::Runtime::instance().dispatch_sync([&] {
+    try {
+      auto brush = winrt::Microsoft::UI::Xaml::Application::Current()
+                       .Resources()
+                       .Lookup(winrt::box_value(
+                           winrt::hstring(bk::utf8_to_hstring(k.data(),
+                                                               k.size()))))
+                       .as<Media::SolidColorBrush>();
+      auto color = brush.Color();
+      char hex[8];
+      snprintf(hex, sizeof(hex), "%02X%02X%02X", color.R, color.G, color.B);
+      memcpy(out_hex, hex, 7);
+      found = 1;
+    } catch (...) {
+    }
+  });
+  return found;
+}
+
 } // extern "C"

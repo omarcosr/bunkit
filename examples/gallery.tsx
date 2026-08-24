@@ -141,6 +141,7 @@ const notesBox = (
     <TextArea
       value={`${albums[0]!.artist} — ${albums[0]!.title} (${albums[0]!.year})\n\nRich text, editable: the notes field is a real text editor.`}
       richText font={{ size: 12 }} minHeight={120}
+      borderRadius={4}
     />
   </GroupBox>
 );

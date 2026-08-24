@@ -366,6 +366,18 @@ BK_EXPORT int32_t bk_blurview_set_content(bk_handle b, bk_handle child);
 // when the app follows the system theme.
 BK_EXPORT int32_t bk_theme_is_dark(void);
 
+// Debug: read back the BorderThickness of a registered control.
+// out4 must point to 4 doubles; receives {left, top, right, bottom}.
+BK_EXPORT int32_t bk_control_border_thickness(bk_handle c, double* out4);
+
+// Debug: give a registered control programmatic keyboard focus.
+BK_EXPORT int32_t bk_control_focus(bk_handle c);
+
+// Debug: resolve a theme brush key from the application resources and copy its
+// solid colour to out_hex ("RRGGBB"). Returns 1 when it resolves, else 0.
+BK_EXPORT int32_t bk_debug_theme_brush(const char* key, uint32_t key_len,
+                                       char* out_hex);
+
 // --- generic view options ------------------------------------------------------
 // 0 in a dimension leaves it unset. background is "#RRGGBB"/"#AARRGGBB".
 BK_EXPORT int32_t bk_control_set_size(bk_handle c, double width, double height);

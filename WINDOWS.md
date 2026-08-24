@@ -344,6 +344,13 @@ bun test/win/parity2.ts       # views, advanced table, input, snapshot, debug
   Border-based views and falls back to solid on plain Controls (the overlay
   rounds uniformly with the largest requested radius, and strokes per-side
   widths with the largest requested width).
+- Text inputs (`TextField`, `TextArea`, `Select`) render a neutral 1px border
+  on all four sides by default: WASDK's stock border is a near-invisible
+  `F2F2F2` that flips to the accent colour on focus, so the bridge sets an
+  explicit `8A8A8A` border at creation and shadows the focus/hover
+  brush+thickness theme resources on the control (`border_state.h`). The
+  border never turns blue, and an explicit `border`/`borderColor` from the
+  caller replaces it as usual.
 - Stack layout props are CSS-named too: `alignItems` (cross axis,
   `align-items`) and `justifyContent` (main axis, `justify-content`), with
   `justifyContent: "center"` centring a stack's content along its own axis —
