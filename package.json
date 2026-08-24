@@ -58,6 +58,7 @@
     "tsx-gallery": "bun run examples/gallery.tsx",
     "counter": "bun run examples/counter.ts",
     "counter-tsx": "bun run examples/counter.tsx",
+    "todo": "bun run examples/todo.tsx",
     "scene": "bun run examples/scene3d.ts",
     "rig": "bun run examples/lighting-rig.ts",
     "playground": "bun run examples/shader-playground.ts",

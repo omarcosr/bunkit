@@ -43,6 +43,35 @@ winrt::Windows::Foundation::IInspectable element_of(bk_handle h) {
   return entry ? entry->object : nullptr;
 }
 
+// Whether the OS is in dark mode (AppsUseLightTheme = 0).
+bool system_dark_mode() {
+  DWORD value = 1;
+  DWORD size = sizeof(value);
+  LONG rc = RegGetValueW(
+      HKEY_CURRENT_USER,
+      L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
+      L"AppsUseLightTheme", RRF_RT_REG_DWORD, nullptr, &value, &size);
+  return rc == ERROR_SUCCESS && value == 0;
+}
+
+// True when `el` already carries an explicit Background on any of the three
+// element kinds the bridge paints (Control, Panel, Border).
+bool has_explicit_background(FrameworkElement const& el) {
+  try {
+    if (el.as<cx::Control>().Background()) return true;
+  } catch (...) {
+  }
+  try {
+    if (el.as<cx::Panel>().Background()) return true;
+  } catch (...) {
+  }
+  try {
+    if (el.as<cx::Border>().Background()) return true;
+  } catch (...) {
+  }
+  return false;
+}
+
 } // namespace
 
 extern "C" {
@@ -432,8 +461,10 @@ BK_EXPORT int32_t bk_control_set_theme(bk_handle c, int32_t theme,
       target.RequestedTheme(mapped);
       // Repaint the subtree root: XAML content roots are transparent, so
       // without this the old system backdrop keeps showing through after a
-      // theme flip. Default: light pages white, dark pages near-black; a
-      // custom hex wins.
+      // theme flip. An explicit hex wins; otherwise light pages are white,
+      // dark pages near-black, and the "default" theme follows the OS. A root
+      // that already carries its own background (e.g. an adaptive
+      // `{ light, dark }` colour) is left alone.
       winrt::Windows::UI::Color body{};
       if (bg && bg_len) {
         const std::string digits =
@@ -445,12 +476,15 @@ BK_EXPORT int32_t bk_control_set_theme(bk_handle c, int32_t theme,
         body.G = static_cast<uint8_t>((value >> 8) & 0xFF);
         body.B = static_cast<uint8_t>(value & 0xFF);
         if (digits.size() > 6) body.R = static_cast<uint8_t>((value >> 16) & 0xFF);
-      } else if (theme == 2) {
-        body = winrt::Windows::UI::Color{255, 0x1C, 0x1C, 0x1C};
-      } else {
-        body = winrt::Windows::UI::Color{255, 255, 255, 255};
+        paint_element_background(target, body);
+      } else if (!has_explicit_background(target)) {
+        if (theme == 2 || (theme == 0 && system_dark_mode())) {
+          body = winrt::Windows::UI::Color{255, 0x1C, 0x1C, 0x1C};
+        } else {
+          body = winrt::Windows::UI::Color{255, 255, 255, 255};
+        }
+        paint_element_background(target, body);
       }
-      paint_element_background(target, body);
       st = BK_OK;
     } catch (...) {
       st = BK_WRONG_TYPE;
@@ -535,6 +569,13 @@ BK_EXPORT int32_t bk_control_set_background(bk_handle c, const char* hex,
         return;
       }
       border.Background(Media::SolidColorBrush(color));
+      st = BK_OK;
+      return;
+    } catch (...) {
+    }
+    try {
+      // Stacks are plain Grids (Panel) — they take a Background like any Panel.
+      element.as<cx::Panel>().Background(Media::SolidColorBrush(color));
       st = BK_OK;
     } catch (...) {
       st = BK_WRONG_TYPE;
@@ -727,13 +768,7 @@ BK_EXPORT int32_t bk_control_set_corner_radius4(bk_handle c, double tl,
 // Whether the OS is in dark mode (AppsUseLightTheme = 0). Used to resolve
 // `{ light, dark }` colours when the app follows the system theme.
 BK_EXPORT int32_t bk_theme_is_dark(void) {
-  DWORD value = 1;
-  DWORD size = sizeof(value);
-  LONG rc = RegGetValueW(
-      HKEY_CURRENT_USER,
-      L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
-      L"AppsUseLightTheme", RRF_RT_REG_DWORD, nullptr, &value, &size);
-  return rc == ERROR_SUCCESS && value == 0 ? 1 : 0;
+  return system_dark_mode() ? 1 : 0;
 }
 
 // Debug helper: read back the BorderThickness of any registered control.
