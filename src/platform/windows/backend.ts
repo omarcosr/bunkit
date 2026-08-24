@@ -115,6 +115,11 @@ export class WindowsBackend {
     winLib.bk_window_center(h);
   }
 
+  setWindowIcon(h: NativeHandle, path: string): void {
+    const b = cstr(path);
+    winLib.bk_window_set_icon(h, b as any, b.length);
+  }
+
   getWindowPosition(h: NativeHandle): { x: number; y: number } {
     const bx = Buffer.alloc(8);
     const by = Buffer.alloc(8);
@@ -468,9 +473,10 @@ export class WindowsBackend {
     winLib.bk_stack_set_pack(stack, pack);
   }
 
-  setImageSource(h: NativeHandle, path: string): void {
+  setImageSource(h: NativeHandle, path: string, tint?: string): void {
     const b = cstr(path);
-    winLib.bk_imageview_set_source(h, b as any, b.length);
+    const t = cstr(tint ?? "");
+    winLib.bk_imageview_set_source_ex(h, b as any, b.length, t as any, t.length);
   }
 
   // --- composite controls -----------------------------------------------------

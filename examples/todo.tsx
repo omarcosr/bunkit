@@ -8,7 +8,7 @@
 // (`{ light, dark }`), following the system theme on both platforms.
 import type { ThemeColor } from "bunkit";
 import {
-  Application, Button, Checkbox, HStack, Label, ScrollView, Separator,
+  Application, Button, Checkbox, HStack, ImageView, Label, ScrollView, Separator,
   Spacer, TextField, VStack, Window, signal,
 } from "bunkit";
 
@@ -118,9 +118,7 @@ const win = (
     titlebarColor={{ light: "#F4F5F7", dark: "#16161E" }}
     titlebarTextColor={{ light: "#202124", dark: "#E8E8F2" }}
     background={{ light: "#F4F5F7", dark: "#16161E" }}
-    resizable={false}
-    closable={false}
-    minimizable={false}
+    icon="./icons/sparkle.ico"
   >
     <VStack
       spacing={16}
@@ -131,6 +129,7 @@ const win = (
         <Label text="Today" font={{ style: "title", weight: "semibold" }} grow={1} />
         {countLabel}
       </HStack>
+      <ImageView src="./icons/sparkle.svg" width={24} height={24} tint="#5bd680" />
       <Label text="Get things done." font={{ size: 12 }} color="secondaryLabel" />
 
       <HStack spacing={10}>

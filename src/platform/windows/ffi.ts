@@ -65,6 +65,7 @@ function getLib(): any {
   bk_window_set_position: { args: ["u64", "f64", "f64"], returns: "i32" },
   bk_window_position: { args: ["u64", "ptr", "ptr"], returns: "i32" },
   bk_window_center: { args: ["u64"], returns: "i32" },
+  bk_window_set_icon: { args: ["u64", "ptr", "u32"], returns: "i32" },
   bk_window_show: { args: ["u64"], returns: "i32" },
   bk_window_close: { args: ["u64"], returns: "i32" },
   bk_window_set_content: { args: ["u64", "u64"], returns: "i32" },
@@ -130,6 +131,7 @@ function getLib(): any {
   bk_stack_set_align: { args: ["u64", "i32"], returns: "i32" },
   bk_stack_set_pack: { args: ["u64", "i32"], returns: "i32" },
   bk_imageview_set_source: { args: ["u64", "ptr", "u32"], returns: "i32" },
+  bk_imageview_set_source_ex: { args: ["u64", "ptr", "u32", "ptr", "u32"], returns: "i32" },
 
   bk_groupbox_create: { args: ["ptr", "u32", "f64"], returns: "u64" },
   bk_groupbox_set_content: { args: ["u64", "u64"], returns: "i32" },

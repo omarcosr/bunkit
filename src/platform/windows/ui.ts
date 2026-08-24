@@ -4,6 +4,7 @@ import type { NativeHandle } from "./ffi.ts";
 import { winLib } from "./ffi.ts";
 import { bindSignals, extractSignals } from "../../signal.ts";
 import { applyAdaptiveColor, reapplyAdaptiveColors, resolveColor, isThemeColor, trackAdaptive } from "../../ui/adaptive.ts";
+import { resolveAssetPath } from "../../asset.ts";
 
 // Theme-adaptive colour helpers, public on both platforms (macOS re-exports
 // them from view.ts). Re-exported here so `import { resolveColor } from
@@ -438,6 +439,8 @@ export class Window {
     minSize?: { width: number; height: number };
     /** Screen position of the bottom-left corner; omitted means centred. */
     position?: { x: number; y: number };
+    /** Window icon (titlebar + taskbar): .ico or .png path. */
+    icon?: string;
     content?: any;
     show?: boolean;
     onClose?: () => void;
@@ -458,6 +461,7 @@ export class Window {
   } = {}) {
     this.handle = windowsBackend.createWindow({ title: opts.title, size: opts.size });
     if (opts.minSize) windowsBackend.setWindowMinSize(this.handle, opts.minSize);
+    if (opts.icon !== undefined) windowsBackend.setWindowIcon(this.handle, resolveAssetPath(opts.icon));
     if (opts.position !== undefined) {
       windowsBackend.setWindowPosition(this.handle, opts.position.x, opts.position.y);
     } else {
@@ -865,18 +869,28 @@ export interface ImageOptions extends ViewOptions {
   /** File path or http(s) URL. */
   src?: string;
   scaling?: number;
+  /** SVG tint colour ("#RRGGBB") — replaces fill/stroke; ignored for bitmaps. */
+  tint?: string;
 }
 
 export class ImageView extends View {
   #src: string;
+  #tint: string | undefined;
   constructor(opts: ImageOptions = {}) {
     super(windowsBackend.createImageView(opts.src ?? ""), opts);
     this.#src = opts.src ?? "";
+    if (opts.tint !== undefined) this.tint = opts.tint;
   }
   get src(): string { return this.#src; }
   set src(v: string) {
     this.#src = v;
-    if (v) windowsBackend.setImageSource(this.handle, v);
+    if (v) windowsBackend.setImageSource(this.handle, resolveAssetPath(v), this.#tint);
+  }
+  /** Recolour an SVG's fill/stroke; ignored for bitmaps. */
+  get tint(): string | undefined { return this.#tint; }
+  set tint(v: string | undefined) {
+    this.#tint = v;
+    if (this.#src) windowsBackend.setImageSource(this.handle, resolveAssetPath(this.#src), v);
   }
 }
 

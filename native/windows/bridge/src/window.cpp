@@ -10,14 +10,25 @@
 #include "runtime.h"
 #include "strings.h"
 
+#include <windows.h>
+#include <unknwn.h>
+#include <algorithm>
+#include <fstream>
 #include <winrt/Microsoft.UI.Xaml.h>
 #include <winrt/Microsoft.UI.Xaml.Media.h>
 #include <winrt/Microsoft.UI.Composition.h>
 #include <winrt/Microsoft.UI.Composition.SystemBackdrops.h>
-#include <algorithm>
 #include <winrt/Microsoft.UI.Windowing.h>
 
 using namespace winrt::Microsoft::UI::Xaml;
+
+// The WinUI 3 Window implements IWindowNative — the supported way to reach
+// the Win32 HWND (needed for WM_SETICON, which AppWindow.SetIcon does not
+// apply for unpackaged apps).
+struct __declspec(uuid("EECDBF0E-BAE9-4CB6-A68E-9598E1CB57BB"))
+IWindowNative : public IUnknown {
+  virtual HRESULT __stdcall get_WindowHandle(HWND* hWnd) = 0;
+};
 
 namespace {
 
@@ -327,6 +338,115 @@ BK_EXPORT int32_t bk_window_show_titlebar(bk_handle w, int32_t full_size,
     win.Activate();
     st = apply_titlebar(win, full_size, bg, bg_len, fg, fg_len) ? BK_OK
                                                                 : BK_ERROR;
+  });
+  return combine(rc, st);
+}
+
+// Window icon (titlebar on Win10, taskbar + Alt+Tab everywhere). SetIcon from
+// AppWindow does not stick for unpackaged apps, so this goes through Win32:
+// LoadImage for .ico, a PNG wrapped in an ICO container for .png, and
+// WM_SETICON for both small and big variants.
+BK_EXPORT int32_t bk_window_set_icon(bk_handle w, const char* path,
+                                     uint32_t path_len) {
+  if (require_running() != BK_OK) return BK_NOT_INITIALIZED;
+  if (!path || path_len == 0) return BK_INVALID_ARGUMENT;
+  int32_t st = BK_ERROR;
+  const int32_t rc = bk::Runtime::instance().dispatch_sync([&] {
+    auto* entry = bk::registry().get(w);
+    if (!entry || entry->type != bk::NativeType::Window) {
+      st = BK_INVALID_HANDLE;
+      return;
+    }
+    try {
+      const std::string p(path, path_len);
+      std::string lower = p;
+      for (auto& ch : lower) ch = static_cast<char>(tolower(ch));
+
+      HICON icon = nullptr;
+      std::wstring wide = winrt::to_hstring(p).c_str();
+      // Resolve relative paths against the current directory (the bun CWD)
+      // so `icon="icons/sparkle.ico"` works from the project root.
+      {
+        wchar_t absolute[MAX_PATH];
+        if (GetFullPathNameW(wide.c_str(), MAX_PATH, absolute, nullptr) > 0) {
+          wide = absolute;
+        }
+      }
+      if (lower.size() > 4 && lower.compare(lower.size() - 4, 4, ".ico") == 0) {
+        icon = static_cast<HICON>(LoadImageW(
+            nullptr, wide.c_str(), IMAGE_ICON, 0, 0,
+            LR_LOADFROMFILE | LR_DEFAULTSIZE));
+      } else if (lower.size() > 4 &&
+                 lower.compare(lower.size() - 4, 4, ".png") == 0) {
+        // PNG: wrap the bytes in a minimal ICO container (Vista+ loads
+        // PNG-compressed icons) and decode with CreateIconFromResourceEx.
+        std::ifstream file(wide.c_str(), std::ios::binary);
+        const std::vector<uint8_t> png((std::istreambuf_iterator<char>(file)),
+                                       std::istreambuf_iterator<char>());
+        if (png.size() < 8) {
+          bk::set_last_error("window icon could not be read: " + p);
+          st = BK_INVALID_ARGUMENT;
+          return;
+        }
+        std::vector<uint8_t> ico{0, 0, 1, 0, 1, 0};  // reserved, type=icon, count=1
+        ico.insert(ico.end(), {0, 0, 0, 0});          // width/height 0 = 256
+        ico.insert(ico.end(), {0, 0});                // colours, reserved
+        ico.insert(ico.end(), {1, 0});                // planes
+        ico.insert(ico.end(), {32, 0});               // bpp
+        const uint32_t size = static_cast<uint32_t>(png.size());
+        for (int shift = 0; shift < 32; shift += 8)
+          ico.push_back(static_cast<uint8_t>((size >> shift) & 0xFF));
+        const uint32_t offset = 22;
+        for (int shift = 0; shift < 32; shift += 8)
+          ico.push_back(static_cast<uint8_t>((offset >> shift) & 0xFF));
+        ico.insert(ico.end(), png.begin(), png.end());
+        icon = static_cast<HICON>(CreateIconFromResourceEx(
+            const_cast<uint8_t*>(ico.data()), static_cast<uint32_t>(ico.size()),
+            TRUE, 0x00030000, 0, 0, LR_DEFAULTCOLOR));
+      }
+      if (!icon) {
+        FILE* dbg = fopen("C:\\Users\\marco\\AppData\\Local\\Temp\\icon_debug.txt", "a");
+        if (dbg) { fprintf(dbg, "load failed for: %s\n", p.c_str()); fclose(dbg); }
+        bk::set_last_error("window icon could not be loaded: " + p +
+                           " (use .ico or .png)");
+        st = BK_INVALID_ARGUMENT;
+        return;
+      }
+      // HWND via IWindowNative, then set both icon variants.
+      IWindowNative* native = nullptr;
+      const HRESULT hr = winrt::get_unknown(entry->object)->QueryInterface(
+          __uuidof(IWindowNative), reinterpret_cast<void**>(&native));
+      if (FAILED(hr) || !native) {
+        FILE* dbg = fopen("C:\\Users\\marco\\AppData\\Local\\Temp\\icon_debug.txt", "a");
+        if (dbg) {
+          fprintf(dbg, "IWindowNative query failed: hr=%08X\n",
+                  static_cast<unsigned>(hr));
+          fclose(dbg);
+        }
+        bk::set_last_error("window icon: no HWND available");
+        st = BK_ERROR;
+        return;
+      }
+      HWND hwnd = nullptr;
+      native->get_WindowHandle(&hwnd);
+      native->Release();
+      if (!hwnd) {
+        bk::set_last_error("window icon: HWND is null");
+        st = BK_ERROR;
+        return;
+      }
+      SendMessageW(hwnd, WM_SETICON, ICON_SMALL, reinterpret_cast<LPARAM>(icon));
+      SendMessageW(hwnd, WM_SETICON, ICON_BIG, reinterpret_cast<LPARAM>(icon));
+      // The taskbar reads the icon from the window class as well.
+      SetClassLongPtrW(hwnd, GCLP_HICONSM, reinterpret_cast<LONG_PTR>(icon));
+      st = BK_OK;
+    } catch (winrt::hresult_error const& e) {
+      bk::set_last_error("window icon failed: " + winrt::to_string(e.message()));
+      st = BK_ERROR;
+    } catch (...) {
+      bk::set_last_error("window icon failed with an unexpected error");
+      st = BK_ERROR;
+    }
   });
   return combine(rc, st);
 }

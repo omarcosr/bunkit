@@ -17,6 +17,9 @@
 #include <winrt/Windows.Foundation.Collections.h>
 
 #include <algorithm>
+#include <cctype>
+#include <fstream>
+#include <regex>
 #include <cmath>
 #include <cstdlib>
 #include <string>
@@ -257,16 +260,109 @@ cx::Image image_of(bk::NativeObject* e) {
   return e->object.as<cx::Border>().Child().as<cx::Image>();
 }
 
+// Rewrite an SVG document's fill/stroke colours to `tint` ("#RRGGBB").
+// Handles fill=".."/stroke=".." attributes and fill:/stroke: inside style
+// attributes; "none" is preserved. Good enough for icon-style SVGs.
+static std::string tint_svg(const std::string& svg, const std::string& tint) {
+  std::string out;
+  const auto tinted = [&](const std::string& value) {
+    return value == "none" || value.empty() ? "" : tint;
+  };
+  // 1) fill=".." / stroke=".." attributes
+  {
+    const std::regex attr_re("(fill|stroke)=\"([^\"]*)\"");
+    auto begin = std::sregex_iterator(svg.begin(), svg.end(), attr_re);
+    size_t last = 0;
+    for (auto it = begin; it != std::sregex_iterator(); ++it) {
+      out += svg.substr(last, it->position() - last);
+      const std::string value = (*it)[2].str();
+      const std::string t = tinted(value);
+      out += t.empty() ? it->str() : (*it)[1].str() + "=\"" + t + "\"";
+      last = it->position() + it->length();
+    }
+    out += svg.substr(last);
+  }
+  // 2) fill:/stroke: inside style=".." (not fill-rule: etc.)
+  {
+    const std::regex style_re("(fill|stroke):([^;\"']*)");
+    std::string styled;
+    auto b2 = std::sregex_iterator(out.begin(), out.end(), style_re);
+    size_t last = 0;
+    for (auto it = b2; it != std::sregex_iterator(); ++it) {
+      styled += out.substr(last, it->position() - last);
+      const std::string value = (*it)[2].str();
+      const std::string t = tinted(value);
+      styled += t.empty() ? it->str() : (*it)[1].str() + ":" + t;
+      last = it->position() + it->length();
+    }
+    styled += out.substr(last);
+    out = styled;
+  }
+  return out;
+}
+
+// Write an SVG document to a unique temp file; returns the file path.
+static std::string write_temp_svg(const std::string& content) {
+  wchar_t tmp[MAX_PATH];
+  if (!GetTempPathW(MAX_PATH, tmp)) return "";
+  uint32_t h = 2166136261u;
+  for (const char c : content) {
+    h ^= static_cast<uint8_t>(c);
+    h *= 16777619u;
+  }
+  const std::wstring path =
+      std::wstring(tmp) + L"bunkit-tint-" + std::to_wstring(h) + L".svg";
+  FILE* f = _wfopen(path.c_str(), L"wb");
+  if (!f) return "";
+  fwrite(content.data(), 1, content.size(), f);
+  fclose(f);
+  char narrow[MAX_PATH];
+  const int n = WideCharToMultiByte(CP_UTF8, 0, path.c_str(), -1, narrow,
+                                    MAX_PATH, nullptr, nullptr);
+  return n > 0 ? std::string(narrow, n - 1) : "";
+}
+
 void set_image_source(cx::Image const& image, const std::string& p) {
-  // WinRT wants a URI; absolute paths become file:/// with forward slashes.
+  // WinRT wants an absolute URI. Relative paths are resolved against the
+  // current directory first — file:///icons/x.svg would otherwise mean
+  // <drive>:\icons\x.svg instead of ./icons/x.svg.
   std::wstring wide = winrt::to_hstring(p).c_str();
+  // Resolve relative paths against the current directory first —
+  // file:///icons/x.svg would otherwise mean <drive>:\icons\x.svg.
+  if (wide.find(L"://") == std::wstring::npos &&
+      wide.rfind(L"file:///", 0) != 0) {
+    wchar_t absolute[MAX_PATH];
+    if (GetFullPathNameW(wide.c_str(), MAX_PATH, absolute, nullptr) > 0) {
+      wide = absolute;
+    }
+  }
   for (auto& ch : wide) if (ch == L'\\') ch = L'/';
   if (wide.rfind(L"file:///", 0) != 0 && wide.rfind(L"http", 0) != 0) {
     wide = L"file:///" + wide;
   }
   try {
+    const auto uri = winrt::Windows::Foundation::Uri(wide);
+    // SVG files decode through SvgImageSource; everything else is a bitmap.
+    const bool svg = p.size() > 4 &&
+                     (p.compare(p.size() - 4, 4, ".svg") == 0 ||
+                      p.compare(p.size() - 4, 4, ".SVG") == 0);
+    if (svg) {
+      winrt::Microsoft::UI::Xaml::Media::Imaging::SvgImageSource source;
+      source.UriSource(uri);
+      source.OpenFailed(
+          [p](winrt::Windows::Foundation::IInspectable const&,
+              winrt::Microsoft::UI::Xaml::Media::Imaging::
+                  SvgImageSourceFailedEventArgs const& args) {
+            bk::set_last_error(
+                "svg failed to decode: " + p + " -> status " +
+                std::to_string(
+                    static_cast<int32_t>(args.Status())));
+          });
+      image.Source(source);
+      return;
+    }
     winrt::Microsoft::UI::Xaml::Media::Imaging::BitmapImage source;
-    source.UriSource(winrt::Windows::Foundation::Uri(wide));
+    source.UriSource(uri);
     source.ImageFailed([p](winrt::Windows::Foundation::IInspectable const&,
                            winrt::Microsoft::UI::Xaml::ExceptionRoutedEventArgs const& args) {
       bk::set_last_error("image failed to decode: " + p + " -> " +
@@ -306,6 +402,52 @@ BK_EXPORT int32_t bk_imageview_set_source(bk_handle c, const char* path,
       return;
     }
     set_image_source(image_of(entry), std::string(path, path_len));
+    st = BK_OK;
+  });
+  return combine(rc, st);
+}
+
+// Source with an optional tint for SVG files: the document's fill/stroke
+// colours are rewritten to `tint` and the result is loaded from a temp file.
+// Non-SVG sources ignore the tint.
+BK_EXPORT int32_t bk_imageview_set_source_ex(bk_handle c, const char* path,
+                                             uint32_t path_len,
+                                             const char* tint,
+                                             uint32_t tint_len) {
+  if (require_running() != BK_OK) return BK_NOT_INITIALIZED;
+  if (!path || path_len == 0) return BK_INVALID_ARGUMENT;
+  const std::string p(path, path_len);
+  const std::string t = tint && tint_len ? std::string(tint, tint_len) : "";
+  int32_t st = BK_ERROR;
+  const int32_t rc = bk::Runtime::instance().dispatch_sync([&] {
+    auto* entry = bk::registry().get(c);
+    if (!entry || entry->type != bk::NativeType::ImageView) {
+      st = BK_INVALID_HANDLE;
+      return;
+    }
+    const bool svg = p.size() > 4 &&
+                     (p.compare(p.size() - 4, 4, ".svg") == 0 ||
+                      p.compare(p.size() - 4, 4, ".SVG") == 0);
+    if (svg && !t.empty()) {
+      std::ifstream file(p, std::ios::binary);
+      const std::string content((std::istreambuf_iterator<char>(file)),
+                                std::istreambuf_iterator<char>());
+      if (content.empty()) {
+        bk::set_last_error("svg could not be read: " + p);
+        st = BK_INVALID_ARGUMENT;
+        return;
+      }
+      const std::string path = write_temp_svg(tint_svg(content, t));
+      if (path.empty()) {
+        bk::set_last_error("svg tint: temp file could not be written");
+        st = BK_ERROR;
+        return;
+      }
+      set_image_source(image_of(entry), path);
+      st = BK_OK;
+      return;
+    }
+    set_image_source(image_of(entry), p);
     st = BK_OK;
   });
   return combine(rc, st);

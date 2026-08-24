@@ -8,6 +8,7 @@ import type { Signal } from "../signal.ts";
 import { bindSignals, unwrap } from "../signal.ts";
 import { ACTION_SELECTOR, actionTarget, applyAdaptiveColor, toNSColor, View, type ViewOptions, type ColorValue } from "./view.ts";
 import { currentThemeIsDark } from "./theme.ts";
+import { resolveAssetPath } from "../asset.ts";
 import {
   AutoresizingMask,
   BezelStyle,
@@ -686,6 +687,8 @@ export interface ImageOptions extends ViewOptions {
   /** File path, SF Symbol name (prefix "sf:"), or an NSImage. */
   src?: string | any;
   scaling?: number;
+  /** SVG tint colour ("#RRGGBB") — Windows only; macOS no-op. */
+  tint?: string;
 }
 
 export class ImageView extends View {
@@ -713,7 +716,8 @@ export function loadImage(src: string | any): any {
   if (src.startsWith("named:")) {
     return objc.NSImage.imageNamed_(src.slice(6));
   }
-  return objc.NSImage.alloc().initWithContentsOfFile_(src);
+  // Relative paths resolve against the referencing file's directory.
+  return objc.NSImage.alloc().initWithContentsOfFile_(resolveAssetPath(src));
 }
 
 export { BezelStyle, ButtonType, ControlSize, ControlState, Orientation };

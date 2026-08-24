@@ -4,6 +4,7 @@ import { createDelegate, objc, str } from "../objc.ts";
 import { initApp, quit as runtimeQuit } from "../runtime.ts";
 import { View, ViewContent, toNSColor } from "./view.ts";
 import { Container } from "./layout.ts";
+import { loadImage } from "./controls.ts";
 import {
   BackingStore,
   WindowCollectionBehavior,
@@ -31,6 +32,9 @@ export interface WindowOptions {
   titlebarTextColor?: any;
   /** Colour or "#rrggbb" for the window background. */
   background?: any;
+  /** The app icon — .ico / .png / .svg on Windows; macOS uses NSImage
+   *  (PNG/JPEG/SVG on recent systems) for the dock icon. */
+  icon?: any;
   /** Restore/save the frame under this name across launches. */
   autosaveName?: string;
   onClose?: (w: Window) => void;
@@ -102,6 +106,10 @@ export class Window {
     }
     if (options.background !== undefined) {
       this.native.setBackgroundColor_(toNSColor(options.background));
+    }
+    if (options.icon !== undefined) {
+      const img = loadImage(options.icon);
+      if (img) objc.NSApplication.sharedApplication().setApplicationIconImage_(img);
     }
     this.native.setCollectionBehavior_(WindowCollectionBehavior.FullScreenPrimary);
 

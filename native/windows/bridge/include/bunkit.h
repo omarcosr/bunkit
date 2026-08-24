@@ -145,6 +145,9 @@ BK_EXPORT int32_t bk_window_position(bk_handle w, double* out_x,
                                      double* out_y);
 // Centre the window on its display's work area.
 BK_EXPORT int32_t bk_window_center(bk_handle w);
+// Window icon (titlebar + taskbar); .ico or .png path.
+BK_EXPORT int32_t bk_window_set_icon(bk_handle w, const char* path,
+                                     uint32_t path_len);
 BK_EXPORT int32_t bk_window_show(bk_handle w);
 BK_EXPORT int32_t bk_window_close(bk_handle w);
 BK_EXPORT int32_t bk_window_set_content(bk_handle w, bk_handle content);
@@ -379,6 +382,11 @@ BK_EXPORT int32_t bk_splitview_set_position(bk_handle s, double points);
 BK_EXPORT bk_handle bk_imageview_create(const char* path, uint32_t path_len);
 BK_EXPORT int32_t bk_imageview_set_source(bk_handle c, const char* path,
                                           uint32_t path_len);
+// SVG source with a colour tint; non-SVG sources ignore the tint.
+BK_EXPORT int32_t bk_imageview_set_source_ex(bk_handle c, const char* path,
+                                             uint32_t path_len,
+                                             const char* tint,
+                                             uint32_t tint_len);
 
 // Acrylic-backed panel (approximates NSVisualEffectView).
 BK_EXPORT bk_handle bk_blurview_create(void);
