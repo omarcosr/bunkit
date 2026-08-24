@@ -107,6 +107,20 @@ export class WindowsBackend {
     winLib.bk_window_set_title(h, b as any, b.length);
   }
 
+  setWindowTitlebar(h: NativeHandle, opts: {
+    fullSizeContent?: boolean;
+    titleVisible?: boolean;
+    titlebarColor?: string;
+    titlebarTextColor?: string;
+  }): void {
+    const bg = cstr(opts.titlebarColor ?? "");
+    const fg = cstr(opts.titlebarTextColor ?? "");
+    winLib.bk_window_set_titlebar(h,
+      opts.fullSizeContent ? 1 : 0,
+      opts.titleVisible === false ? 0 : 1,
+      bg as any, bg.length, fg as any, fg.length);
+  }
+
   showWindow(h: NativeHandle): void {
     winLib.bk_window_show(h);
   }

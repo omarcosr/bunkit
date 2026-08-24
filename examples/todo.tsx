@@ -6,11 +6,11 @@
 // row (checkbox + label in place), so the entrance animation plays on the new
 // element alone instead of every row. Colours are theme-adaptive
 // (`{ light, dark }`), following the system theme on both platforms.
+import type { ThemeColor } from "bunkit";
 import {
   Application, Button, Checkbox, HStack, Label, ScrollView, Separator,
   Spacer, TextField, VStack, Window, signal,
 } from "bunkit";
-import type { ThemeColor } from "bunkit";
 
 interface Todo { id: number; text: string; done: boolean; }
 interface Row { root: any; check: InstanceType<typeof Checkbox>; label: InstanceType<typeof Label>; }
@@ -111,7 +111,13 @@ function updateMeta(): void {
 
 // ─ the window ────────────────────────────────────────────────────────────────
 const win = (
-  <Window title="Todo" size={{ width: 380, height: 560 }} minSize={{ width: 320, height: 420 }}>
+  <Window
+    title="Todo"
+    size={{ width: 380, height: 560 }}
+    minSize={{ width: 320, height: 420 }}
+    titlebarColor={{ light: "#F4F5F7", dark: "#16161E" }}
+    titlebarTextColor={{ light: "#202124", dark: "#E8E8F2" }}
+  >
     <VStack
       spacing={16}
       padding={24}

@@ -127,6 +127,10 @@ BK_EXPORT bk_handle bk_window_create(const char* title, uint32_t title_len,
                                      double width, double height);
 BK_EXPORT int32_t bk_window_set_title(bk_handle w, const char* title,
                                       uint32_t title_len);
+BK_EXPORT int32_t bk_window_set_titlebar(bk_handle w, int32_t full_size,
+                                         int32_t title_visible,
+                                         const char* bg, uint32_t bg_len,
+                                         const char* fg, uint32_t fg_len);
 BK_EXPORT int32_t bk_window_show(bk_handle w);
 BK_EXPORT int32_t bk_window_close(bk_handle w);
 BK_EXPORT int32_t bk_window_set_content(bk_handle w, bk_handle content);

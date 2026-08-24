@@ -11,6 +11,7 @@
 #include "strings.h"
 
 #include <winrt/Microsoft.UI.Xaml.h>
+#include <algorithm>
 #include <winrt/Microsoft.UI.Windowing.h>
 
 using namespace winrt::Microsoft::UI::Xaml;
@@ -80,6 +81,73 @@ BK_EXPORT int32_t bk_window_set_title(bk_handle w, const char* title,
     entry->object.as<Window>().Title(
         bk::utf8_to_hstring(t.data(), static_cast<uint32_t>(t.size())));
     st = BK_OK;
+  });
+  return combine(rc, st);
+}
+
+// Titlebar customisation (AppWindowTitleBar). `full_size` extends the content
+// under the titlebar; bg/fg are optional "#RRGGBB" colours for the Windows 11
+// titlebar (empty string = leave set). `title_visible` is accepted for API
+// parity but has no effect on WASDK 1.7 (no IsVisible on AppWindowTitleBar).
+BK_EXPORT int32_t bk_window_set_titlebar(bk_handle w, int32_t full_size,
+                                         int32_t title_visible,
+                                         const char* bg, uint32_t bg_len,
+                                         const char* fg, uint32_t fg_len) {
+  if (require_running() != BK_OK) return BK_NOT_INITIALIZED;
+  int32_t st = BK_ERROR;
+  const int32_t rc = bk::Runtime::instance().dispatch_sync([&] {
+    auto* entry = bk::registry().get(w);
+    if (!entry || entry->type != bk::NativeType::Window) {
+      st = BK_INVALID_HANDLE;
+      return;
+    }
+    try {
+      (void)title_visible;
+      auto titleBar = entry->object.as<Window>().AppWindow().TitleBar();
+      if (full_size) titleBar.ExtendsContentIntoTitleBar(true);
+      const auto parse = [](const char* s, uint32_t len)
+          -> winrt::Windows::UI::Color {
+        if (!s || !len) return winrt::Windows::UI::Color{0, 0, 0, 0};
+        const std::string hex = (s[0] == '#') ? std::string(s + 1, len - 1)
+                                              : std::string(s, len);
+        const auto value =
+            static_cast<uint32_t>(std::stoul(hex, nullptr, 16));
+        return winrt::Windows::UI::Color{255,
+                                         static_cast<uint8_t>((value >> 16) & 0xFF),
+                                         static_cast<uint8_t>((value >> 8) & 0xFF),
+                                         static_cast<uint8_t>(value & 0xFF)};
+      };
+      const auto background = parse(bg, bg_len);
+      const auto foreground = parse(fg, fg_len);
+      const auto shade = [](winrt::Windows::UI::Color c, double f) {
+        return winrt::Windows::UI::Color{255,
+            static_cast<uint8_t>(std::clamp(c.R * f, 0.0, 255.0)),
+            static_cast<uint8_t>(std::clamp(c.G * f, 0.0, 255.0)),
+            static_cast<uint8_t>(std::clamp(c.B * f, 0.0, 255.0))};
+      };
+      if (background.A != 0) {
+        titleBar.BackgroundColor(background);
+        // Match the caption buttons to the titlebar; hover/pressed shade it.
+        titleBar.ButtonBackgroundColor(background);
+        titleBar.ButtonHoverBackgroundColor(shade(background, 1.15));
+        titleBar.ButtonPressedBackgroundColor(shade(background, 0.85));
+      }
+      if (foreground.A != 0) {
+        titleBar.ForegroundColor(foreground);
+        titleBar.ButtonForegroundColor(foreground);
+        titleBar.ButtonHoverForegroundColor(foreground);
+        titleBar.ButtonPressedForegroundColor(foreground);
+      }
+      st = BK_OK;
+    } catch (winrt::hresult_error const& e) {
+      bk::set_last_error(
+          "bk_window_set_titlebar failed: " +
+          winrt::to_string(e.message()));
+      st = BK_ERROR;
+    } catch (...) {
+      bk::set_last_error("bk_window_set_titlebar failed: unknown error");
+      st = BK_ERROR;
+    }
   });
   return combine(rc, st);
 }

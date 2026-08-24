@@ -432,7 +432,22 @@ export class Application {
 
 export class Window {
   readonly handle: NativeHandle;
-  constructor(opts: { title?: string; size?: { width: number; height: number }; minSize?: { width: number; height: number }; content?: any; show?: boolean; onClose?: () => void } = {}) {
+  constructor(opts: {
+    title?: string;
+    size?: { width: number; height: number };
+    minSize?: { width: number; height: number };
+    content?: any;
+    show?: boolean;
+    onClose?: () => void;
+    /** Draw content behind a transparent titlebar (parity with macOS). */
+    fullSizeContent?: boolean;
+    /** Hide the title text (parity with macOS). */
+    titleVisible?: boolean;
+    /** Windows 11 titlebar background — hex or { light, dark }. */
+    titlebarColor?: any;
+    /** Windows 11 titlebar text colour — hex or { light, dark }. */
+    titlebarTextColor?: any;
+  } = {}) {
     this.handle = windowsBackend.createWindow({ title: opts.title, size: opts.size });
     if (opts.minSize) windowsBackend.setWindowMinSize(this.handle, opts.minSize);
     if (opts.content) this.content = opts.content;
@@ -444,6 +459,25 @@ export class Window {
     }
     windowInstances.push(this);
     if (opts.show !== false) this.show();
+    // Titlebar customisation must run after the window is presented for the
+    // Windows 11 colour setters to take effect. Colours resolve per theme and
+    // re-apply on setTheme.
+    const wantsTitlebar = opts.fullSizeContent || opts.titleVisible === false ||
+      opts.titlebarColor !== undefined || opts.titlebarTextColor !== undefined;
+    if (wantsTitlebar) {
+      const apply = () => {
+        const bg = resolveColor(opts.titlebarColor, themeIsDark());
+        const fg = resolveColor(opts.titlebarTextColor, themeIsDark());
+        windowsBackend.setWindowTitlebar(this.handle, {
+          fullSizeContent: opts.fullSizeContent,
+          titleVisible: opts.titleVisible,
+          titlebarColor: typeof bg === "string" ? bg : undefined,
+          titlebarTextColor: typeof fg === "string" ? fg : undefined,
+        });
+      };
+      if (isThemeColor(opts.titlebarColor) || isThemeColor(opts.titlebarTextColor)) trackAdaptive(apply);
+      apply();
+    }
   }
   show(): this { windowsBackend.showWindow(this.handle); return this; }
   close(): void { windowsBackend.closeWindow(this.handle); }

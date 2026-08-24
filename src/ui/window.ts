@@ -25,6 +25,10 @@ export interface WindowOptions {
   /** Draw content behind a transparent titlebar. */
   fullSizeContent?: boolean;
   titleVisible?: boolean;
+  /** Windows 11 titlebar background colour (hex or { light, dark }); no-op on macOS. */
+  titlebarColor?: any;
+  /** Windows 11 titlebar text colour (hex or { light, dark }); no-op on macOS. */
+  titlebarTextColor?: any;
   /** Colour or "#rrggbb" for the window background. */
   background?: any;
   /** Restore/save the frame under this name across launches. */

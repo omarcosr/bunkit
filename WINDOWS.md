@@ -363,6 +363,13 @@ bun test/win/parity2.ts       # views, advanced table, input, snapshot, debug
   exports under 7 arguments, or pack extras into a pointer.
 - `Thickness`/`CornerRadius` are plain aggregates — `Thickness(w)` compiles
   under C++20 but zeroes three of the four sides. Always pass every field.
+- Titlebar customisation: `Window({ fullSizeContent })` extends the content
+  under the titlebar (`AppWindow.TitleBar.ExtendsContentIntoTitleBar`);
+  `titlebarColor`/`titlebarTextColor` (hex or `{ light, dark }`, reapplied on
+  `setTheme`) colour the Windows 11 titlebar and caption buttons. Both must be
+  applied after the window is shown, which the constructor does. `titleVisible`
+  is accepted for macOS parity but has no effect on WASDK 1.7 (no
+  `IsVisible` on `AppWindowTitleBar`).
 - `Stack.remove` drops the child and its row/column definition (a grid
   rebuild under the hood — heavy churn is O(n) per call, not incremental).
   `ImageView.src` swaps the bitmap in place.
