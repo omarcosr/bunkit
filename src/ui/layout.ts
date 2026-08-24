@@ -5,7 +5,7 @@
 // View.constrain() and .native for the other 20%.
 
 import { objc } from "../objc.ts";
-import { View, type ViewContent, type ViewOptions } from "./view.ts";
+import { View, mergeStyle, type StyleOf, type ViewContent, type ViewOptions } from "./view.ts";
 import {
   BorderType,
   BoxType,
@@ -48,6 +48,8 @@ export interface StackOptions extends ViewOptions {
    * a column vertically); pass axes explicitly to scroll both.
    */
   scroll?: boolean | { horizontal?: boolean; vertical?: boolean };
+  /** Inline styling object; accepts every Stack option. */
+  style?: StyleOf<StackOptions>;
 }
 
 function insets(p: StackOptions["padding"]): NSEdgeInsets {
@@ -67,6 +69,7 @@ export class Stack extends View {
   #stack: any = null;
 
   constructor(orientation: number, options: StackOptions = {}, children: View[] = []) {
+    options = mergeStyle(options);
     const native = objc.NSStackView.alloc().init();
     native.setOrientation_(orientation);
 
@@ -299,6 +302,8 @@ export interface ScrollOptions extends ViewOptions {
   border?: boolean;
   /** Let the document view stretch to the scroll view's width. */
   fitWidth?: boolean;
+  /** Inline styling object; accepts every ScrollView option. */
+  style?: StyleOf<ScrollOptions>;
 }
 
 /** A scrolling container around a single content view. */
@@ -308,6 +313,7 @@ export class ScrollView extends View {
   #content: View | null = null;
 
   constructor(options: ScrollOptions = {}, content?: ViewContent) {
+    options = mergeStyle(options);
     const sv = objc.NSScrollView.alloc().init();
     sv.setHasVerticalScroller_(options.vertical !== false);
     sv.setHasHorizontalScroller_(options.horizontal === true);
@@ -368,6 +374,8 @@ export interface BoxOptions extends ViewOptions {
   /** Border colour; pass null for no border. */
   border?: any;
   radius?: number;
+  /** Inline styling object; accepts every GroupBox option. */
+  style?: StyleOf<BoxOptions>;
 }
 
 /**
@@ -384,6 +392,7 @@ export class GroupBox extends View {
   readonly titleLabel: View | null = null;
 
   constructor(options: BoxOptions = {}, children: View[] = []) {
+    options = mergeStyle(options);
     const outer = objc.NSStackView.alloc().init();
     outer.setOrientation_(Orientation.Vertical);
     outer.setSpacing_(6);
@@ -437,6 +446,8 @@ export class GroupBox extends View {
 export interface BlurOptions extends ViewOptions {
   material?: number;
   blending?: number;
+  /** Inline styling object; accepts every BlurView option. */
+  style?: StyleOf<BlurOptions>;
 }
 
 /** A translucent "vibrancy" background, as used by sidebars and HUDs. */
@@ -444,6 +455,7 @@ export class BlurView extends View {
   /** JSX props type (ElementAttributesProperty). */
   declare readonly props: BlurOptions;
   constructor(options: BlurOptions = {}, content?: ViewContent) {
+    options = mergeStyle(options);
     const v = objc.NSVisualEffectView.alloc().init();
     v.setMaterial_(options.material ?? VisualEffectMaterial.Sidebar);
     v.setBlendingMode_(options.blending ?? VisualEffectBlendingMode.BehindWindow);
@@ -468,12 +480,15 @@ export interface SplitOptions extends ViewOptions {
   /** Initial position of the divider, in points from the leading edge. */
   position?: number;
   thickness?: number;
+  /** Inline styling object; accepts every SplitView option. */
+  style?: StyleOf<SplitOptions>;
 }
 
 export class SplitView extends View {
   /** JSX props type (ElementAttributesProperty). */
   declare readonly props: SplitOptions;
   constructor(options: SplitOptions = {}, panes: View[] = []) {
+    options = mergeStyle(options);
     const sv = objc.NSSplitView.alloc().init();
     sv.setVertical_(options.vertical !== false);
     sv.setDividerStyle_(SplitViewDividerStyle.Thin);
@@ -513,6 +528,8 @@ export interface GridViewOptions extends ViewOptions {
   rowSpacing?: number;
   /** Horizontal gap between columns (CSS `column-gap`); overrides `spacing`. */
   columnSpacing?: number;
+  /** Inline styling object; accepts every GridView option. */
+  style?: StyleOf<GridViewOptions>;
 }
 
 /** Where a view sits in its GridView parent (CSS grid placement). Children
@@ -544,6 +561,7 @@ export class GridView extends View {
   /** @internal */ #cols = 0;
 
   constructor(options: GridViewOptions = {}, children: any[] = []) {
+    options = mergeStyle(options);
     const grid = objc.NSGridView.alloc().init();
     super(grid, options);
     const rowSpacing = options.rowSpacing ?? options.spacing ?? 0;

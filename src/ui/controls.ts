@@ -6,7 +6,7 @@
 import { createDelegate, objc, str } from "../objc.ts";
 import type { Signal } from "../signal.ts";
 import { bindSignals, unwrap } from "../signal.ts";
-import { ACTION_SELECTOR, actionTarget, applyAdaptiveColor, toNSColor, View, type ViewOptions, type ColorValue } from "./view.ts";
+import { ACTION_SELECTOR, actionTarget, applyAdaptiveColor, mergeStyle, toNSColor, View, type StyleOf, type ViewOptions, type ColorValue } from "./view.ts";
 import { currentThemeIsDark } from "./theme.ts";
 import { resolveAssetPath } from "../asset.ts";
 import {
@@ -81,18 +81,21 @@ export interface LabelOptions extends ViewOptions {
   text?: string | Signal<string>;
   font?: FontSpec | number;
   /** Text colour: a semantic name ("secondaryLabel"…) or a CSS hex string. */
-  color?: ColorValue;
+  color?: ColorValue | Signal<ColorValue>;
   textAlign?: "left" | "center" | "right";
   /** Wrap onto multiple lines instead of truncating. */
   wrap?: boolean;
   selectable?: boolean;
   lines?: number;
+  /** Inline styling object; accepts every Label option. */
+  style?: StyleOf<LabelOptions>;
 }
 
 export class Label extends View {
   /** JSX props type (ElementAttributesProperty). */
   declare readonly props: LabelOptions;
   constructor(options: LabelOptions = {}) {
+    options = mergeStyle(options);
     const f = objc.NSTextField.labelWithString_(unwrap(options.text) ?? "");
     super(f, options);
     this.applyLabelOptions(options);
@@ -103,7 +106,7 @@ export class Label extends View {
     const f = this.native;
     if (o.font !== undefined) f.setFont_(makeFont(o.font));
     if (o.color !== undefined) {
-      applyAdaptiveColor(o.color, currentThemeIsDark, (c) => f.setTextColor_(toNSColor(c)));
+      applyAdaptiveColor(unwrap(o.color), currentThemeIsDark, (c) => f.setTextColor_(toNSColor(c)));
     }
     if (o.textAlign !== undefined) {
       f.setAlignment_(
@@ -157,6 +160,8 @@ export interface ButtonOptions extends ViewOptions {
   size?: number;
   key?: string;
   bordered?: boolean;
+  /** Inline styling object; accepts every Button option. */
+  style?: StyleOf<ButtonOptions>;
 }
 
 export class Button extends View {
@@ -165,6 +170,7 @@ export class Button extends View {
   #handler: ((b: Button) => void) | null = null;
 
   constructor(options: ButtonOptions = {}) {
+    options = mergeStyle(options);
     const b = objc.NSButton.buttonWithTitle_target_action_(unwrap(options.title) ?? "", null, null);
     super(b, options);
 
@@ -231,6 +237,8 @@ export interface CheckboxOptions extends ViewOptions {
   checked?: boolean | Signal<boolean>;
   onChange?: (checked: boolean, cb: Checkbox) => void;
   enabled?: boolean;
+  /** Inline styling object; accepts every Checkbox option. */
+  style?: StyleOf<CheckboxOptions>;
 }
 
 export class Checkbox extends View {
@@ -239,6 +247,7 @@ export class Checkbox extends View {
   #handler: ((checked: boolean, cb: Checkbox) => void) | null = null;
 
   constructor(options: CheckboxOptions = {}) {
+    options = mergeStyle(options);
     const b = objc.NSButton.checkboxWithTitle_target_action_(options.title ?? "", null, null);
     super(b, options);
     if (options.checked !== undefined) this.checked = unwrap(options.checked);
@@ -321,9 +330,11 @@ export interface TextFieldOptions extends ViewOptions {
   textAlign?: "left" | "center" | "right";
   enabled?: boolean;
   /** Text colour: a semantic name ("secondaryLabel"…) or a CSS hex string. */
-  textColor?: ColorValue;
+  textColor?: ColorValue | Signal<ColorValue>;
   /** Placeholder colour (semantic name or CSS hex string). */
-  placeholderColor?: ColorValue;
+  placeholderColor?: ColorValue | Signal<ColorValue>;
+  /** Inline styling object; accepts every TextField option. */
+  style?: StyleOf<TextFieldOptions>;
 }
 
 export class TextField extends View {
@@ -333,6 +344,7 @@ export class TextField extends View {
   #onSubmit: ((v: string, f: TextField) => void) | null = null;
 
   constructor(options: TextFieldOptions = {}) {
+    options = mergeStyle(options);
     const f = options.secure
       ? objc.NSSecureTextField.alloc().init()
       : objc.NSTextField.alloc().init();
@@ -341,10 +353,10 @@ export class TextField extends View {
     if (options.value !== undefined) f.setStringValue_(unwrap(options.value));
     if (options.placeholder !== undefined) f.setPlaceholderString_(options.placeholder);
     if (options.textColor !== undefined) {
-      applyAdaptiveColor(options.textColor, currentThemeIsDark, (c) => f.setTextColor_(toNSColor(c)));
+      applyAdaptiveColor(unwrap(options.textColor), currentThemeIsDark, (c) => f.setTextColor_(toNSColor(c)));
     }
     if (options.placeholderColor !== undefined && options.placeholder !== undefined) {
-      applyAdaptiveColor(options.placeholderColor, currentThemeIsDark, (c) => {
+      applyAdaptiveColor(unwrap(options.placeholderColor), currentThemeIsDark, (c) => {
         const attrs = objc.NSDictionary.dictionaryWithObject_forKey_(
           toNSColor(c), "NSForegroundColorAttributeName");
         f.setPlaceholderAttributedString_(
@@ -398,6 +410,23 @@ export class TextField extends View {
     return this;
   }
 
+  /** Text colour (hex, semantic name, or { light, dark }); re-resolves on
+   *  theme change. Also what a `textColor={signal}` binding writes to. */
+  set textColor(v: ColorValue) {
+    applyAdaptiveColor(v, currentThemeIsDark, (c) => this.native.setTextColor_(toNSColor(c)));
+  }
+
+  /** Placeholder colour; re-applies over the current placeholder text. */
+  set placeholderColor(v: ColorValue) {
+    applyAdaptiveColor(v, currentThemeIsDark, (c) => {
+      const ph = this.native.placeholderString();
+      const attrs = objc.NSDictionary.dictionaryWithObject_forKey_(
+        toNSColor(c), "NSForegroundColorAttributeName");
+      this.native.setPlaceholderAttributedString_(
+        objc.NSAttributedString.alloc().initWithString_attributes_(ph, attrs));
+    });
+  }
+
   get value(): string {
     return str(this.native.stringValue());
   }
@@ -427,7 +456,9 @@ export interface TextAreaOptions extends ViewOptions {
   editable?: boolean;
   richText?: boolean;
   /** Text colour: a semantic name ("secondaryLabel"…) or a CSS hex string. */
-  textColor?: ColorValue;
+  textColor?: ColorValue | Signal<ColorValue>;
+  /** Inline styling object; accepts every TextArea option. */
+  style?: StyleOf<TextAreaOptions>;
 }
 
 export class TextArea extends View {
@@ -437,6 +468,7 @@ export class TextArea extends View {
   #onChange: ((v: string, t: TextArea) => void) | null = null;
 
   constructor(options: TextAreaOptions = {}) {
+    options = mergeStyle(options);
     const scroll = objc.NSScrollView.alloc().init();
     scroll.setHasVerticalScroller_(true);
     scroll.setBorderType_(BorderType.Bezel);
@@ -451,7 +483,7 @@ export class TextArea extends View {
     if (options.editable !== undefined) tv.setEditable_(options.editable);
     if (options.font !== undefined) tv.setFont_(makeFont(options.font));
     if (options.textColor !== undefined) {
-      applyAdaptiveColor(options.textColor, currentThemeIsDark, (c) => tv.setTextColor_(toNSColor(c)));
+      applyAdaptiveColor(unwrap(options.textColor), currentThemeIsDark, (c) => tv.setTextColor_(toNSColor(c)));
     }
     if (options.value !== undefined) tv.setString_(unwrap(options.value));
     scroll.setDocumentView_(tv);
@@ -480,6 +512,12 @@ export class TextArea extends View {
     this.textView.setString_(v ?? "");
   }
 
+  /** Text colour (hex, semantic name, or { light, dark }); re-resolves on
+   *  theme change. */
+  set textColor(v: ColorValue) {
+    applyAdaptiveColor(v, currentThemeIsDark, (c) => this.textView.setTextColor_(toNSColor(c)));
+  }
+
   append(v: string): void {
     this.textView.setString_(this.value + v);
     this.textView.scrollRangeToVisible_({ location: this.value.length, length: 0 });
@@ -497,6 +535,8 @@ export interface SliderOptions extends ViewOptions {
   ticks?: number;
   onChange?: (value: number, s: Slider) => void;
   vertical?: boolean;
+  /** Inline styling object; accepts every Slider option. */
+  style?: StyleOf<SliderOptions>;
 }
 
 export class Slider extends View {
@@ -505,6 +545,7 @@ export class Slider extends View {
   #handler: ((v: number, s: Slider) => void) | null = null;
 
   constructor(options: SliderOptions = {}) {
+    options = mergeStyle(options);
     const s = objc.NSSlider.alloc().init();
     s.setMinValue_(options.min ?? 0);
     s.setMaxValue_(options.max ?? 1);
@@ -547,6 +588,8 @@ export interface SelectOptions extends ViewOptions {
   selected?: number | Signal<number>;
   onChange?: (index: number, title: string, s: Select) => void;
   enabled?: boolean;
+  /** Inline styling object; accepts every Select option. */
+  style?: StyleOf<SelectOptions>;
 }
 
 export class Select extends View {
@@ -555,6 +598,7 @@ export class Select extends View {
   #handler: ((i: number, t: string, s: Select) => void) | null = null;
 
   constructor(options: SelectOptions = {}) {
+    options = mergeStyle(options);
     const p = objc.NSPopUpButton.alloc().initWithFrame_pullsDown_(
       { x: 0, y: 0, width: 120, height: 25 }, false,
     );
@@ -597,6 +641,8 @@ export interface SegmentedOptions extends ViewOptions {
   items: string[];
   selected?: number | Signal<number>;
   onChange?: (index: number, s: Segmented) => void;
+  /** Inline styling object; accepts every Segmented option. */
+  style?: StyleOf<SegmentedOptions>;
 }
 
 export class Segmented extends View {
@@ -605,6 +651,7 @@ export class Segmented extends View {
   #handler: ((i: number, s: Segmented) => void) | null = null;
 
   constructor(options: SegmentedOptions) {
+    options = mergeStyle(options);
     const sc = objc.NSSegmentedControl.alloc().init();
     sc.setSegmentCount_(options.items.length);
     options.items.forEach((t, i) => {
@@ -645,12 +692,15 @@ export interface ProgressOptions extends ViewOptions {
   max?: number;
   indeterminate?: boolean;
   spinner?: boolean;
+  /** Inline styling object; accepts every Progress option. */
+  style?: StyleOf<ProgressOptions>;
 }
 
 export class Progress extends View {
   /** JSX props type (ElementAttributesProperty). */
   declare readonly props: ProgressOptions;
   constructor(options: ProgressOptions = {}) {
+    options = mergeStyle(options);
     const p = objc.NSProgressIndicator.alloc().init();
     p.setStyle_(options.spinner ? ProgressIndicatorStyle.Spinning : ProgressIndicatorStyle.Bar);
     p.setIndeterminate_(options.indeterminate ?? !!options.spinner);
@@ -689,12 +739,15 @@ export interface ImageOptions extends ViewOptions {
   scaling?: number;
   /** SVG tint colour ("#RRGGBB") — Windows only; macOS no-op. */
   tint?: string;
+  /** Inline styling object; accepts every ImageView option. */
+  style?: StyleOf<ImageOptions>;
 }
 
 export class ImageView extends View {
   /** JSX props type (ElementAttributesProperty). */
   declare readonly props: ImageOptions;
   constructor(options: ImageOptions = {}) {
+    options = mergeStyle(options);
     const v = objc.NSImageView.alloc().init();
     v.setImageScaling_(options.scaling ?? ImageScaling.ProportionallyUpOrDown);
     super(v, options);

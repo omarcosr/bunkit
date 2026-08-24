@@ -104,12 +104,20 @@ export interface ViewOptions {
  *  reusable style objects (`satisfies ViewStyle`). */
 export type ViewStyle = Omit<ViewOptions, "style" | "children">;
 
+/** A control's full `style` type: every option it takes (its own props
+ *  included), minus `style`/`children`. `style={{ textColor: "#C33" }}` is
+ *  valid on a TextField because TextFieldOptions overrides the inherited
+ *  `style?: ViewStyle` with `style?: StyleOf<TextFieldOptions>`. */
+export type StyleOf<T> = Omit<T, "style" | "children">;
+
 /** Merge `options.style` into the options; inline props take precedence.
- *  A non-object `style` (e.g. Table's "inset" style name) is left alone. */
-export function mergeStyle(options: ViewOptions): ViewOptions {
+ *  A non-object `style` (e.g. Table's "inset" style name) is left alone.
+ *  Generic so the specific option type (ScrollOptions, SegmentedOptions, …)
+ *  survives the reassignment. */
+export function mergeStyle<T extends ViewOptions>(options: T): T {
   const { style, ...rest } = options;
-  if (!style || typeof style !== "object") return rest;
-  return { ...(style as ViewStyle), ...rest };
+  if (!style || typeof style !== "object") return rest as T;
+  return { ...(style as ViewStyle), ...rest } as T;
 }
 
 /** A corner-radius spec: one number for all four corners, [tl, tr, br, bl],

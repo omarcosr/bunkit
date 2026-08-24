@@ -107,7 +107,7 @@ const win = (
         <TextField gridColumn={1} gridRow={0} style={{ borderRadius: 4 }} />
 
         <Label text="Notes" gridColumn={0} gridRow={1} gridRowSpan={2} />
-        <TextField gridColumn={1} gridRow={1} value="Notes" style={{ borderRadius: 4, background: "#1e1e29", borderColor: "#2a2a3a" }} />
+        <TextField gridColumn={1} gridRow={1} value="Notes" style={{ borderRadius: 4, background: "#1e1e29", borderColor: "#2a2a3a", textColor: "#FFFFFF" }} />
       </GridView>
       <HStack spacing={8} alignItems="center">
         <Label text="Today" font={{ style: "title", weight: "semibold" }} grow={1} />

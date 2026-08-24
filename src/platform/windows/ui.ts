@@ -103,12 +103,19 @@ export interface ViewOptions {
 /** The visual styling subset of ViewOptions, for the `style` prop. */
 export type ViewStyle = Omit<ViewOptions, "style" | "children">;
 
+/** A control's full `style` type: every option it takes, minus
+ *  `style`/`children` (macOS parity — see `src/ui/view.ts`). */
+export type StyleOf<T> = Omit<T, "style" | "children">;
+
 /** Merge `options.style` into the options; inline props take precedence.
  *  A non-object `style` is left alone. */
-export function mergeStyle(options: ViewOptions): ViewOptions {
+/** Merge `options.style` into the options; inline props take precedence.
+ *  A non-object `style` is left alone. Generic so the specific option type
+ *  (ScrollOptions, StackOptions, …) survives the reassignment. */
+export function mergeStyle<T extends ViewOptions>(options: T): T {
   const { style, ...rest } = options;
-  if (!style || typeof style !== "object") return rest;
-  return { ...(style as ViewStyle), ...rest };
+  if (!style || typeof style !== "object") return rest as T;
+  return { ...(style as ViewStyle), ...rest } as T;
 }
 
 /** Base of every control: handle + grow + the shared view options. */
@@ -561,7 +568,8 @@ export class Window {
 // --- controls ---------------------------------------------------------------------
 
 export class Label extends View {
-  constructor(opts: { text?: string; color?: any; font?: any; textAlign?: string; grow?: number } & ViewOptions = {}) {
+  constructor(opts: { text?: string; color?: any; font?: any; textAlign?: string; grow?: number ; style?: any } & ViewOptions = {}) {
+    opts = mergeStyle(opts);
     const bound = extractSignals(opts);
     // A { light, dark } colour must not cross into the native create call —
     // it resolves per theme and re-applies on setTheme.
@@ -583,7 +591,8 @@ export class Label extends View {
 }
 
 export class Button extends View {
-  constructor(opts: { title?: string; primary?: boolean; destructive?: boolean; symbol?: string; onClick?: () => void } & ViewOptions = {}) {
+  constructor(opts: { title?: string; primary?: boolean; destructive?: boolean; symbol?: string; onClick?: () => void ; style?: any } & ViewOptions = {}) {
+    opts = mergeStyle(opts);
     const bound = extractSignals(opts);
     super(windowsBackend.createButton(opts), opts);
     if (opts.onClick) windowsBackend.setButtonClickCallback(this.handle, opts.onClick);
@@ -595,7 +604,8 @@ export class Button extends View {
 
 export class TextField extends View {
   secure: boolean;
-  constructor(opts: { value?: string; placeholder?: string; secure?: boolean; textColor?: any; placeholderColor?: any; onChange?: (v: string) => void; onSubmit?: (v: string) => void } & ViewOptions = {}) {
+  constructor(opts: { value?: string; placeholder?: string; secure?: boolean; textColor?: any; placeholderColor?: any; onChange?: (v: string) => void; onSubmit?: (v: string) => void ; style?: any } & ViewOptions = {}) {
+    opts = mergeStyle(opts);
     const bound = extractSignals(opts);
     super(windowsBackend.createTextField({ value: opts.value, placeholder: opts.placeholder, secure: opts.secure, onChange: opts.onChange }), opts);
     this.secure = !!opts.secure;
@@ -615,6 +625,19 @@ export class TextField extends View {
   }
   get value(): string { return windowsBackend.getTextFieldValue(this.handle); }
   set value(v: string) { windowsBackend.setTextFieldValue(this.handle, v ?? ""); }
+  /** Text colour (hex, semantic name, or { light, dark }); re-resolves on
+   *  theme change. Also what a `textColor={signal}` binding writes to. */
+  set textColor(v: any) {
+    applyAdaptiveColor(v, themeIsDark, (c) => {
+      if (typeof c === "string") windowsBackend.setTextFieldColors(this.handle, c, undefined);
+    });
+  }
+  /** Placeholder colour; re-resolves on theme change. */
+  set placeholderColor(v: any) {
+    applyAdaptiveColor(v, themeIsDark, (c) => {
+      if (typeof c === "string") windowsBackend.setTextFieldColors(this.handle, undefined, c);
+    });
+  }
   onChange(fn: (v: string) => void): this { windowsBackend.setTextFieldChangeCallback(this.handle, fn); return this; }
   onSubmit(fn: (v: string) => void): this {
     if (this.secure) windowsBackend.setPasswordSubmitCallback(this.handle, fn);
@@ -624,7 +647,8 @@ export class TextField extends View {
 }
 
 export class Checkbox extends View {
-  constructor(opts: { title?: string; checked?: boolean; onChange?: (checked: boolean) => void } & ViewOptions = {}) {
+  constructor(opts: { title?: string; checked?: boolean; onChange?: (checked: boolean) => void ; style?: any } & ViewOptions = {}) {
+    opts = mergeStyle(opts);
     const bound = extractSignals(opts);
     super(windowsBackend.createCheckbox(opts), opts);
     bindSignals(this, opts, bound);
@@ -635,7 +659,8 @@ export class Checkbox extends View {
 }
 
 export class Switch extends View {
-  constructor(opts: { on?: boolean; onChange?: (on: boolean) => void } & ViewOptions = {}) {
+  constructor(opts: { on?: boolean; onChange?: (on: boolean) => void ; style?: any } & ViewOptions = {}) {
+    opts = mergeStyle(opts);
     const bound = extractSignals(opts);
     super(windowsBackend.createSwitch(opts), opts);
     bindSignals(this, opts, bound);
@@ -646,7 +671,8 @@ export class Switch extends View {
 }
 
 export class Slider extends View {
-  constructor(opts: { min?: number; max?: number; value?: number; onChange?: (value: number) => void } & ViewOptions = {}) {
+  constructor(opts: { min?: number; max?: number; value?: number; onChange?: (value: number) => void ; style?: any } & ViewOptions = {}) {
+    opts = mergeStyle(opts);
     const bound = extractSignals(opts);
     super(windowsBackend.createSlider(opts), opts);
     bindSignals(this, opts, bound);
@@ -657,7 +683,8 @@ export class Slider extends View {
 }
 
 export class Select extends View {
-  constructor(opts: { items?: readonly string[]; selected?: number; onChange?: (index: number, title: string) => void } & ViewOptions = {}) {
+  constructor(opts: { items?: readonly string[]; selected?: number; onChange?: (index: number, title: string) => void ; style?: any } & ViewOptions = {}) {
+    opts = mergeStyle(opts);
     const bound = extractSignals(opts);
     super(windowsBackend.createSelect(opts), opts);
     bindSignals(this, opts, bound);
@@ -670,7 +697,8 @@ export class Select extends View {
 }
 
 export class Segmented extends View {
-  constructor(opts: { items?: readonly string[]; selected?: number; onChange?: (index: number) => void } & ViewOptions = {}) {
+  constructor(opts: { items?: readonly string[]; selected?: number; onChange?: (index: number) => void ; style?: any } & ViewOptions = {}) {
+    opts = mergeStyle(opts);
     const bound = extractSignals(opts);
     super(windowsBackend.createSegmented(opts), opts);
     if (opts.onChange) windowsBackend.setSegmentedCallback(this.handle, opts.onChange);
@@ -682,7 +710,8 @@ export class Segmented extends View {
 }
 
 export class TextArea extends View {
-  constructor(opts: { value?: string; editable?: boolean; richText?: boolean; font?: any; textColor?: any; onChange?: (value: string) => void } & ViewOptions = {}) {
+  constructor(opts: { value?: string; editable?: boolean; richText?: boolean; font?: any; textColor?: any; onChange?: (value: string) => void ; style?: any } & ViewOptions = {}) {
+    opts = mergeStyle(opts);
     const bound = extractSignals(opts);
     super(windowsBackend.createTextAreaEx(!!opts.richText), opts);
     if (opts.value !== undefined) this.value = opts.value;
@@ -698,12 +727,20 @@ export class TextArea extends View {
   }
   get value(): string { return windowsBackend.getTextAreaValue(this.handle); }
   set value(value: string) { windowsBackend.setTextAreaValue(this.handle, value); }
+  /** Text colour (hex, semantic name, or { light, dark }); re-resolves on
+   *  theme change. */
+  set textColor(v: any) {
+    applyAdaptiveColor(v, themeIsDark, (c) => {
+      if (typeof c === "string") windowsBackend.setTextAreaForeground(this.handle, c);
+    });
+  }
   onChange(fn: (value: string) => void): this { windowsBackend.setTextAreaCallback(this.handle, fn); return this; }
   get textView(): any { return tolerantProxy("TextArea.textView"); }
 }
 
 export class Progress extends View {
-  constructor(opts: { max?: number; value?: number; indeterminate?: boolean; spinner?: boolean } & ViewOptions = {}) {
+  constructor(opts: { max?: number; value?: number; indeterminate?: boolean; spinner?: boolean ; style?: any } & ViewOptions = {}) {
+    opts = mergeStyle(opts);
     const bound = extractSignals(opts);
     super(windowsBackend.createProgress(opts.spinner ? { indeterminate: true } : opts), opts);
     bindSignals(this, opts, bound);
@@ -725,7 +762,8 @@ export class Spacer extends View {
 
 export class GroupBox extends View {
   readonly contentStack: VStack;
-  constructor(opts: { title?: string; padding?: number; spacing?: number } & ViewOptions = {}, children: any[] = []) {
+  constructor(opts: { title?: string; padding?: number; spacing?: number ; style?: any } & ViewOptions = {}, children: any[] = []) {
+    opts = mergeStyle(opts);
     super(windowsBackend.createGroupBox(opts), opts);
     this.contentStack = new VStack({ spacing: opts.spacing ?? 8 }, children);
     windowsBackend.setGroupBoxContent(this.handle, this.contentStack.handle);
@@ -753,10 +791,13 @@ export interface StackOptions extends ViewOptions {
    * a column vertically); pass axes explicitly to scroll both.
    */
   scroll?: boolean | { horizontal?: boolean; vertical?: boolean };
+  /** Inline styling object; accepts every Stack option. */
+  style?: StyleOf<StackOptions>;
 }
 
 export class Stack extends View {
   constructor(orientation: 0 | 1, opts: StackOptions = {}, children: any[] = []) {
+    opts = mergeStyle(opts);
     // scroll: true scrolls the main axis; explicit axes scroll each side.
     let scrollFlags = 0;
     if (opts.scroll) {
@@ -820,12 +861,15 @@ export interface ScrollOptions extends ViewOptions {
   horizontal?: boolean;
   vertical?: boolean;
   border?: boolean;
+  /** Inline styling object; accepts every ScrollView option. */
+  style?: StyleOf<ScrollOptions>;
 }
 
 /** A scrolling container around a single content view. */
 export class ScrollView extends View {
   #content: any = null;
   constructor(opts: ScrollOptions = {}, content?: any) {
+    opts = mergeStyle(opts);
     super(windowsBackend.createScrollView(opts), { ...opts, minHeight: opts.minHeight ?? 80 });
     if (content) this.content = content;
   }
@@ -869,6 +913,8 @@ export interface GridViewOptions extends ViewOptions {
   rowSpacing?: number;
   /** Horizontal gap between columns (CSS `column-gap`); overrides `spacing`. */
   columnSpacing?: number;
+  /** Inline styling object; accepts every GridView option. */
+  style?: StyleOf<GridViewOptions>;
 }
 
 /** Where a view sits in its GridView parent (CSS grid placement). Children
@@ -895,6 +941,7 @@ export class GridView extends View {
   /** JSX props type (ElementAttributesProperty). */
   declare readonly props: GridViewOptions;
   constructor(opts: GridViewOptions = {}, children: any[] = []) {
+    opts = mergeStyle(opts);
     const enc = (tracks?: GridTrack[]) =>
       (tracks ?? []).map((t) => (typeof t === "number" ? String(t) : t)).join(",");
     const rowSpacing = opts.rowSpacing ?? opts.spacing ?? 0;
@@ -920,11 +967,14 @@ export interface SplitOptions extends ViewOptions {
   vertical?: boolean;
   position?: number;
   thickness?: number;
+  /** Inline styling object; accepts every SplitView option. */
+  style?: StyleOf<SplitOptions>;
 }
 
 export class SplitView extends View {
   #content: any = null;
   constructor(opts: SplitOptions = {}, panes: any[] = []) {
+    opts = mergeStyle(opts);
     super(windowsBackend.createSplitView(), opts);
     if (panes[0] !== undefined) windowsBackend.setSplitViewPane(this.handle, panes[0].handle ?? panes[0]);
     if (panes[1] !== undefined) this.setContent(panes[1]);
@@ -957,12 +1007,15 @@ export interface ImageOptions extends ViewOptions {
   scaling?: number;
   /** SVG tint colour ("#RRGGBB") — replaces fill/stroke; ignored for bitmaps. */
   tint?: string;
+  /** Inline styling object; accepts every ImageView option. */
+  style?: StyleOf<ImageOptions>;
 }
 
 export class ImageView extends View {
   #src: string;
   #tint: string | undefined;
   constructor(opts: ImageOptions = {}) {
+    opts = mergeStyle(opts);
     super(windowsBackend.createImageView(opts.src ?? ""), opts);
     this.#src = opts.src ?? "";
     if (opts.tint !== undefined) this.tint = opts.tint;
@@ -988,11 +1041,14 @@ export function loadImage(_src: string | any): any {
 export interface BlurOptions extends ViewOptions {
   material?: number;
   blending?: number;
+  /** Inline styling object; accepts every BlurView option. */
+  style?: StyleOf<BlurOptions>;
 }
 
 /** A translucent "vibrancy" background (Acrylic), as used by sidebars and HUDs. */
 export class BlurView extends View {
   constructor(opts: BlurOptions = {}, content?: any) {
+    opts = mergeStyle(opts);
     super(windowsBackend.createBlurView(), opts);
     if (content) windowsBackend.setBlurViewContent(this.handle, content.handle ?? content);
   }

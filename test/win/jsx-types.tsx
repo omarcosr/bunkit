@@ -27,6 +27,11 @@ const ok = (
       <Checkbox title="Dark" checked={dark} onChange={(on) => { void on; }} />
       <Segmented items={["A", "B"]} onChange={(i) => { void i; }} />
       <Slider value={0.5} min={0} max={1} onChange={(v) => { void v; }} />
+      {/* style accepts the control's own props, not just ViewOptions */}
+      <TextField style={{ textColor: "#C33", placeholderColor: "#888", font: { size: 14 } }} />
+      <Label style={{ color: "secondaryLabel", font: { weight: "bold" } }} text="styled" />
+      <VStack style={{ spacing: 16, alignItems: "center" }} />
+      <Button style={{ primary: true, title: "styled button" }} />
     </VStack>
   </Window>
 );

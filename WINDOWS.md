@@ -163,7 +163,10 @@ control after construction.)
 Two ways to style without repeating yourself:
 
 **The `style` prop** — every control accepts a nested styling object, merged at
-construction (inline props win over the style):
+construction (inline props win over the style). The style accepts the
+control's *own* options too, not just the shared view options:
+`<TextField style={{ textColor: "#C33", font: { size: 14 } }} />` is valid on
+both platforms.
 
 ```tsx
 <Button
