@@ -80,12 +80,17 @@ bool apply_titlebar(Window const& win, int32_t full_size, const char* bg,
       titleBar.ButtonBackgroundColor(background);
       titleBar.ButtonHoverBackgroundColor(shade(background, 1.15));
       titleBar.ButtonPressedBackgroundColor(shade(background, 0.85));
+      // Keep the theme when the window loses focus (inactive colours).
+      titleBar.InactiveBackgroundColor(background);
+      titleBar.ButtonInactiveBackgroundColor(background);
     }
     if (foreground.A != 0) {
       titleBar.ForegroundColor(foreground);
       titleBar.ButtonForegroundColor(foreground);
       titleBar.ButtonHoverForegroundColor(foreground);
       titleBar.ButtonPressedForegroundColor(foreground);
+      titleBar.InactiveForegroundColor(foreground);
+      titleBar.ButtonInactiveForegroundColor(foreground);
     }
     return true;
   } catch (...) {
