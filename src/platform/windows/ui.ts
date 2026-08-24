@@ -458,28 +458,43 @@ export class Window {
       windowsBackend.setControlTheme(this.handle, themeCode(appTheme));
     }
     windowInstances.push(this);
-    if (opts.show !== false) this.show();
-    // Titlebar customisation must run after the window is presented for the
-    // Windows 11 colour setters to take effect. Colours resolve per theme and
-    // re-apply on setTheme.
+    // Titlebar options must reach the native call together with the first
+    // Activate, so the first painted frame already carries the custom colours
+    // instead of flashing the default titlebar.
     const wantsTitlebar = opts.fullSizeContent || opts.titleVisible === false ||
       opts.titlebarColor !== undefined || opts.titlebarTextColor !== undefined;
     if (wantsTitlebar) {
-      const apply = () => {
-        const bg = resolveColor(opts.titlebarColor, themeIsDark());
-        const fg = resolveColor(opts.titlebarTextColor, themeIsDark());
-        windowsBackend.setWindowTitlebar(this.handle, {
-          fullSizeContent: opts.fullSizeContent,
-          titleVisible: opts.titleVisible,
-          titlebarColor: typeof bg === "string" ? bg : undefined,
-          titlebarTextColor: typeof fg === "string" ? fg : undefined,
-        });
+      this.#titlebar = {
+        fullSizeContent: opts.fullSizeContent,
+        titlebarColor: typeof resolveColor(opts.titlebarColor, themeIsDark()) === "string"
+          ? resolveColor(opts.titlebarColor, themeIsDark()) as string
+          : undefined,
+        titlebarTextColor: typeof resolveColor(opts.titlebarTextColor, themeIsDark()) === "string"
+          ? resolveColor(opts.titlebarTextColor, themeIsDark()) as string
+          : undefined,
       };
-      if (isThemeColor(opts.titlebarColor) || isThemeColor(opts.titlebarTextColor)) trackAdaptive(apply);
-      apply();
+      // Re-resolve on theme changes (setTheme) — the window is already up then.
+      if (isThemeColor(opts.titlebarColor) || isThemeColor(opts.titlebarTextColor)) {
+        trackAdaptive(() => {
+          const bg = resolveColor(opts.titlebarColor, themeIsDark());
+          const fg = resolveColor(opts.titlebarTextColor, themeIsDark());
+          windowsBackend.setWindowTitlebar(this.handle, {
+            fullSizeContent: opts.fullSizeContent,
+            titleVisible: opts.titleVisible,
+            titlebarColor: typeof bg === "string" ? bg : undefined,
+            titlebarTextColor: typeof fg === "string" ? fg : undefined,
+          });
+        });
+      }
     }
+    if (opts.show !== false) this.show();
   }
-  show(): this { windowsBackend.showWindow(this.handle); return this; }
+  /** @internal */ #titlebar: { fullSizeContent?: boolean; titlebarColor?: string; titlebarTextColor?: string } | null = null;
+  show(): this {
+    if (this.#titlebar) windowsBackend.showWindowWithTitlebar(this.handle, this.#titlebar);
+    else windowsBackend.showWindow(this.handle);
+    return this;
+  }
   close(): void { windowsBackend.closeWindow(this.handle); }
   quitOnClose(): this { windowsBackend.setWindowCloseCallback(this.handle, () => windowsBackend.shutdown()); return this; }
   set content(v: any) { const h: NativeHandle | null = v?.handle ?? v ?? null; if (h) windowsBackend.setWindowContent(this.handle, h); }

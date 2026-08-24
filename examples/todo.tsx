@@ -117,6 +117,7 @@ const win = (
     minSize={{ width: 320, height: 420 }}
     titlebarColor={{ light: "#F4F5F7", dark: "#16161E" }}
     titlebarTextColor={{ light: "#202124", dark: "#E8E8F2" }}
+    background={{ light: "#F4F5F7", dark: "#16161E" }}
   >
     <VStack
       spacing={16}

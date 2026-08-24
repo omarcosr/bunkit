@@ -5,6 +5,7 @@
 #include "registry.h"
 #include "runtime.h"
 #include "strings.h"
+#include "system.h"
 
 #include <windows.h>
 
@@ -41,17 +42,6 @@ inline int32_t combine(int32_t dispatch_rc, int32_t body_status) {
 winrt::Windows::Foundation::IInspectable element_of(bk_handle h) {
   auto* entry = bk::registry().get(h);
   return entry ? entry->object : nullptr;
-}
-
-// Whether the OS is in dark mode (AppsUseLightTheme = 0).
-bool system_dark_mode() {
-  DWORD value = 1;
-  DWORD size = sizeof(value);
-  LONG rc = RegGetValueW(
-      HKEY_CURRENT_USER,
-      L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
-      L"AppsUseLightTheme", RRF_RT_REG_DWORD, nullptr, &value, &size);
-  return rc == ERROR_SUCCESS && value == 0;
 }
 
 // True when `el` already carries an explicit Background on any of the three
@@ -478,7 +468,7 @@ BK_EXPORT int32_t bk_control_set_theme(bk_handle c, int32_t theme,
         if (digits.size() > 6) body.R = static_cast<uint8_t>((value >> 16) & 0xFF);
         paint_element_background(target, body);
       } else if (!has_explicit_background(target)) {
-        if (theme == 2 || (theme == 0 && system_dark_mode())) {
+        if (theme == 2 || (theme == 0 && bk::system_dark_mode())) {
           body = winrt::Windows::UI::Color{255, 0x1C, 0x1C, 0x1C};
         } else {
           body = winrt::Windows::UI::Color{255, 255, 255, 255};
@@ -768,7 +758,32 @@ BK_EXPORT int32_t bk_control_set_corner_radius4(bk_handle c, double tl,
 // Whether the OS is in dark mode (AppsUseLightTheme = 0). Used to resolve
 // `{ light, dark }` colours when the app follows the system theme.
 BK_EXPORT int32_t bk_theme_is_dark(void) {
-  return system_dark_mode() ? 1 : 0;
+  return bk::system_dark_mode() ? 1 : 0;
+}
+
+// Debug: report whether the XAML app theme was seeded dark and whether a
+// window carries a SystemBackdrop. Returns (app_dark << 1) | has_backdrop.
+BK_EXPORT int32_t bk_debug_app_setup(bk_handle w) {
+  int32_t out = 0;
+  const int32_t rc = bk::Runtime::instance().dispatch_sync([&] {
+    try {
+      if (winrt::Microsoft::UI::Xaml::Application::Current().RequestedTheme() ==
+          winrt::Microsoft::UI::Xaml::ApplicationTheme::Dark) {
+        out |= 2;
+      }
+    } catch (...) {
+    }
+    if (w) {
+      auto* entry = bk::registry().get(w);
+      if (entry && entry->type == bk::NativeType::Window) {
+        try {
+          if (entry->object.as<Window>().SystemBackdrop()) out |= 1;
+        } catch (...) {
+        }
+      }
+    }
+  });
+  return rc == BK_OK ? out : -1;
 }
 
 // Debug helper: read back the BorderThickness of any registered control.

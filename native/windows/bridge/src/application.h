@@ -8,6 +8,7 @@
 #define BK_APPLICATION_H
 
 #include "runtime.h"
+#include "system.h"
 #include <winrt/Microsoft.UI.Xaml.h>
 #include <winrt/Microsoft.UI.Xaml.Controls.h>
 #include <winrt/Microsoft.UI.Xaml.Markup.h>
@@ -30,6 +31,14 @@ struct BunKitApplication
     try {
       Resources().MergedDictionaries().Append(
           winrt::Microsoft::UI::Xaml::Controls::XamlControlsResources());
+    } catch (...) {
+    }
+    // Seed the XAML app theme from the OS so dark-mode windows compose dark on
+    // their very first frame instead of flashing the light default.
+    try {
+      RequestedTheme(bk::system_dark_mode()
+                         ? winrt::Microsoft::UI::Xaml::ApplicationTheme::Dark
+                         : winrt::Microsoft::UI::Xaml::ApplicationTheme::Light);
     } catch (...) {
     }
     auto dq =

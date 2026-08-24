@@ -125,6 +125,19 @@ export class WindowsBackend {
     winLib.bk_window_show(h);
   }
 
+  /** Show the window and set its titlebar in one call (no colour flash). */
+  showWindowWithTitlebar(h: NativeHandle, opts: {
+    fullSizeContent?: boolean;
+    titlebarColor?: string;
+    titlebarTextColor?: string;
+  }): void {
+    const bg = cstr(opts.titlebarColor ?? "");
+    const fg = cstr(opts.titlebarTextColor ?? "");
+    winLib.bk_window_show_titlebar(h,
+      opts.fullSizeContent ? 1 : 0,
+      bg as any, bg.length, fg as any, fg.length);
+  }
+
   closeWindow(h: NativeHandle): void {
     winLib.bk_window_close(h);
   }

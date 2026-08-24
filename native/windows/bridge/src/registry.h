@@ -58,6 +58,7 @@ struct NativeObject {
   double auxf{0};                   // Table: row height
   double auxf2{0};                  // Table: font size
   int32_t aux2{0};                  // Table flags: 1 multi, 4 alt rows, 8 mono
+  winrt::Windows::Foundation::IInspectable extra{nullptr}; // per-type holder
 };
 
 class ObjectRegistry {

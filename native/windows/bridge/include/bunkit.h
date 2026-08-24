@@ -131,6 +131,10 @@ BK_EXPORT int32_t bk_window_set_titlebar(bk_handle w, int32_t full_size,
                                          int32_t title_visible,
                                          const char* bg, uint32_t bg_len,
                                          const char* fg, uint32_t fg_len);
+// Activate AND set titlebar in one UI-thread turn (no default-colour flash).
+BK_EXPORT int32_t bk_window_show_titlebar(bk_handle w, int32_t full_size,
+                                          const char* bg, uint32_t bg_len,
+                                          const char* fg, uint32_t fg_len);
 BK_EXPORT int32_t bk_window_show(bk_handle w);
 BK_EXPORT int32_t bk_window_close(bk_handle w);
 BK_EXPORT int32_t bk_window_set_content(bk_handle w, bk_handle content);
