@@ -79,6 +79,22 @@ export interface ViewOptions {
   alpha?: number;
   /** JSX children; ignored by controls that don't take content. */
   children?: any;
+  /** A reusable styling object, merged into the options at construction.
+   *  Inline props win over the style. Works in JSX too:
+   *  `<Button style={{ backgroundColor: "#2D7DD2", borderRadius: 14 }} />`. */
+  style?: ViewStyle;
+}
+
+/** The visual styling subset of ViewOptions, for the `style` prop and for
+ *  reusable style objects (`satisfies ViewStyle`). */
+export type ViewStyle = Omit<ViewOptions, "style" | "children">;
+
+/** Merge `options.style` into the options; inline props take precedence.
+ *  A non-object `style` (e.g. Table's "inset" style name) is left alone. */
+export function mergeStyle(options: ViewOptions): ViewOptions {
+  const { style, ...rest } = options;
+  if (!style || typeof style !== "object") return rest;
+  return { ...(style as ViewStyle), ...rest };
 }
 
 /** A corner-radius spec: one number for all four corners, [tl, tr, br, bl],
@@ -198,7 +214,7 @@ export class View {
     this.native = native;
     // Everything in Layer 3 is laid out with constraints, never springs.
     native.setTranslatesAutoresizingMaskIntoConstraints_(false);
-    this.applyViewOptions(options);
+    this.applyViewOptions(mergeStyle(options));
   }
 
   protected applyViewOptions(o: ViewOptions) {

@@ -31,7 +31,7 @@ import {
   TextArea,
   TextField,
   VStack,
-  Window,
+  Window
 } from "bunkit";
 import { writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -169,6 +169,11 @@ const styleBox = (
         {swatch("sides", <Container border={[1, 4, 1, 4]} borderColor="#1F3B4D" width={72} height={56} />)}
         {swatch("bottom", <Container border={{ bottom: 3 }} borderColor="#F26419" borderRadius={8} width={72} height={56} />)}
       </HStack>
+      {/* The `style` prop: an inline styling object, merged at construction. */}
+      <HStack spacing={14}>
+        {swatch("style={{…}}", <Container style={{ backgroundColor: "#2D7DD2", borderRadius: 14, width: 72, height: 56 }} />)}
+        {swatch("style+inline", <Container style={{ backgroundColor: "#2D7DD2", borderRadius: 14 }} background="#F26419" width={72} height={56} />)}
+      </HStack>
     </VStack>
   </GroupBox>
 );
@@ -243,7 +248,7 @@ const THEME = {
 };
 // The content slot accepts a JSX expression directly.
 const sidebar = new BlurView({
-  background: "#bf2dd2",
+  // background: "#ff00ff",
   border: true,
   borderColor: "#0000ff",
   borderRadius: 8,

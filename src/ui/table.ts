@@ -5,7 +5,7 @@
 // it implements the protocol against them.
 
 import { createDelegate, objc, str } from "../objc.ts";
-import { ACTION_SELECTOR, actionTarget, View, type ViewOptions } from "./view.ts";
+import { ACTION_SELECTOR, actionTarget, View, mergeStyle, type ViewOptions, type ViewStyle } from "./view.ts";
 import { makeFont, type FontSpec } from "./controls.ts";
 import {
   BorderType,
@@ -34,15 +34,16 @@ export interface Column<Row = any> {
   render?: (row: Row, index: number) => View | unknown;
 }
 
-export interface TableOptions<Row = any> extends ViewOptions {
+export interface TableOptions<Row = any> extends Omit<ViewOptions, "style"> {
   columns: Column<Row>[];
   rows?: Row[];
   onSelect?: (row: Row | null, index: number) => void;
   onDoubleClick?: (row: Row, index: number) => void;
   rowHeight?: number;
   headers?: boolean;
-  /** "plain" | "inset" | "sourceList" | "fullWidth" */
-  style?: keyof typeof TableViewStyle;
+  /** "plain" | "inset" | "sourceList" | "fullWidth", or a styling object
+   *  (the shared `style` prop) when given an object. */
+  style?: keyof typeof TableViewStyle | ViewStyle;
   alternatingRows?: boolean;
   multiSelect?: boolean;
   font?: FontSpec | number;
@@ -71,7 +72,7 @@ export class Table<Row = any> extends View {
     scroll.setDrawsBackground_(false);
 
     const tv = objc.NSTableView.alloc().init();
-    tv.setStyle_(TableViewStyle[options.style ?? "Inset"]);
+    tv.setStyle_(TableViewStyle[typeof options.style === "string" ? options.style : "Inset"]);
     tv.setUsesAlternatingRowBackgroundColors_(options.alternatingRows ?? false);
     tv.setAllowsMultipleSelection_(options.multiSelect ?? false);
     tv.setColumnAutoresizingStyle_(TableViewColumnAutoresizingStyle.Uniform);
@@ -80,7 +81,7 @@ export class Table<Row = any> extends View {
     if (options.headers === false) tv.setHeaderView_(null);
 
     scroll.setDocumentView_(tv);
-    super(scroll, options);
+    super(scroll, mergeStyle(options as unknown as ViewOptions));
 
     if (options.height === undefined && options.minHeight === undefined) {
       this.constrain("height", ">=", 120);

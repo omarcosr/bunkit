@@ -81,6 +81,20 @@ export interface ViewOptions {
   borderWidth?: number;
   borderColor?: string;
   borderStyle?: "solid" | "dashed" | "dotted";
+  /** A reusable styling object, merged into the options at construction.
+   *  Inline props win over the style. */
+  style?: ViewStyle;
+}
+
+/** The visual styling subset of ViewOptions, for the `style` prop. */
+export type ViewStyle = Omit<ViewOptions, "style" | "children">;
+
+/** Merge `options.style` into the options; inline props take precedence.
+ *  A non-object `style` is left alone. */
+export function mergeStyle(options: ViewOptions): ViewOptions {
+  const { style, ...rest } = options;
+  if (!style || typeof style !== "object") return rest;
+  return { ...(style as ViewStyle), ...rest };
 }
 
 /** Base of every control: handle + grow + the shared view options. */
@@ -93,6 +107,7 @@ export class View {
 
   constructor(handle: NativeHandle, options: ViewOptions = {}) {
     this.handle = handle;
+    options = mergeStyle(options);
     if (options.grow !== undefined) this.grow = options.grow;
     if (options.width !== undefined || options.height !== undefined) {
       windowsBackend.setControlSize(handle, options.width ?? 0, options.height ?? 0);

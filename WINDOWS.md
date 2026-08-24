@@ -156,6 +156,38 @@ control after construction.)
 
 (`examples/gallery.ts` has a "Signals" section using this.)
 
+### Reusable styles
+
+Two ways to style without repeating yourself:
+
+**The `style` prop** — every control accepts a nested styling object, merged at
+construction (inline props win over the style):
+
+```tsx
+<Button
+  title="Go"
+  style={{ backgroundColor: "#2D7DD2", borderRadius: 14, border: 2, borderColor: "#1F3B4D" }}
+/>
+```
+
+**A reusable style object** — define once with `satisfies ViewStyle`
+(autocomplete + type checking) and pass it to the `style` prop, or spread it
+into the options:
+
+```ts
+import type { ViewStyle } from "bunkit";
+
+const tinted = { backgroundColor: "#2D7DD2", borderRadius: 14 } satisfies ViewStyle;
+
+new Button({ title: "OK", style: tinted });
+// in JSX: <Button style={tinted} />  or  <Button {...tinted} />
+```
+
+Styles compose (`{ ...tinted, border: 2 }`) and props override
+(`<Button style={tinted} background="#F26419" />`). The `style` prop accepts
+the visual subset of `ViewOptions`: background, border, corner radius, sizing,
+alpha, grow, and the rest.
+
 The Windows backend implements the same control set the examples use:
 `GroupBox` (bordered panel + header), `Segmented` (SelectorBar), `Table`
 (ListView with column headers; cells are computed in JS), the async dialogs
