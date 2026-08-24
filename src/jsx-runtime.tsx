@@ -19,6 +19,85 @@ import {
 
 export const Fragment = Symbol.for("bunkit.Fragment");
 
+// For — declarative list rendering, SolidJS-style.
+//
+//   <For each={todos} by={(t) => t.id} spacing={8}>
+//     {(todo) => <Row todo={todo} />}
+//   </For>
+//
+// `each` is an array or a signal of an array; the render function is the JSX
+// child. Rows are reconciled by key (`by`): new items are created, removed
+// ones deleted, and an item whose reference changed is re-created in place —
+// untouched rows keep their views, so the entrance animation only plays on
+// the rows that actually changed. The For itself is a stack (its spacing
+// separates the rows), so it drops into any parent layout.
+import { isSignal, unwrap, type Signal } from "./signal.ts";
+
+export class For<T> {
+  /** JSX props type (ElementAttributesProperty). */
+  declare readonly props: any;
+  /** The stack that holds the rendered rows; add `<For>` to any layout. */
+  readonly host: InstanceType<typeof VStack>;
+  // View facade so Stack.add/remove/insert work on both platforms.
+  get native(): any { return (this.host as any).native; }
+  get handle(): any { return (this.host as any).handle; }
+  get grow(): any { return (this.host as any).grow; }
+  /** @internal */ _growExplicit = false;
+  /** @internal */ _parent: any = null;
+
+  #each: T[] | Signal<T[]> | undefined;
+  #render: (item: T) => any;
+  #by: (item: T) => unknown;
+  #rows = new Map<unknown, { item: T; view: any }>();
+  #order: unknown[] = [];
+
+  constructor(
+    props: { each?: T[] | Signal<T[]>; by?: (item: T) => unknown; spacing?: number } = {},
+    render?: (item: T) => any,
+  ) {
+    this.host = new VStack({ spacing: props.spacing ?? 8 });
+    this.#each = props.each;
+    this.#render = render ?? (() => null);
+    this.#by = props.by ?? ((item: T) => item as unknown);
+    this.reconcile();
+    if (isSignal(this.#each)) {
+      this.#each.subscribe(() => this.reconcile());
+    }
+  }
+
+  reconcile(): void {
+    const items = (unwrap(this.#each) ?? []) as T[];
+    const newKeys = items.map((item) => this.#by(item));
+    const oldKeys = this.#order;
+    // Keep the common prefix and suffix; only the middle can change.
+    let i = 0;
+    while (i < newKeys.length && i < oldKeys.length && newKeys[i] === oldKeys[i]) i++;
+    let j = 0;
+    while (j < newKeys.length - i && j < oldKeys.length - i &&
+           newKeys[newKeys.length - 1 - j] === oldKeys[oldKeys.length - 1 - j]) j++;
+    // Drop rows that are gone or whose item reference changed (re-create).
+    for (const key of oldKeys.slice(i, oldKeys.length - j)) {
+      const row = this.#rows.get(key);
+      if (!row) continue;
+      const idx = newKeys.indexOf(key);
+      if (idx < 0 || items[idx] !== row.item) {
+        this.host.remove(row.view);
+        this.#rows.delete(key);
+      }
+    }
+    // (Re)create the middle in order, at their position after the prefix.
+    for (let k = 0; k < newKeys.length - i - j; k++) {
+      const key = newKeys[i + k];
+      if (!this.#rows.has(key)) {
+        const view = this.#render(items[i + k]);
+        this.#rows.set(key, { item: items[i + k], view });
+        this.host.insert(view, i + k);
+      }
+    }
+    this.#order = newKeys;
+  }
+}
+
 /** A JSX child, or a tree of them (arrays from .map, conditionals…). */
 function flatten(value: any, out: any[]): void {
   if (value === null || value === undefined || value === true || value === false) return;
@@ -30,20 +109,13 @@ function flatten(value: any, out: any[]): void {
   out.push(value);
 }
 
-// The control constructors, for two purposes: distinguishing them from plain
-// function components, and picking how each one takes children.
-const CONTROLS: ReadonlySet<Function> = new Set([
-  Window, VStack, HStack, Stack, Label, Button, TextField,
-  Checkbox, Switch, Slider, Select, Segmented, TextArea, Progress,
-  GroupBox, ScrollView, SplitView, Container, ImageView, BlurView,
-  Spacer, Separator, Table,
-]);
-
 // True for the controls and for subclasses/aliases of them (e.g. a
-// `const AlbumTable = Table<Album>` alias used as <AlbumTable />).
+// `const AlbumTable = Table<Album>` alias used as <AlbumTable />). Everything
+// except Window and For extends View; the check is lazy so this module can be
+// imported by src/index.ts without a load-time cycle.
 function isControl(type: any): boolean {
-  if (CONTROLS.has(type)) return true;
   if (typeof type !== "function" || !type.prototype) return false;
+  if (type === Window || type === For) return true;
   return type.prototype instanceof View;
 }
 
@@ -134,6 +206,9 @@ function create(type: any, props: any, children: any[]): any {
       break;
     case Table:
       control = new Table(p);
+      break;
+    case For:
+      control = new For(p, children[0]);
       break;
     default:
       // Subclasses and aliases (e.g. `const AlbumTable = Table<Album>`): they

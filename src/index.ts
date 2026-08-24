@@ -92,3 +92,4 @@ export const sphere: Ui["sphere"] = mod.sphere;
 // Reactive cells (SolidJS-style): platform-agnostic, no dispatch needed.
 export { signal, isSignal, bind, unwrap } from "./signal.ts";
 export type { Signal, SignalListener, Unsubscriber } from "./signal.ts";
+export { For } from "./jsx-runtime.tsx";

@@ -191,7 +191,7 @@ export class Stack extends View {
 
   // An arranged subview is added by NSStackView itself, so we only mirror the
   // bookkeeping rather than calling View.add (which would add it twice).
-  add(child: View): this {
+  add(child: any): this {
     const fillers = this.#fillers.length;
     if (fillers === 1) {
       // "start": the single trailing filler must stay last.
@@ -209,7 +209,7 @@ export class Stack extends View {
     return this;
   }
 
-  insert(child: View, index: number): this {
+  insert(child: any, index: number): this {
     this.#stack.insertArrangedSubview_atIndex_(child.native, index);
     this._children.splice(index, 0, child);
     child._parent = this;
@@ -218,7 +218,7 @@ export class Stack extends View {
     return this;
   }
 
-  remove(child: View): this {
+  remove(child: any): this {
     this.#stack.removeArrangedSubview_(child.native);
     child.native.removeFromSuperview();
     const i = this._children.indexOf(child);
@@ -422,7 +422,7 @@ export class GroupBox extends View {
     }
   }
 
-  add(child: View): this {
+  add(child: any): this {
     this.contentStack.add(child);
     return this;
   }

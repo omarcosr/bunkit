@@ -8,12 +8,12 @@
 // (`{ light, dark }`), following the system theme on both platforms.
 import type { ThemeColor } from "bunkit";
 import {
-  Application, Button, Checkbox, HStack, ImageView, Label, ScrollView, Separator,
-  Spacer, TextField, VStack, Window, signal,
+  Application, Button, Checkbox, Container, For, HStack, ImageView, Label,
+  ScrollView, Separator, Spacer, Switch, TextField, VStack, Window,
+  currentThemeIsDark, setTheme, signal,
 } from "bunkit";
 
 interface Todo { id: number; text: string; done: boolean; }
-interface Row { root: any; check: InstanceType<typeof Checkbox>; label: InstanceType<typeof Label>; }
 
 const app = new Application({ name: "Todo", theme: "default" });
 
@@ -31,7 +31,6 @@ function addTodo(): void {
   const todo = { id: nextId++, text, done: false };
   todos.set([todo, ...todos.value]);
   draft.set("");
-  list.insert(makeRow(todo), 0); // one new row → one entrance animation
   updateMeta();
 }
 function toggleTodo(id: number): void {
@@ -39,32 +38,18 @@ function toggleTodo(id: number): void {
   if (!todo) return;
   const done = !todo.done;
   todos.set(todos.value.map((t) => (t.id === id ? { ...t, done } : t)));
-  const r = rows.get(id);
-  if (r) {
-    r.check.checked = done;
-    r.label.color = done ? doneColor : textColor;
-  }
   updateMeta();
 }
 function deleteTodo(id: number): void {
   todos.set(todos.value.filter((t) => t.id !== id));
-  const r = rows.get(id);
-  if (r) { list.remove(r.root); rows.delete(id); }
   updateMeta();
 }
 function clearCompleted(): void {
-  const done = todos.value.filter((t) => t.done);
   todos.set(todos.value.filter((t) => !t.done));
-  for (const t of done) {
-    const r = rows.get(t.id);
-    if (r) { list.remove(r.root); rows.delete(t.id); }
-  }
   updateMeta();
 }
 
-// ─ dynamic list: rows are created once and kept per id ──────────────────────
-const list = new VStack({ spacing: 8 });
-const rows = new Map<number, Row>();
+// ─ the list: a declarative <For> reconciles the rows from the signal ────────
 const countLabel = new Label({ text: "", font: { size: 12 }, color: "secondaryLabel" });
 const emptyLabel = new Label({
   text: "Nothing here yet — add a task above.",
@@ -73,20 +58,8 @@ const emptyLabel = new Label({
   textAlign: "center",
 });
 
-function makeRow(todo: Todo): any {
-  const check = (
-    <Checkbox checked={todo.done} onChange={() => toggleTodo(todo.id)} />
-  );
-  const label = (
-    <Label
-      text={todo.text}
-      grow={1}
-      font={{ size: 14 }}
-      color={todo.done ? doneColor : textColor}
-    />
-  );
-  const del = <Button title="✕" onClick={() => deleteTodo(todo.id)} />;
-  const root = (
+function row(todo: Todo) {
+  return (
     <HStack
       spacing={10}
       alignItems="center"
@@ -94,11 +67,16 @@ function makeRow(todo: Todo): any {
       backgroundColor={cardBg}
       borderRadius={10}
     >
-      {check}{label}{del}
+      <Checkbox checked={todo.done} onChange={() => toggleTodo(todo.id)} />
+      <Label
+        text={todo.text}
+        grow={1}
+        font={{ size: 14 }}
+        color={todo.done ? doneColor : textColor}
+      />
+      <Button title="✕" onClick={() => deleteTodo(todo.id)} />
     </HStack>
   );
-  rows.set(todo.id, { root, check, label });
-  return root;
 }
 
 function updateMeta(): void {
@@ -151,7 +129,9 @@ const win = (
 
       <ScrollView grow={1} border={false}>
         <VStack spacing={8}>
-          {list}
+          <For each={todos} by={(todo: Todo) => todo.id} spacing={8}>
+            {row}
+          </For>
           {emptyLabel}
         </VStack>
       </ScrollView>
