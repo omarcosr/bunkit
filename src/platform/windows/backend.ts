@@ -107,6 +107,17 @@ export class WindowsBackend {
     winLib.bk_window_set_title(h, b as any, b.length);
   }
 
+  setWindowPosition(h: NativeHandle, x: number, y: number): void {
+    winLib.bk_window_set_position(h, x, y);
+  }
+
+  getWindowPosition(h: NativeHandle): { x: number; y: number } {
+    const bx = Buffer.alloc(8);
+    const by = Buffer.alloc(8);
+    winLib.bk_window_position(h, bx as any, by as any);
+    return { x: bx.readDoubleLE(0), y: by.readDoubleLE(0) };
+  }
+
   setWindowStyle(h: NativeHandle, opts: {
     resizable?: boolean;
     closable?: boolean;

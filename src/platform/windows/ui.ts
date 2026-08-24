@@ -436,6 +436,8 @@ export class Window {
     title?: string;
     size?: { width: number; height: number };
     minSize?: { width: number; height: number };
+    /** Screen position of the bottom-left corner; omitted means centred. */
+    position?: { x: number; y: number };
     content?: any;
     show?: boolean;
     onClose?: () => void;
@@ -456,6 +458,9 @@ export class Window {
   } = {}) {
     this.handle = windowsBackend.createWindow({ title: opts.title, size: opts.size });
     if (opts.minSize) windowsBackend.setWindowMinSize(this.handle, opts.minSize);
+    if (opts.position !== undefined) {
+      windowsBackend.setWindowPosition(this.handle, opts.position.x, opts.position.y);
+    }
     if (opts.resizable === false || opts.closable === false || opts.minimizable === false) {
       windowsBackend.setWindowStyle(this.handle, {
         resizable: opts.resizable,
@@ -512,6 +517,13 @@ export class Window {
   quitOnClose(): this { windowsBackend.setWindowCloseCallback(this.handle, () => windowsBackend.shutdown()); return this; }
   set content(v: any) { const h: NativeHandle | null = v?.handle ?? v ?? null; if (h) windowsBackend.setWindowContent(this.handle, h); }
   set title(v: string) { windowsBackend.setWindowTitle(this.handle, v); }
+  /** Bottom-left corner in screen pixels (macOS frame-origin semantics). */
+  get position(): { x: number; y: number } {
+    return windowsBackend.getWindowPosition(this.handle);
+  }
+  set position(p: { x: number; y: number }) {
+    windowsBackend.setWindowPosition(this.handle, p.x, p.y);
+  }
   get native(): any { return tolerantProxy("win.native"); }
 }
 

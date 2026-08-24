@@ -218,6 +218,69 @@ BK_EXPORT int32_t bk_window_set_style(bk_handle w, int32_t resizable,
   return combine(rc, st);
 }
 
+// Position the window's BOTTOM-LEFT corner at (x, y) — the macOS frame-origin
+// semantics. WinUI uses a top-left origin, so convert through the display's
+// work area and the window's own height. (x, y) are relative to the work
+// area's bottom-left corner.
+BK_EXPORT int32_t bk_window_set_position(bk_handle w, double x, double y) {
+  if (require_running() != BK_OK) return BK_NOT_INITIALIZED;
+  int32_t st = BK_ERROR;
+  const int32_t rc = bk::Runtime::instance().dispatch_sync([&] {
+    auto* entry = bk::registry().get(w);
+    if (!entry || entry->type != bk::NativeType::Window) {
+      st = BK_INVALID_HANDLE;
+      return;
+    }
+    try {
+      auto appWindow = entry->object.as<Window>().AppWindow();
+      const auto work = winrt::Microsoft::UI::Windowing::DisplayArea::
+          GetFromWindowId(appWindow.Id(),
+                          winrt::Microsoft::UI::Windowing::
+                              DisplayAreaFallback::Nearest)
+              .WorkArea();
+      const auto size = appWindow.Size();
+      const int32_t topLeftX = work.X + static_cast<int32_t>(x);
+      const int32_t topLeftY =
+          work.Y + (work.Height - size.Height) - static_cast<int32_t>(y);
+      appWindow.Move({topLeftX, topLeftY});
+      st = BK_OK;
+    } catch (...) {
+      st = BK_ERROR;
+    }
+  });
+  return combine(rc, st);
+}
+
+// Read back the bottom-left corner of the window (inverse of the above).
+BK_EXPORT int32_t bk_window_position(bk_handle w, double* out_x,
+                                     double* out_y) {
+  if (require_running() != BK_OK) return BK_NOT_INITIALIZED;
+  int32_t st = BK_ERROR;
+  const int32_t rc = bk::Runtime::instance().dispatch_sync([&] {
+    auto* entry = bk::registry().get(w);
+    if (!entry || entry->type != bk::NativeType::Window) {
+      st = BK_INVALID_HANDLE;
+      return;
+    }
+    try {
+      auto appWindow = entry->object.as<Window>().AppWindow();
+      const auto work = winrt::Microsoft::UI::Windowing::DisplayArea::
+          GetFromWindowId(appWindow.Id(),
+                          winrt::Microsoft::UI::Windowing::
+                              DisplayAreaFallback::Nearest)
+              .WorkArea();
+      const auto size = appWindow.Size();
+      const auto pos = appWindow.Position();
+      *out_x = pos.X - work.X;
+      *out_y = work.Y + (work.Height - size.Height) - pos.Y;
+      st = BK_OK;
+    } catch (...) {
+      st = BK_ERROR;
+    }
+  });
+  return combine(rc, st);
+}
+
 // Show the window AND apply the titlebar customisation in a single UI-thread
 // turn, so the first painted frame already carries the custom colours instead
 // of flashing the default titlebar first. bg/fg as in bk_window_set_titlebar.

@@ -138,6 +138,11 @@ BK_EXPORT int32_t bk_window_show_titlebar(bk_handle w, int32_t full_size,
 // Chrome toggles: resizable, closable, minimizable (1 = enabled).
 BK_EXPORT int32_t bk_window_set_style(bk_handle w, int32_t resizable,
                                       int32_t closable, int32_t minimizable);
+// Position the window's BOTTOM-LEFT corner at (x, y) — macOS semantics —
+// relative to the work area's bottom-left. Read-back is the inverse.
+BK_EXPORT int32_t bk_window_set_position(bk_handle w, double x, double y);
+BK_EXPORT int32_t bk_window_position(bk_handle w, double* out_x,
+                                     double* out_y);
 BK_EXPORT int32_t bk_window_show(bk_handle w);
 BK_EXPORT int32_t bk_window_close(bk_handle w);
 BK_EXPORT int32_t bk_window_set_content(bk_handle w, bk_handle content);
