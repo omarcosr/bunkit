@@ -46,6 +46,7 @@ struct NativeObject {
 
   // Per-type extras. Only meaningful while `object` is alive on the UI thread.
   winrt::event_token close_token{}; // Window
+  winrt::event_token closing_token{}; // Window: AppWindow Closing guard
   winrt::event_token token1{};      // Button click / TextBox text change
   winrt::event_token token2{};      // PasswordBox password change
   winrt::event_token token3{};      // PasswordBox submit KeyDown
@@ -55,6 +56,7 @@ struct NativeObject {
   int32_t suppress{0};              // >0 while a programmatic set is in flight
   int32_t align{0};                 // Stack: 0 leading, 1 center, 2 trailing, 3 fill
   int32_t pack{0};                  // Stack: 0 start, 1 center, 2 fill
+  int32_t window_flags{0};          // Window: bit 1 = not closable
   double auxf{0};                   // Table: row height
   double auxf2{0};                  // Table: font size
   int32_t aux2{0};                  // Table flags: 1 multi, 4 alt rows, 8 mono

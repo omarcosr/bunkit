@@ -164,6 +164,60 @@ BK_EXPORT int32_t bk_window_set_titlebar(bk_handle w, int32_t full_size,
   return combine(rc, st);
 }
 
+// Window chrome toggles (macOS parity): resizable/closable/minimizable map to
+// the OverlappedPresenter flags. maximizable rides along with resizable, like
+// the macOS zoom button.
+BK_EXPORT int32_t bk_window_set_style(bk_handle w, int32_t resizable,
+                                      int32_t closable, int32_t minimizable) {
+  if (require_running() != BK_OK) return BK_NOT_INITIALIZED;
+  int32_t st = BK_ERROR;
+  const int32_t rc = bk::Runtime::instance().dispatch_sync([&] {
+    auto* entry = bk::registry().get(w);
+    if (!entry || entry->type != bk::NativeType::Window) {
+      st = BK_INVALID_HANDLE;
+      return;
+    }
+    try {
+      auto win = entry->object.as<Window>();
+      auto appWindow = win.AppWindow();
+      auto presenter = appWindow.Presenter();
+      auto overlapped =
+          presenter.try_as<winrt::Microsoft::UI::Windowing::OverlappedPresenter>();
+      if (!overlapped) {
+        st = BK_WRONG_TYPE;
+        return;
+      }
+      overlapped.IsResizable(resizable != 0);
+      overlapped.IsMaximizable(resizable != 0);
+      overlapped.IsMinimizable(minimizable != 0);
+      // WASDK 1.7 has no IsClosable on the presenter, so a non-closable
+      // window hides the whole titlebar chrome (no close button at all) and
+      // keeps a top drag strip; Alt+F4 is still cancelled by the Closing
+      // guard, and the programmatic bk_window_close clears the flag first.
+      entry->window_flags = closable != 0 ? 0 : 1;
+      if (closable == 0) {
+        auto titleBar = appWindow.TitleBar();
+        titleBar.ExtendsContentIntoTitleBar(true);
+        titleBar.SetDragRectangles(
+            {winrt::Windows::Graphics::RectInt32{0, 0, 100000, 32}});
+      }
+      if (entry->closing_token.value == 0) {
+        entry->closing_token = appWindow.Closing(
+            [handle = w](winrt::Microsoft::UI::Windowing::AppWindow const&,
+                         winrt::Microsoft::UI::Windowing::
+                             AppWindowClosingEventArgs const& args) {
+              auto* e = bk::registry().get(handle);
+              if (e && (e->window_flags & 1)) args.Cancel(true);
+            });
+      }
+      st = BK_OK;
+    } catch (...) {
+      st = BK_ERROR;
+    }
+  });
+  return combine(rc, st);
+}
+
 // Show the window AND apply the titlebar customisation in a single UI-thread
 // turn, so the first painted frame already carries the custom colours instead
 // of flashing the default titlebar first. bg/fg as in bk_window_set_titlebar.
@@ -212,6 +266,8 @@ BK_EXPORT int32_t bk_window_close(bk_handle w) {
     }
     // Close() raises Closed, which pushes WINDOW_CLOSED for Bun and leaves
     // the registry entry alive (matching macOS setReleasedWhenClosed(false)).
+    // A non-closable window lets the programmatic close through.
+    entry->window_flags &= ~1;
     entry->object.as<Window>().Close();
     st = BK_OK;
   });

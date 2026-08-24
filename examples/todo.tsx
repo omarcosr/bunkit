@@ -118,6 +118,9 @@ const win = (
     titlebarColor={{ light: "#F4F5F7", dark: "#16161E" }}
     titlebarTextColor={{ light: "#202124", dark: "#E8E8F2" }}
     background={{ light: "#F4F5F7", dark: "#16161E" }}
+    resizable={false}
+    closable={false}
+    minimizable={false}
   >
     <VStack
       spacing={16}

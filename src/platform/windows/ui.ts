@@ -447,9 +447,22 @@ export class Window {
     titlebarColor?: any;
     /** Windows 11 titlebar text colour — hex or { light, dark }. */
     titlebarTextColor?: any;
+    /** Allow resizing (and the maximise button). Default true. */
+    resizable?: boolean;
+    /** Allow closing via the window chrome. Default true. */
+    closable?: boolean;
+    /** Allow minimising. Default true. */
+    minimizable?: boolean;
   } = {}) {
     this.handle = windowsBackend.createWindow({ title: opts.title, size: opts.size });
     if (opts.minSize) windowsBackend.setWindowMinSize(this.handle, opts.minSize);
+    if (opts.resizable === false || opts.closable === false || opts.minimizable === false) {
+      windowsBackend.setWindowStyle(this.handle, {
+        resizable: opts.resizable,
+        closable: opts.closable,
+        minimizable: opts.minimizable,
+      });
+    }
     if (opts.content) this.content = opts.content;
     if (opts.onClose) windowsBackend.setWindowCloseCallback(this.handle, opts.onClose);
     // Inherit the Application theme before the first frame, so the window

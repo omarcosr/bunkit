@@ -107,6 +107,17 @@ export class WindowsBackend {
     winLib.bk_window_set_title(h, b as any, b.length);
   }
 
+  setWindowStyle(h: NativeHandle, opts: {
+    resizable?: boolean;
+    closable?: boolean;
+    minimizable?: boolean;
+  }): void {
+    winLib.bk_window_set_style(h,
+      opts.resizable === false ? 0 : 1,
+      opts.closable === false ? 0 : 1,
+      opts.minimizable === false ? 0 : 1);
+  }
+
   setWindowTitlebar(h: NativeHandle, opts: {
     fullSizeContent?: boolean;
     titleVisible?: boolean;

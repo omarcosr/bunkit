@@ -61,6 +61,7 @@ function getLib(): any {
   bk_window_set_title: { args: ["u64", "ptr", "u32"], returns: "i32" },
   bk_window_set_titlebar: { args: ["u64", "i32", "i32", "ptr", "u32", "ptr", "u32"], returns: "i32" },
   bk_window_show_titlebar: { args: ["u64", "i32", "ptr", "u32", "ptr", "u32"], returns: "i32" },
+  bk_window_set_style: { args: ["u64", "i32", "i32", "i32"], returns: "i32" },
   bk_window_show: { args: ["u64"], returns: "i32" },
   bk_window_close: { args: ["u64"], returns: "i32" },
   bk_window_set_content: { args: ["u64", "u64"], returns: "i32" },

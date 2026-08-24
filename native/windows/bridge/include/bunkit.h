@@ -135,6 +135,9 @@ BK_EXPORT int32_t bk_window_set_titlebar(bk_handle w, int32_t full_size,
 BK_EXPORT int32_t bk_window_show_titlebar(bk_handle w, int32_t full_size,
                                           const char* bg, uint32_t bg_len,
                                           const char* fg, uint32_t fg_len);
+// Chrome toggles: resizable, closable, minimizable (1 = enabled).
+BK_EXPORT int32_t bk_window_set_style(bk_handle w, int32_t resizable,
+                                      int32_t closable, int32_t minimizable);
 BK_EXPORT int32_t bk_window_show(bk_handle w);
 BK_EXPORT int32_t bk_window_close(bk_handle w);
 BK_EXPORT int32_t bk_window_set_content(bk_handle w, bk_handle content);
