@@ -8,9 +8,11 @@
 // (`{ light, dark }`), following the system theme on both platforms.
 import type { ThemeColor } from "bunkit";
 import {
-  Application, Button, Checkbox, Container, For, HStack, ImageView, Label,
-  ScrollView, Separator, Spacer, Switch, TextField, VStack, Window,
-  currentThemeIsDark, setTheme, signal,
+  Application, Button, Checkbox,
+  For, HStack, ImageView, Label,
+  ScrollView, Separator, Spacer,
+  TextField, VStack, Window,
+  signal
 } from "bunkit";
 
 interface Todo { id: number; text: string; done: boolean; }
@@ -31,22 +33,18 @@ function addTodo(): void {
   const todo = { id: nextId++, text, done: false };
   todos.set([todo, ...todos.value]);
   draft.set("");
-  updateMeta();
 }
 function toggleTodo(id: number): void {
   const todo = todos.value.find((t) => t.id === id);
   if (!todo) return;
   const done = !todo.done;
   todos.set(todos.value.map((t) => (t.id === id ? { ...t, done } : t)));
-  updateMeta();
 }
 function deleteTodo(id: number): void {
   todos.set(todos.value.filter((t) => t.id !== id));
-  updateMeta();
 }
 function clearCompleted(): void {
   todos.set(todos.value.filter((t) => !t.done));
-  updateMeta();
 }
 
 // ─ the list: a declarative <For> reconciles the rows from the signal ────────
@@ -56,6 +54,15 @@ const emptyLabel = new Label({
   color: "secondaryLabel",
   font: { size: 13 },
   textAlign: "center",
+});
+
+// Derived UI (count, empty state) is reactive too: it follows the signal.
+todos.subscribe(() => {
+  const left = todos.value.filter((t) => !t.done).length;
+  countLabel.text = todos.value.length === 0
+    ? "no tasks"
+    : `${left} left · ${todos.value.length} total`;
+  emptyLabel.hidden = todos.value.length > 0;
 });
 
 function row(todo: Todo) {
@@ -77,14 +84,6 @@ function row(todo: Todo) {
       <Button title="✕" onClick={() => deleteTodo(todo.id)} />
     </HStack>
   );
-}
-
-function updateMeta(): void {
-  const left = todos.value.filter((t) => !t.done).length;
-  countLabel.text = todos.value.length === 0
-    ? "no tasks"
-    : `${left} left · ${todos.value.length} total`;
-  emptyLabel.hidden = todos.value.length > 0;
 }
 
 // ─ the window ────────────────────────────────────────────────────────────────
