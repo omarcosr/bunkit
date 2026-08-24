@@ -281,6 +281,34 @@ BK_EXPORT int32_t bk_window_position(bk_handle w, double* out_x,
   return combine(rc, st);
 }
 
+// Centre the window on its display's work area.
+BK_EXPORT int32_t bk_window_center(bk_handle w) {
+  if (require_running() != BK_OK) return BK_NOT_INITIALIZED;
+  int32_t st = BK_ERROR;
+  const int32_t rc = bk::Runtime::instance().dispatch_sync([&] {
+    auto* entry = bk::registry().get(w);
+    if (!entry || entry->type != bk::NativeType::Window) {
+      st = BK_INVALID_HANDLE;
+      return;
+    }
+    try {
+      auto appWindow = entry->object.as<Window>().AppWindow();
+      const auto work = winrt::Microsoft::UI::Windowing::DisplayArea::
+          GetFromWindowId(appWindow.Id(),
+                          winrt::Microsoft::UI::Windowing::
+                              DisplayAreaFallback::Nearest)
+              .WorkArea();
+      const auto size = appWindow.Size();
+      appWindow.Move({work.X + (work.Width - size.Width) / 2,
+                      work.Y + (work.Height - size.Height) / 2});
+      st = BK_OK;
+    } catch (...) {
+      st = BK_ERROR;
+    }
+  });
+  return combine(rc, st);
+}
+
 // Show the window AND apply the titlebar customisation in a single UI-thread
 // turn, so the first painted frame already carries the custom colours instead
 // of flashing the default titlebar first. bg/fg as in bk_window_set_titlebar.

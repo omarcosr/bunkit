@@ -143,6 +143,8 @@ BK_EXPORT int32_t bk_window_set_style(bk_handle w, int32_t resizable,
 BK_EXPORT int32_t bk_window_set_position(bk_handle w, double x, double y);
 BK_EXPORT int32_t bk_window_position(bk_handle w, double* out_x,
                                      double* out_y);
+// Centre the window on its display's work area.
+BK_EXPORT int32_t bk_window_center(bk_handle w);
 BK_EXPORT int32_t bk_window_show(bk_handle w);
 BK_EXPORT int32_t bk_window_close(bk_handle w);
 BK_EXPORT int32_t bk_window_set_content(bk_handle w, bk_handle content);

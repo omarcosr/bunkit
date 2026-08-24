@@ -460,6 +460,9 @@ export class Window {
     if (opts.minSize) windowsBackend.setWindowMinSize(this.handle, opts.minSize);
     if (opts.position !== undefined) {
       windowsBackend.setWindowPosition(this.handle, opts.position.x, opts.position.y);
+    } else {
+      // macOS parity: a window with no explicit position opens centred.
+      windowsBackend.centerWindow(this.handle);
     }
     if (opts.resizable === false || opts.closable === false || opts.minimizable === false) {
       windowsBackend.setWindowStyle(this.handle, {
@@ -513,6 +516,7 @@ export class Window {
     else windowsBackend.showWindow(this.handle);
     return this;
   }
+  center(): this { windowsBackend.centerWindow(this.handle); return this; }
   close(): void { windowsBackend.closeWindow(this.handle); }
   quitOnClose(): this { windowsBackend.setWindowCloseCallback(this.handle, () => windowsBackend.shutdown()); return this; }
   set content(v: any) { const h: NativeHandle | null = v?.handle ?? v ?? null; if (h) windowsBackend.setWindowContent(this.handle, h); }

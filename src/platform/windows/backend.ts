@@ -111,6 +111,10 @@ export class WindowsBackend {
     winLib.bk_window_set_position(h, x, y);
   }
 
+  centerWindow(h: NativeHandle): void {
+    winLib.bk_window_center(h);
+  }
+
   getWindowPosition(h: NativeHandle): { x: number; y: number } {
     const bx = Buffer.alloc(8);
     const by = Buffer.alloc(8);
