@@ -119,6 +119,7 @@ function getLib(): any {
   bk_stack_create: { args: ["i32", "f64", "f64", "f64", "f64", "f64"], returns: "u64" },
   bk_stack_create_ex: { args: ["i32", "f64", "f64", "f64", "f64", "f64", "i32"], returns: "u64" },
   bk_stack_add_child: { args: ["u64", "u64", "f64"], returns: "i32" },
+  bk_stack_insert_child: { args: ["u64", "u64", "i32", "f64"], returns: "i32" },
   bk_stack_remove_child: { args: ["u64", "u64"], returns: "i32" },
   bk_stack_set_align: { args: ["u64", "i32"], returns: "i32" },
   bk_stack_set_pack: { args: ["u64", "i32"], returns: "i32" },

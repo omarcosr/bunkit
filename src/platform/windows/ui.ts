@@ -676,6 +676,15 @@ export class Stack extends View {
     child._parent = this;
     return this;
   }
+  /** Insert a child at a 0-based index (same semantics as the macOS Stack). */
+  insert(child: any, index: number): this {
+    const h: NativeHandle = child?.handle ?? child;
+    const g: number = child?.grow ?? 0;
+    windowsBackend.stackInsertChild(this.handle, h, index, g);
+    this._children.splice(index, 0, child);
+    child._parent = this;
+    return this;
+  }
   remove(child: any): this {
     windowsBackend.stackRemoveChild(this.handle, child?.handle ?? child);
     const i = this._children.indexOf(child);

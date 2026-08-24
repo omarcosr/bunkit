@@ -226,16 +226,84 @@ BK_EXPORT int32_t bk_stack_remove_child(bk_handle stack, bk_handle child) {
         grid.Children().RemoveAt(i);
         const bool horizontal =
             parent->aux == BK_STACK_HORIZONTAL;
-        if (horizontal && i < grid.ColumnDefinitions().Size()) {
-          grid.ColumnDefinitions().RemoveAt(i);
-        } else if (!horizontal && i < grid.RowDefinitions().Size()) {
-          grid.RowDefinitions().RemoveAt(i);
+        // Centre-pack puts a lead star at grid 0, so the child's definition
+        // sits one past its Children index.
+        const uint32_t defIndex = i + (parent->pack == 1 ? 1 : 0);
+        if (horizontal) {
+          if (defIndex < grid.ColumnDefinitions().Size()) {
+            grid.ColumnDefinitions().RemoveAt(defIndex);
+          }
+        } else {
+          if (defIndex < grid.RowDefinitions().Size()) {
+            grid.RowDefinitions().RemoveAt(defIndex);
+          }
+        }
+        // Re-number the survivors: Grid positions children by the attached
+        // Grid.Row/Column property, which removal leaves stale.
+        const int32_t offset = parent->pack == 1 ? 1 : 0;
+        for (uint32_t j = 0; j < grid.Children().Size(); ++j) {
+          auto other = grid.Children().GetAt(j).as<FrameworkElement>();
+          const int32_t pos = static_cast<int32_t>(j) + offset;
+          if (horizontal) cx::Grid::SetColumn(other, pos);
+          else cx::Grid::SetRow(other, pos);
         }
         st = BK_OK;
         return;
       }
     }
     st = BK_WRONG_TYPE; // not a child of this stack
+  });
+  return combine(rc, st);
+}
+
+// Insert a child at a 0-based position among the stack's real children. The
+// centre-pack template is not maintained here — use on non-centred stacks.
+BK_EXPORT int32_t bk_stack_insert_child(bk_handle stack, bk_handle child,
+                                        int32_t index, double grow) {
+  if (require_running() != BK_OK) return BK_NOT_INITIALIZED;
+  int32_t st = BK_ERROR;
+  const int32_t rc = bk::Runtime::instance().dispatch_sync([&] {
+    auto* parent = bk::registry().get(stack);
+    auto* entry = bk::registry().get(child);
+    if (!parent || parent->type != bk::NativeType::Stack || !entry ||
+        !entry->object) {
+      st = BK_INVALID_HANDLE;
+      return;
+    }
+    auto grid = grid_of_stack(parent);
+    FrameworkElement element = entry->object.as<FrameworkElement>();
+    const bool horizontal = parent->aux == BK_STACK_HORIZONTAL;
+    const int32_t childCount = static_cast<int32_t>(grid.Children().Size());
+    if (index < 0 || index > childCount) {
+      st = BK_INVALID_ARGUMENT;
+      return;
+    }
+    const uint32_t gridIndex =
+        static_cast<uint32_t>(index + (parent->pack == 1 ? 1 : 0));
+    if (horizontal) {
+      cx::ColumnDefinition col;
+      col.Width(main_axis_length(grow));
+      grid.ColumnDefinitions().InsertAt(gridIndex, col);
+      cx::Grid::SetColumn(element, gridIndex);
+    } else {
+      cx::RowDefinition row;
+      row.Height(main_axis_length(grow));
+      grid.RowDefinitions().InsertAt(gridIndex, row);
+      cx::Grid::SetRow(element, gridIndex);
+    }
+    grid.Children().InsertAt(gridIndex, element);
+    // A Grid positions children by their Grid.Row/Column attached property,
+    // not by Children order: everything that now sits at or past the insertion
+    // point would otherwise claim the same cell. Re-number all children to
+    // their Children positions (offset by the centre-pack lead star).
+    const int32_t offset = parent->pack == 1 ? 1 : 0;
+    for (uint32_t i = 0; i < grid.Children().Size(); ++i) {
+      auto child = grid.Children().GetAt(i).as<FrameworkElement>();
+      const int32_t pos = static_cast<int32_t>(i) + offset;
+      if (horizontal) cx::Grid::SetColumn(child, pos);
+      else cx::Grid::SetRow(child, pos);
+    }
+    st = BK_OK;
   });
   return combine(rc, st);
 }

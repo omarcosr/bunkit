@@ -242,6 +242,10 @@ BK_EXPORT bk_handle bk_stack_create_ex(int32_t orientation, double spacing,
                                        int32_t scroll);
 BK_EXPORT int32_t bk_stack_add_child(bk_handle stack, bk_handle child,
                                      double grow);
+// Inserts a child at a 0-based position among the real children (non-centre
+// stacks; grow applies to the inserted row/column).
+BK_EXPORT int32_t bk_stack_insert_child(bk_handle stack, bk_handle child,
+                                        int32_t index, double grow);
 // Removes a child and its row/column definition, keeping the rest aligned.
 BK_EXPORT int32_t bk_stack_remove_child(bk_handle stack, bk_handle child);
 // align: 0 leading, 1 center, 2 trailing, 3 fill (cross axis, applies per child).

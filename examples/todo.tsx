@@ -2,15 +2,18 @@
 //
 //   bun run examples/todo.tsx
 //
-// The rows are signal-driven: every change re-renders them into a stack.
-// Colours are theme-adaptive (`{ light, dark }`), so the app follows the
-// system theme on both platforms.
+// Rows are created once and kept per id: a change touches only the affected
+// row (checkbox + label in place), so the entrance animation plays on the new
+// element alone instead of every row. Colours are theme-adaptive
+// (`{ light, dark }`), following the system theme on both platforms.
 import {
   Application, Button, Checkbox, HStack, Label, ScrollView, Separator,
   Spacer, TextField, VStack, Window, signal,
 } from "bunkit";
+import type { ThemeColor } from "bunkit";
 
 interface Todo { id: number; text: string; done: boolean; }
+interface Row { root: any; check: InstanceType<typeof Checkbox>; label: InstanceType<typeof Label>; }
 
 const app = new Application({ name: "Todo", theme: "default" });
 
@@ -18,24 +21,50 @@ const todos = signal<Todo[]>([]);
 const draft = signal("");
 let nextId = 1;
 
+const cardBg: ThemeColor = { light: "#FFFFFF", dark: "#23233A" };
+const textColor: ThemeColor = { light: "#202124", dark: "#E8E8F2" };
+const doneColor: ThemeColor = { light: "#9AA0A6", dark: "#565675" };
+
 function addTodo(): void {
   const text = draft.value.trim();
   if (!text) return;
-  todos.set([{ id: nextId++, text, done: false }, ...todos.value]);
+  const todo = { id: nextId++, text, done: false };
+  todos.set([todo, ...todos.value]);
   draft.set("");
+  list.insert(makeRow(todo), 0); // one new row → one entrance animation
+  updateMeta();
 }
 function toggleTodo(id: number): void {
-  todos.set(todos.value.map((t) => (t.id === id ? { ...t, done: !t.done } : t)));
+  const todo = todos.value.find((t) => t.id === id);
+  if (!todo) return;
+  const done = !todo.done;
+  todos.set(todos.value.map((t) => (t.id === id ? { ...t, done } : t)));
+  const r = rows.get(id);
+  if (r) {
+    r.check.checked = done;
+    r.label.color = done ? doneColor : textColor;
+  }
+  updateMeta();
 }
 function deleteTodo(id: number): void {
   todos.set(todos.value.filter((t) => t.id !== id));
+  const r = rows.get(id);
+  if (r) { list.remove(r.root); rows.delete(id); }
+  updateMeta();
 }
 function clearCompleted(): void {
+  const done = todos.value.filter((t) => t.done);
   todos.set(todos.value.filter((t) => !t.done));
+  for (const t of done) {
+    const r = rows.get(t.id);
+    if (r) { list.remove(r.root); rows.delete(t.id); }
+  }
+  updateMeta();
 }
 
-// ─ dynamic list: the rows re-render into `list` whenever `todos` changes ─────
+// ─ dynamic list: rows are created once and kept per id ──────────────────────
 const list = new VStack({ spacing: 8 });
+const rows = new Map<number, Row>();
 const countLabel = new Label({ text: "", font: { size: 12 }, color: "secondaryLabel" });
 const emptyLabel = new Label({
   text: "Nothing here yet — add a task above.",
@@ -44,40 +73,41 @@ const emptyLabel = new Label({
   textAlign: "center",
 });
 
-function row(todo: Todo) {
-  return (
+function makeRow(todo: Todo): any {
+  const check = (
+    <Checkbox checked={todo.done} onChange={() => toggleTodo(todo.id)} />
+  );
+  const label = (
+    <Label
+      text={todo.text}
+      grow={1}
+      font={{ size: 14 }}
+      color={todo.done ? doneColor : textColor}
+    />
+  );
+  const del = <Button title="✕" onClick={() => deleteTodo(todo.id)} />;
+  const root = (
     <HStack
       spacing={10}
       alignItems="center"
       padding={12}
-      backgroundColor={{ light: "#FFFFFF", dark: "#23233A" }}
+      backgroundColor={cardBg}
       borderRadius={10}
     >
-      <Checkbox checked={todo.done} onChange={() => toggleTodo(todo.id)} />
-      <Label
-        text={todo.text}
-        grow={1}
-        font={{ size: 14 }}
-        color={todo.done
-          ? { light: "#9AA0A6", dark: "#565675" }
-          : { light: "#202124", dark: "#E8E8F2" }}
-      />
-      <Button title="✕" onClick={() => deleteTodo(todo.id)} />
+      {check}{label}{del}
     </HStack>
   );
+  rows.set(todo.id, { root, check, label });
+  return root;
 }
 
-function render(): void {
-  list.removeAll();
-  for (const todo of todos.value) list.add(row(todo));
+function updateMeta(): void {
   const left = todos.value.filter((t) => !t.done).length;
   countLabel.text = todos.value.length === 0
     ? "no tasks"
     : `${left} left · ${todos.value.length} total`;
   emptyLabel.hidden = todos.value.length > 0;
 }
-todos.subscribe(render);
-render();
 
 // ─ the window ────────────────────────────────────────────────────────────────
 const win = (
@@ -99,7 +129,7 @@ const win = (
           placeholder="Add a task…"
           grow={1}
           borderRadius={10}
-          textColor={{ light: "#202124", dark: "#E8E8F2" }}
+          textColor={textColor}
           placeholderColor="secondaryLabel"
           onSubmit={addTodo}
         />

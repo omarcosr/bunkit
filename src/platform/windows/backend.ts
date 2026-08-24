@@ -399,6 +399,10 @@ export class WindowsBackend {
     winLib.bk_stack_add_child(stack, child, grow ?? 0);
   }
 
+  stackInsertChild(stack: NativeHandle, child: NativeHandle, index: number, grow?: number): void {
+    winLib.bk_stack_insert_child(stack, child, index, grow ?? 0);
+  }
+
   stackRemoveChild(stack: NativeHandle, child: NativeHandle): void {
     winLib.bk_stack_remove_child(stack, child);
   }
