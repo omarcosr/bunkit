@@ -23,6 +23,7 @@ import {
   SplitViewDividerStyle,
 } from "./appkit.ts";
 import type { NSEdgeInsets } from "../structs.ts";
+import { Range } from "../structs.ts";
 
 export interface StackOptions extends ViewOptions {
   spacing?: number;
@@ -493,5 +494,134 @@ export class SplitView extends View {
 
   setPosition(points: number, dividerIndex = 0): void {
     this.native.setPosition_ofDividerAtIndex_(points, dividerIndex);
+  }
+}
+
+/** One column/row track of a GridView (CSS `grid-template-columns/rows`):
+ *  a fixed width in points, "auto" to fit the content, or "fill" to take the
+ *  leftover space. */
+export type GridTrack = number | "auto" | "fill";
+
+export interface GridViewOptions extends ViewOptions {
+  /** Column tracks, left to right. */
+  columns?: GridTrack[];
+  /** Row tracks, top to bottom; "auto" when omitted. */
+  rows?: GridTrack[];
+  /** Gap between every cell, on both axes (CSS `gap`). */
+  spacing?: number;
+  /** Vertical gap between rows (CSS `row-gap`); overrides `spacing`. */
+  rowSpacing?: number;
+  /** Horizontal gap between columns (CSS `column-gap`); overrides `spacing`. */
+  columnSpacing?: number;
+}
+
+/** Where a view sits in its GridView parent (CSS grid placement). Children
+ *  may also carry `gridRow`/`gridColumn`/`gridRowSpan`/`gridColumnSpan`
+ *  options directly. */
+export interface GridPlacement {
+  row?: number;
+  column?: number;
+  rowSpan?: number;
+  columnSpan?: number;
+}
+
+/** A two-dimensional grid (CSS `display: grid`): children are placed in
+ *  explicit rows/columns, optionally spanning several cells.
+ *
+ *     <GridView columns={["fill", 200]} spacing={12}>
+ *       <Label text="Name" gridColumn={0} />
+ *       <TextField gridColumn={1} />
+ *       <Label text="Notes" gridRow={1} gridColumn={0} gridRowSpan={2} />
+ *     </GridView>
+ *
+ * Backed by NSGridView: fixed tracks are exact, "auto" sizes to content, and
+ * "fill" tracks absorb the leftover space via the grid's .fill distribution
+ * (their cells hug least). */
+export class GridView extends View {
+  /** JSX props type (ElementAttributesProperty). */
+  declare readonly props: GridViewOptions;
+  /** @internal */ #rows = 0;
+  /** @internal */ #cols = 0;
+
+  constructor(options: GridViewOptions = {}, children: any[] = []) {
+    const grid = objc.NSGridView.alloc().init();
+    super(grid, options);
+    const rowSpacing = options.rowSpacing ?? options.spacing ?? 0;
+    const colSpacing = options.columnSpacing ?? options.spacing ?? 0;
+    if (rowSpacing > 0) grid.setRowSpacing_(rowSpacing);
+    if (colSpacing > 0) grid.setColumnSpacing_(colSpacing);
+    if (options.columns?.includes("fill") || options.rows?.includes("fill")) {
+      // NSGridDistributionFill: fixed tracks keep their width, the rest of the
+      // space goes to the tracks whose cells hug least (see #applyTrack).
+      grid.setColumnDistribution_(1);
+      grid.setRowDistribution_(1);
+      grid.setContentHuggingPriority_forOrientation_(1, 0);
+      grid.setContentHuggingPriority_forOrientation_(1, 1);
+    }
+    for (const c of children) this.add(c);
+    // Tracks from options pin sizes even when no child sits in that track.
+    const cols = options.columns ?? [];
+    const rows = options.rows ?? [];
+    for (let c = 0; c < cols.length; c++) this.#ensure(0, c);
+    for (let r = 0; r < rows.length; r++) this.#ensure(r, 0);
+    for (let c = 0; c < cols.length; c++) this.#applyTrack(cols[c], c, true);
+    for (let r = 0; r < rows.length; r++) this.#applyTrack(rows[r], r, false);
+  }
+
+  add(child: any, placement: GridPlacement = {}): this {
+    const p = {
+      row: placement.row ?? child.props?.gridRow ?? 0,
+      column: placement.column ?? child.props?.gridColumn ?? 0,
+      rowSpan: placement.rowSpan ?? child.props?.gridRowSpan ?? 1,
+      columnSpan: placement.columnSpan ?? child.props?.gridColumnSpan ?? 1,
+    };
+    const endRow = p.row + p.rowSpan - 1;
+    const endCol = p.column + p.columnSpan - 1;
+    this.#ensure(endRow, endCol);
+    this.native.cellAtColumn_row_(p.column, p.row).setContentView_(child.native);
+    if (p.rowSpan > 1 || p.columnSpan > 1) {
+      // mergeCellIn:to: takes NSRanges used as (row, column) pairs.
+      this.native.mergeCellIn_to_(Range(p.row, p.column), Range(endRow, endCol));
+    }
+    this._children.push(child);
+    child._parent = this;
+    return this;
+  }
+
+  /** Grow the grid until cell (row, col) exists, filling new cells with
+   *  empty NSViews. */
+  #ensure(row: number, col: number): void {
+    while (this.#rows < row + 1) {
+      const views: any[] = [];
+      for (let c = 0; c < this.#cols; c++) views.push(objc.NSView.alloc().init());
+      this.native.addRowWithViews_(views);
+      this.#rows++;
+    }
+    while (this.#cols < col + 1) {
+      const views: any[] = [];
+      for (let r = 0; r < this.#rows; r++) views.push(objc.NSView.alloc().init());
+      this.native.addColumnWithViews_(views);
+      this.#cols++;
+    }
+  }
+
+  /** Size a track: fixed points, "auto" (default), or "fill" — bias the .fill
+   *  distribution towards it by making its cells hug least. */
+  #applyTrack(track: GridTrack, index: number, horizontal: boolean): void {
+    if (typeof track === "number") {
+      if (horizontal) this.native.columnAtIndex_(index).setWidth_(track);
+      else this.native.rowAtIndex_(index).setHeight_(track);
+      return;
+    }
+    if (track === "fill") {
+      const axis = horizontal ? 0 : 1; // NSLayoutConstraintOrientation
+      const n = horizontal ? this.#rows : this.#cols;
+      for (let i = 0; i < n; i++) {
+        const cell = horizontal
+          ? this.native.cellAtColumn_row_(index, i)
+          : this.native.cellAtColumn_row_(i, index);
+        cell.contentView().setContentHuggingPriority_forOrientation_(1, axis);
+      }
+    }
   }
 }

@@ -24,6 +24,7 @@ export const VStack: Ui["VStack"] = mod.VStack;
 export const HStack: Ui["HStack"] = mod.HStack;
 
 export const Container: Ui["Container"] = mod.Container;
+export const GridView: Ui["GridView"] = mod.GridView;
 export const Stack: Ui["Stack"] = mod.Stack;
 export const View: Ui["View"] = mod.View;
 export const ScrollView: Ui["ScrollView"] = mod.ScrollView;

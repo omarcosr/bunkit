@@ -84,6 +84,14 @@ export interface ViewOptions {
   /** "solid" (default), "dashed" or "dotted". */
   borderStyle?: "solid" | "dashed" | "dotted";
   alpha?: number;
+  /** In a GridView parent: which grid row this view occupies (CSS grid-row). */
+  gridRow?: number;
+  /** In a GridView parent: which grid column this view occupies (CSS grid-column). */
+  gridColumn?: number;
+  /** In a GridView parent: how many grid rows this view spans. */
+  gridRowSpan?: number;
+  /** In a GridView parent: how many grid columns this view spans. */
+  gridColumnSpan?: number;
   /** JSX children; ignored by controls that don't take content. */
   children?: any;
   /** A reusable styling object, merged into the options at construction.
@@ -201,6 +209,10 @@ function sideBeziers(bounds: any, tl: number, tr: number, br: number, bl: number
 
 export class View {
   readonly native: any;
+  /** The constructor options this view was created with (after `style`
+   *  merging); read by parents such as GridView for grid placement. Controls
+   *  declare their own narrower `props` type for JSX checking. */
+  declare readonly props: any;
   /** @internal */ _children: View[] = [];
   /** @internal */ _parent: View | null = null;
   /** @internal */ _keepAlive: any[] = [];
@@ -219,9 +231,12 @@ export class View {
 
   constructor(native: any, options: ViewOptions = {}) {
     this.native = native;
+    // The JSX runtime passes the option object through; keep it so parents
+    // (GridView) can read placement props off their children.
+    this.props = mergeStyle(options);
     // Everything in Layer 3 is laid out with constraints, never springs.
     native.setTranslatesAutoresizingMaskIntoConstraints_(false);
-    this.applyViewOptions(mergeStyle(options));
+    this.applyViewOptions(this.props);
   }
 
   protected applyViewOptions(o: ViewOptions) {

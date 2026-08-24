@@ -651,6 +651,16 @@ export class WindowsBackend {
   createContainer(): NativeHandle { this.ensureInited(); return winLib.bk_container_create() as bigint; }
   containerAdd(h: NativeHandle, child: NativeHandle): void { winLib.bk_container_add(h, child); }
 
+  createGridView(columns: string, rows: string, rowSpacing: number, colSpacing: number): NativeHandle {
+    this.ensureInited();
+    const c = cstr(columns);
+    const r = cstr(rows);
+    return winLib.bk_gridview_create(c as any, r as any, rowSpacing, colSpacing) as bigint;
+  }
+  gridViewAdd(grid: NativeHandle, child: NativeHandle, row: number, col: number, rowSpan: number, colSpan: number): void {
+    winLib.bk_gridview_add(grid, child, row, col, rowSpan, colSpan);
+  }
+
   createSplitView(): NativeHandle { this.ensureInited(); return winLib.bk_splitview_create() as bigint; }
   setSplitViewPane(h: NativeHandle, pane: NativeHandle): void { winLib.bk_splitview_set_pane(h, pane); }
   setSplitViewContent(h: NativeHandle, content: NativeHandle): void { winLib.bk_splitview_set_content(h, content); }

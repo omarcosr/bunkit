@@ -102,7 +102,8 @@ Elements are the **imported constructors** — `<Window>`, `<VStack>`,
 `<HStack>`, `<Stack>`, `<Label>`, `<Button>`, `<TextField>`, `<Checkbox>`,
 `<Switch>`, `<Slider>`, `<Select>`, `<Segmented>`, `<TextArea>`,
 `<Progress>`, `<GroupBox>`, `<ScrollView>`, `<SplitView>`, `<Container>`,
-`<ImageView>`, `<BlurView>`, `<Spacer>`, `<Separator>`. Because they're the
+`<GridView>`, `<ImageView>`, `<BlurView>`, `<Spacer>`, `<Separator>`.
+Because they're the
 real classes, props are type-checked against each control's option types —
 a typo, a wrong value type (`<Label text={123} />`), or a prop the control
 doesn't take (`<ScrollView padding={8} />`) all fail `tsc`. There is no

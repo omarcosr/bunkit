@@ -167,6 +167,8 @@ function getLib(): any {
   bk_scrollview_scroll_to: { args: ["u64", "i32"], returns: "i32" },
   bk_container_create: { args: [], returns: "u64" },
   bk_container_add: { args: ["u64", "u64"], returns: "i32" },
+  bk_gridview_create: { args: ["ptr", "ptr", "f64", "f64"], returns: "u64" },
+  bk_gridview_add: { args: ["u64", "u64", "i32", "i32", "i32", "i32"], returns: "i32" },
   bk_splitview_create: { args: [], returns: "u64" },
   bk_splitview_set_pane: { args: ["u64", "u64"], returns: "i32" },
   bk_splitview_set_content: { args: ["u64", "u64"], returns: "i32" },

@@ -87,6 +87,14 @@ export interface ViewOptions {
   borderWidth?: number;
   borderColor?: any;
   borderStyle?: "solid" | "dashed" | "dotted";
+  /** In a GridView parent: which grid row this view occupies (CSS grid-row). */
+  gridRow?: number;
+  /** In a GridView parent: which grid column this view occupies (CSS grid-column). */
+  gridColumn?: number;
+  /** In a GridView parent: how many grid rows this view spans. */
+  gridRowSpan?: number;
+  /** In a GridView parent: how many grid columns this view spans. */
+  gridColumnSpan?: number;
   /** A reusable styling object, merged into the options at construction.
    *  Inline props win over the style. */
   style?: ViewStyle;
@@ -107,43 +115,48 @@ export function mergeStyle(options: ViewOptions): ViewOptions {
 export class View {
   handle: NativeHandle = 0n;
   grow = 0;
+  /** The constructor options this view was created with (after `style`
+   *  merging); read by parents such as GridView for grid placement. Controls
+   *  declare their own narrower `props` type for JSX checking. */
+  declare readonly props: any;
   /** @internal */ _children: View[] = [];
   /** @internal */ _parent: View | null = null;
   /** @internal */ _hidden = false;
 
   constructor(handle: NativeHandle, options: ViewOptions = {}) {
     this.handle = handle;
-    options = mergeStyle(options);
-    if (options.grow !== undefined) this.grow = options.grow;
-    if (options.width !== undefined || options.height !== undefined) {
-      windowsBackend.setControlSize(handle, options.width ?? 0, options.height ?? 0);
+    this.props = mergeStyle(options);
+    const o = this.props;
+    if (o.grow !== undefined) this.grow = o.grow;
+    if (o.width !== undefined || o.height !== undefined) {
+      windowsBackend.setControlSize(handle, o.width ?? 0, o.height ?? 0);
     }
-    if (options.minWidth !== undefined || options.minHeight !== undefined) {
-      windowsBackend.setControlMinSize(handle, options.minWidth ?? 0, options.minHeight ?? 0);
+    if (o.minWidth !== undefined || o.minHeight !== undefined) {
+      windowsBackend.setControlMinSize(handle, o.minWidth ?? 0, o.minHeight ?? 0);
     }
-    if (options.maxWidth !== undefined || options.maxHeight !== undefined) {
-      windowsBackend.setControlMaxSize(handle, options.maxWidth ?? 0, options.maxHeight ?? 0);
+    if (o.maxWidth !== undefined || o.maxHeight !== undefined) {
+      windowsBackend.setControlMaxSize(handle, o.maxWidth ?? 0, o.maxHeight ?? 0);
     }
-    if (options.hidden !== undefined) this.hidden = options.hidden;
-    if (options.tooltip !== undefined) windowsBackend.setControlTooltip(handle, options.tooltip);
-    if (options.alpha !== undefined) windowsBackend.setControlAlpha(handle, options.alpha);
-    if (options.borderRadius !== undefined) {
-      const [tl, tr, br, bl] = normalizeCorners(options.borderRadius);
+    if (o.hidden !== undefined) this.hidden = o.hidden;
+    if (o.tooltip !== undefined) windowsBackend.setControlTooltip(handle, o.tooltip);
+    if (o.alpha !== undefined) windowsBackend.setControlAlpha(handle, o.alpha);
+    if (o.borderRadius !== undefined) {
+      const [tl, tr, br, bl] = normalizeCorners(o.borderRadius);
       windowsBackend.setControlCornerRadius(handle, tl, tr, br, bl);
     }
-    if (options.background !== undefined || options.backgroundColor !== undefined) {
-      this.setBackground(options.background ?? options.backgroundColor);
+    if (o.background !== undefined || o.backgroundColor !== undefined) {
+      this.setBackground(o.background ?? o.backgroundColor);
     }
 
     // CSS-style borders: `border`/`borderWidth` (or `borderColor`/`borderStyle`
     // alone) turn the border on; `borderRadius` rides along when present.
-    const borderSpec = options.border !== undefined ? options.border : options.borderWidth;
-    if (borderSpec !== undefined || options.borderColor !== undefined || options.borderStyle !== undefined) {
+    const borderSpec = o.border !== undefined ? o.border : o.borderWidth;
+    if (borderSpec !== undefined || o.borderColor !== undefined || o.borderStyle !== undefined) {
       this.setBorder(
-        options.borderColor ?? "#C6C6C8",
+        o.borderColor ?? "#C6C6C8",
         borderSpec ?? 1,
-        options.borderRadius,
-        options.borderStyle ?? "solid",
+        o.borderRadius,
+        o.borderStyle ?? "solid",
       );
     }
   }
@@ -834,6 +847,69 @@ export class Container extends View {
   }
   add(child: any): this {
     windowsBackend.containerAdd(this.handle, child.handle ?? child);
+    this._children.push(child);
+    child._parent = this;
+    return this;
+  }
+}
+
+/** One column/row track of a GridView (CSS `grid-template-columns/rows`):
+ *  a fixed width in points, "auto" to fit the content, or "fill" to take the
+ *  leftover space. */
+export type GridTrack = number | "auto" | "fill";
+
+export interface GridViewOptions extends ViewOptions {
+  /** Column tracks, left to right. */
+  columns?: GridTrack[];
+  /** Row tracks, top to bottom; "auto" when omitted. */
+  rows?: GridTrack[];
+  /** Gap between every cell, on both axes (CSS `gap`). */
+  spacing?: number;
+  /** Vertical gap between rows (CSS `row-gap`); overrides `spacing`. */
+  rowSpacing?: number;
+  /** Horizontal gap between columns (CSS `column-gap`); overrides `spacing`. */
+  columnSpacing?: number;
+}
+
+/** Where a view sits in its GridView parent (CSS grid placement). Children
+ *  may also carry `gridRow`/`gridColumn`/`gridRowSpan`/`gridColumnSpan`
+ *  options directly. */
+export interface GridPlacement {
+  row?: number;
+  column?: number;
+  rowSpan?: number;
+  columnSpan?: number;
+}
+
+/** A two-dimensional grid (CSS `display: grid`): children are placed in
+ *  explicit rows/columns, optionally spanning several cells.
+ *
+ *     <GridView columns={["fill", 200]} spacing={12}>
+ *       <Label text="Name" gridColumn={0} />
+ *       <TextField gridColumn={1} />
+ *     </GridView>
+ *
+ * Backed by a WinUI Grid: "auto" tracks fit their content, fixed tracks are
+ * exact pixels, and "fill" tracks share the leftover space (star sizing). */
+export class GridView extends View {
+  /** JSX props type (ElementAttributesProperty). */
+  declare readonly props: GridViewOptions;
+  constructor(opts: GridViewOptions = {}, children: any[] = []) {
+    const enc = (tracks?: GridTrack[]) =>
+      (tracks ?? []).map((t) => (typeof t === "number" ? String(t) : t)).join(",");
+    const rowSpacing = opts.rowSpacing ?? opts.spacing ?? 0;
+    const colSpacing = opts.columnSpacing ?? opts.spacing ?? 0;
+    super(windowsBackend.createGridView(enc(opts.columns), enc(opts.rows), rowSpacing, colSpacing), opts);
+    for (const c of children) this.add(c);
+  }
+  add(child: any, placement: GridPlacement = {}): this {
+    const p = {
+      row: placement.row ?? child.props?.gridRow ?? 0,
+      column: placement.column ?? child.props?.gridColumn ?? 0,
+      rowSpan: placement.rowSpan ?? child.props?.gridRowSpan ?? 1,
+      columnSpan: placement.columnSpan ?? child.props?.gridColumnSpan ?? 1,
+    };
+    windowsBackend.gridViewAdd(this.handle, child.handle ?? child, p.row, p.column, p.rowSpan, p.columnSpan);
     this._children.push(child);
     child._parent = this;
     return this;

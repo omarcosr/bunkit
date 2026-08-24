@@ -65,6 +65,33 @@ bool has_explicit_background(FrameworkElement const& el) {
   return false;
 }
 
+// GridView track spec: comma-separated entries, each "auto", "fill", or a
+// fixed number of pixels ("120"). "fill" is the CSS fr unit (star sizing).
+std::vector<GridLength> parse_tracks(const char* spec) {
+  std::vector<GridLength> out;
+  if (!spec || !*spec) return out;
+  std::string s(spec);
+  size_t pos = 0;
+  for (;;) {
+    const size_t comma = s.find(',', pos);
+    std::string tok = s.substr(pos, comma == std::string::npos ? std::string::npos : comma - pos);
+    // trim whitespace
+    const size_t b = tok.find_first_not_of(" \t");
+    const size_t e = tok.find_last_not_of(" \t");
+    tok = (b == std::string::npos) ? "" : tok.substr(b, e - b + 1);
+    if (tok == "auto" || tok.empty()) {
+      out.push_back(GridLength(0.0, GridUnitType::Auto));
+    } else if (tok == "fill") {
+      out.push_back(GridLength(1.0, GridUnitType::Star));
+    } else {
+      out.push_back(GridLength(strtod(tok.c_str(), nullptr), GridUnitType::Pixel));
+    }
+    if (comma == std::string::npos) break;
+    pos = comma + 1;
+  }
+  return out;
+}
+
 } // namespace
 
 extern "C" {
@@ -156,6 +183,57 @@ BK_EXPORT int32_t bk_container_add(bk_handle c, bk_handle child) {
     cx::Grid::SetRow(element.as<FrameworkElement>(),
                      static_cast<int32_t>(grid.RowDefinitions().Size() - 1));
     grid.Children().Append(element.as<UIElement>());
+    st = BK_OK;
+  });
+  return combine(rc, st);
+}
+
+// --- GridView ---------------------------------------------------------------
+
+BK_EXPORT bk_handle bk_gridview_create(const char* columns, const char* rows,
+                                       double row_spacing, double col_spacing) {
+  if (require_running() != BK_OK) return BK_HANDLE_NULL;
+  bk_handle out = BK_HANDLE_NULL;
+  const int32_t rc = bk::Runtime::instance().dispatch_sync([&] {
+    cx::Border border;
+    cx::Grid grid;
+    if (row_spacing > 0) grid.RowSpacing(row_spacing);
+    if (col_spacing > 0) grid.ColumnSpacing(col_spacing);
+    for (const GridLength& w : parse_tracks(columns)) {
+      cx::ColumnDefinition def;
+      def.Width(w);
+      grid.ColumnDefinitions().Append(def);
+    }
+    for (const GridLength& h : parse_tracks(rows)) {
+      cx::RowDefinition def;
+      def.Height(h);
+      grid.RowDefinitions().Append(def);
+    }
+    border.Child(grid);
+    out = bk::registry().add(bk::NativeType::GridView, border);
+  });
+  return rc == BK_OK ? out : BK_HANDLE_NULL;
+}
+
+BK_EXPORT int32_t bk_gridview_add(bk_handle grid, bk_handle child,
+                                  int32_t row, int32_t col,
+                                  int32_t row_span, int32_t col_span) {
+  if (require_running() != BK_OK) return BK_NOT_INITIALIZED;
+  int32_t st = BK_ERROR;
+  const int32_t rc = bk::Runtime::instance().dispatch_sync([&] {
+    auto* entry = bk::registry().get(grid);
+    auto element = element_of(child);
+    if (!entry || entry->type != bk::NativeType::GridView || !element) {
+      st = BK_INVALID_HANDLE;
+      return;
+    }
+    auto grid_el = entry->object.as<cx::Border>().Child().as<cx::Grid>();
+    auto fe = element.as<FrameworkElement>();
+    cx::Grid::SetRow(fe, row);
+    cx::Grid::SetColumn(fe, col);
+    cx::Grid::SetRowSpan(fe, row_span > 0 ? row_span : 1);
+    cx::Grid::SetColumnSpan(fe, col_span > 0 ? col_span : 1);
+    grid_el.Children().Append(fe.as<UIElement>());
     st = BK_OK;
   });
   return combine(rc, st);

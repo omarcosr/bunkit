@@ -13,7 +13,7 @@
 import {
   Application, Window, VStack, HStack, Stack, Label, Button, TextField,
   Checkbox, Switch, Slider, Select, Segmented, TextArea, Progress,
-  GroupBox, ScrollView, SplitView, Container, ImageView, BlurView,
+  GroupBox, ScrollView, SplitView, Container, GridView, ImageView, BlurView,
   Spacer, Separator, Table, View,
 } from "./index.ts";
 
@@ -194,6 +194,9 @@ function create(type: any, props: any, children: any[]): any {
       break;
     case ImageView:
       control = new ImageView(p);
+      break;
+    case GridView:
+      control = new GridView(p, children);
       break;
     case BlurView:
       control = new BlurView(p, children[0]);

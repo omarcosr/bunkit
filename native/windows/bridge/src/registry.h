@@ -33,6 +33,7 @@ enum class NativeType : uint8_t {
   Segmented,
   Table,
   Container,
+  GridView,
   ScrollView,
   SplitView,
   ImageView,
