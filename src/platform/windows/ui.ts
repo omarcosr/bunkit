@@ -5,6 +5,11 @@ import { winLib } from "./ffi.ts";
 import { bindSignals, extractSignals } from "../../signal.ts";
 import { applyAdaptiveColor, reapplyAdaptiveColors, resolveColor, isThemeColor, trackAdaptive } from "../../ui/adaptive.ts";
 
+// Theme-adaptive colour helpers, public on both platforms (macOS re-exports
+// them from view.ts). Re-exported here so `import { resolveColor } from
+// "bunkit"` works on Windows too.
+export { isThemeColor, resolveColor, applyAdaptiveColor } from "../../ui/adaptive.ts";
+
 // macOS examples reach for raw AppKit through `.native`. WinUI has no Obj-C
 // runtime, so those escape hatches get a tolerant proxy: known names map to
 // behavior where a cheap equivalent exists, unknown ones no-op. This keeps the
@@ -357,6 +362,12 @@ function themeIsDark(): boolean {
   if (appTheme === "light") return false;
   if (appTheme === "dark") return true;
   try { return (winLib.bk_theme_is_dark() as number) !== 0; } catch { return false; }
+}
+
+/** Whether the app's effective theme is dark (the app theme, or the OS if
+ *  following it). Same name and semantics as the macOS export. */
+export function currentThemeIsDark(): boolean {
+  return themeIsDark();
 }
 
 export class Application {
