@@ -194,6 +194,20 @@ const styledControls = (
   </GroupBox>
 );
 
+// ─ theme-adaptive colours: `{ light, dark }` resolves against the current
+// theme and re-applies when setTheme switches it (the "Dark mode" checkbox
+// below drives it). Works for color, background/backgroundColor, borderColor,
+// textColor and placeholderColor. ───────────────────────────────────────────
+const adaptiveBox = (
+  <GroupBox title="Adaptive colours" padding={10} spacing={8}>
+    <HStack spacing={14}>
+      {swatch("fill", <Container backgroundColor={{ light: "#DFF3FF", dark: "#143C5C" }} borderRadius={14} width={72} height={56} />)}
+      {swatch("border", <Container border={2} borderColor={{ light: "#F26419", dark: "#FFB088" }} borderRadius={12} width={72} height={56} />)}
+      {swatch("text", <Label text="Aa" font={{ style: "title", weight: "semibold" }} color={{ light: "#143C8C", dark: "#9CC8FF" }} />)}
+    </HStack>
+  </GroupBox>
+);
+
 // ─ signals: passing a signal in the options binds it (two-way for
 // value/checked/on/selected, one-way for text/title) ──────────────────────
 const name = signal("");
@@ -236,6 +250,7 @@ const detail = (
       {notesBox}
       {styleBox}
       {styledControls}
+      {adaptiveBox}
       {signalsBox}
     </VStack>
   </ScrollView>

@@ -8,6 +8,12 @@
 import { objc, createBlock, createDelegate, nativeOf, ObjCObject } from "../objc.ts";
 import { LayoutAttribute, LayoutPriority, LayoutRelation, Orientation } from "./appkit.ts";
 import type { CGRect, CGSize } from "../structs.ts";
+import { trackAdaptive, isThemeColor, resolveColor, applyAdaptiveColor } from "./adaptive.ts";
+import { currentThemeIsDark } from "./theme.ts";
+
+// Re-export the adaptive colour helpers for importers that use view.ts as
+// their colour module (controls.ts, the metal scene).
+export { isThemeColor, resolveColor, applyAdaptiveColor } from "./adaptive.ts";
 
 let actionCounter = 0;
 
@@ -42,6 +48,9 @@ export const SIZE_PRIORITY = LayoutPriority.Required - 1;
 export type ViewContent = View | object;
 
 export { nativeOf } from "../objc.ts";
+
+/** A colour that resolves per theme: { light: "#1F3B4D", dark: "#E0E0E0" }. */
+export type ThemeColor = { light: ColorValue; dark: ColorValue };
 
 export interface ViewOptions {
   /** Fixed width in points. */
@@ -398,8 +407,10 @@ export class View {
 
   setBackground(color: any): this {
     this.native.setWantsLayer_(true);
-    const nsColor = toNSColor(color);
-    if (nsColor) this.native.layer().setBackgroundColor_(nsColor.send("CGColor"));
+    applyAdaptiveColor(color, currentThemeIsDark, (c) => {
+      const nsColor = toNSColor(c);
+      if (nsColor) this.native.layer().setBackgroundColor_(nsColor.send("CGColor"));
+    });
     return this;
   }
 
@@ -409,55 +420,57 @@ export class View {
    *  CAShapeLayers that follow the view's frame. */
   setBorder(color: any, width: BorderSideSpec | boolean | number = 1, radius: CornerRadiusSpec | number = 0, style: "solid" | "dashed" | "dotted" = "solid"): this {
     this.native.setWantsLayer_(true);
-    const layer = this.native.layer();
-    const nsColor = toNSColor(color);
-    this.#removeBorderShapes();
-    const [top, right, bottom, left] = normalizeSides(width as BorderSideSpec);
-    const uniform = top === right && right === bottom && bottom === left;
-    if (style === "solid" && uniform) {
-      if (nsColor) layer.setBorderColor_(nsColor.send("CGColor"));
-      layer.setBorderWidth_(top);
-      if (radius !== 0) this.applyCorners(radius);
-      return this;
-    }
-    // Dashed/dotted or per-side widths: CALayer borders cannot stroke a
-    // pattern or differ per side, so shape layers over the border do it,
-    // rebuilt whenever the frame changes. Uniform widths share one layer
-    // with the full rounded path; differing widths get one per active side.
-    layer.setBorderWidth_(0);
-    const cg = nsColor ? nsColor.send("CGColor") : null;
-    const mkShape = (w: number) => {
-      const shape = objc.CAShapeLayer.layer();
-      if (cg) shape.setStrokeColor_(cg);
-      shape.setLineWidth_(w);
-      shape.setFillColor_(null);
-      const unit = Math.max(1, w);
-      if (style === "dashed") shape.setLineDashPattern_([unit * 4, unit * 3]);
-      else if (style === "dotted") shape.setLineDashPattern_([unit, unit * 3]);
-      return shape;
-    };
-    const shapes: (any | null)[] = uniform
-      ? [mkShape(top)]
-      : [top, right, bottom, left].map((w) => (w > 0 ? mkShape(w) : null));
-    const [rtl, rtr, rbr, rbl] = normalizeCorners(radius as CornerRadiusSpec);
-    const rebuild = () => {
-      const bounds = this.native.bounds();
-      if (uniform) {
-        shapes[0]!.setPath_(roundedBezier(bounds, rtl, rtr, rbr, rbl));
-      } else {
-        const paths = sideBeziers(bounds, rtl, rtr, rbr, rbl);
-        shapes.forEach((s, i) => s && s.setPath_(paths[i]));
+    applyAdaptiveColor(color, currentThemeIsDark, (c) => {
+      const layer = this.native.layer();
+      const nsColor = toNSColor(c);
+      this.#removeBorderShapes();
+      const [top, right, bottom, left] = normalizeSides(width as BorderSideSpec);
+      const uniform = top === right && right === bottom && bottom === left;
+      if (style === "solid" && uniform) {
+        if (nsColor) layer.setBorderColor_(nsColor.send("CGColor"));
+        layer.setBorderWidth_(top);
+        if (radius !== 0) this.applyCorners(radius);
+        return;
       }
-    };
-    rebuild();
-    for (const s of shapes) if (s) layer.addSublayer_(s);
-    this.#borderShapes = shapes.filter((s) => s);
-    this.native.setPostsFrameChangedNotification_(true);
-    const block = createBlock("v@?@@", () => rebuild());
-    this.retainJS(block);
-    this.retainJS(objc.NSNotificationCenter.defaultCenter()
-      .addObserverForName_object_queue_usingBlock_(
-        "NSViewFrameDidChangeNotification", this.native, null, block));
+      // Dashed/dotted or per-side widths: CALayer borders cannot stroke a
+      // pattern or differ per side, so shape layers over the border do it,
+      // rebuilt whenever the frame changes. Uniform widths share one layer
+      // with the full rounded path; differing widths get one per active side.
+      layer.setBorderWidth_(0);
+      const cg = nsColor ? nsColor.send("CGColor") : null;
+      const mkShape = (w: number) => {
+        const shape = objc.CAShapeLayer.layer();
+        if (cg) shape.setStrokeColor_(cg);
+        shape.setLineWidth_(w);
+        shape.setFillColor_(null);
+        const unit = Math.max(1, w);
+        if (style === "dashed") shape.setLineDashPattern_([unit * 4, unit * 3]);
+        else if (style === "dotted") shape.setLineDashPattern_([unit, unit * 3]);
+        return shape;
+      };
+      const shapes: (any | null)[] = uniform
+        ? [mkShape(top)]
+        : [top, right, bottom, left].map((w) => (w > 0 ? mkShape(w) : null));
+      const [rtl, rtr, rbr, rbl] = normalizeCorners(radius as CornerRadiusSpec);
+      const rebuild = () => {
+        const bounds = this.native.bounds();
+        if (uniform) {
+          shapes[0]!.setPath_(roundedBezier(bounds, rtl, rtr, rbr, rbl));
+        } else {
+          const paths = sideBeziers(bounds, rtl, rtr, rbr, rbl);
+          shapes.forEach((s, i) => s && s.setPath_(paths[i]));
+        }
+      };
+      rebuild();
+      for (const s of shapes) if (s) layer.addSublayer_(s);
+      this.#borderShapes = shapes.filter((s) => s);
+      this.native.setPostsFrameChangedNotification_(true);
+      const block = createBlock("v@?@@", () => rebuild());
+      this.retainJS(block);
+      this.retainJS(objc.NSNotificationCenter.defaultCenter()
+        .addObserverForName_object_queue_usingBlock_(
+          "NSViewFrameDidChangeNotification", this.native, null, block));
+    });
     return this;
   }
 
@@ -565,7 +578,7 @@ const NAMED_COLORS = {
  *  the system colour for secondary text and adapts to light/dark mode), or a
  *  CSS hex string like "#ff8800". */
 export type ColorName = keyof typeof NAMED_COLORS;
-export type ColorValue = ColorName | `#${string}` | { r: number; g: number; b: number; a?: number };
+export type ColorValue = ColorName | `#${string}` | { r: number; g: number; b: number; a?: number } | ThemeColor;
 
 function colorFromString(s: string): any {
   const named = (NAMED_COLORS as Record<string, string | undefined>)[s];

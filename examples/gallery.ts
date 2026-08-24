@@ -225,6 +225,28 @@ const styledControls = new GroupBox({ title: "Styled controls", padding: 10, spa
   }),
 ]);
 
+// --- theme-adaptive colours --------------------------------------------------
+// A `{ light, dark }` spec resolves against the current theme and re-applies
+// every time setTheme switches it — the "Dark mode" checkbox below drives it.
+// Works for color, background/backgroundColor, borderColor, textColor and
+// placeholderColor.
+const adaptiveBox = new GroupBox({ title: "Adaptive colours", padding: 10, spacing: 8 }, [
+  new HStack({ spacing: 14 }, [
+    swatch("fill", new Container({
+      backgroundColor: { light: "#DFF3FF", dark: "#143C5C" },
+      borderRadius: 14, width: 72, height: 56,
+    })),
+    swatch("border", new Container({
+      border: 2, borderColor: { light: "#F26419", dark: "#FFB088" },
+      borderRadius: 12, width: 72, height: 56,
+    })),
+    swatch("text", new Label({
+      text: "Aa", font: { style: "title", weight: "semibold" },
+      color: { light: "#143C8C", dark: "#9CC8FF" },
+    })),
+  ]),
+]);
+
 // --- signals, imperative style ------------------------------------------------
 // bind() is the imperative twin of the JSX binding: it wires a signal to a
 // control both ways — typing writes back into the signal, signal.set() updates
@@ -266,6 +288,7 @@ const detail = new ScrollView({ border: false }, new VStack({ spacing: 12, paddi
   notesBox,
   styleBox,
   styledControls,
+  adaptiveBox,
   signalsBox,
 ]));
 

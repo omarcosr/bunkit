@@ -6,7 +6,8 @@
 import { createDelegate, objc, str } from "../objc.ts";
 import type { Signal } from "../signal.ts";
 import { bindSignals, unwrap } from "../signal.ts";
-import { ACTION_SELECTOR, actionTarget, toNSColor, View, type ViewOptions, type ColorValue } from "./view.ts";
+import { ACTION_SELECTOR, actionTarget, applyAdaptiveColor, toNSColor, View, type ViewOptions, type ColorValue } from "./view.ts";
+import { currentThemeIsDark } from "./theme.ts";
 import {
   AutoresizingMask,
   BezelStyle,
@@ -100,7 +101,9 @@ export class Label extends View {
   protected applyLabelOptions(o: LabelOptions) {
     const f = this.native;
     if (o.font !== undefined) f.setFont_(makeFont(o.font));
-    if (o.color !== undefined) f.setTextColor_(toNSColor(o.color));
+    if (o.color !== undefined) {
+      applyAdaptiveColor(o.color, currentThemeIsDark, (c) => f.setTextColor_(toNSColor(c)));
+    }
     if (o.textAlign !== undefined) {
       f.setAlignment_(
         o.textAlign === "center" ? TextAlignment.Center
@@ -128,7 +131,7 @@ export class Label extends View {
   }
 
   set color(v: any) {
-    this.native.setTextColor_(toNSColor(v));
+    applyAdaptiveColor(v, currentThemeIsDark, (c) => this.native.setTextColor_(toNSColor(c)));
   }
 
   set font(v: FontSpec | number) {
@@ -336,13 +339,17 @@ export class TextField extends View {
 
     if (options.value !== undefined) f.setStringValue_(unwrap(options.value));
     if (options.placeholder !== undefined) f.setPlaceholderString_(options.placeholder);
-    if (options.textColor !== undefined) f.setTextColor_(toNSColor(options.textColor));
+    if (options.textColor !== undefined) {
+      applyAdaptiveColor(options.textColor, currentThemeIsDark, (c) => f.setTextColor_(toNSColor(c)));
+    }
     if (options.placeholderColor !== undefined && options.placeholder !== undefined) {
-      const attrs = objc.NSDictionary.dictionaryWithObject_forKey_(
-        toNSColor(options.placeholderColor), "NSForegroundColorAttributeName");
-      f.setPlaceholderAttributedString_(
-        objc.NSAttributedString.alloc().initWithString_attributes_(
-          options.placeholder, attrs));
+      applyAdaptiveColor(options.placeholderColor, currentThemeIsDark, (c) => {
+        const attrs = objc.NSDictionary.dictionaryWithObject_forKey_(
+          toNSColor(c), "NSForegroundColorAttributeName");
+        f.setPlaceholderAttributedString_(
+          objc.NSAttributedString.alloc().initWithString_attributes_(
+            options.placeholder, attrs));
+      });
     }
     if (options.editable !== undefined) f.setEditable_(options.editable);
     if (options.enabled !== undefined) f.setEnabled_(options.enabled);
@@ -442,7 +449,9 @@ export class TextArea extends View {
     tv.setRichText_(options.richText ?? false);
     if (options.editable !== undefined) tv.setEditable_(options.editable);
     if (options.font !== undefined) tv.setFont_(makeFont(options.font));
-    if (options.textColor !== undefined) tv.setTextColor_(toNSColor(options.textColor));
+    if (options.textColor !== undefined) {
+      applyAdaptiveColor(options.textColor, currentThemeIsDark, (c) => tv.setTextColor_(toNSColor(c)));
+    }
     if (options.value !== undefined) tv.setString_(unwrap(options.value));
     scroll.setDocumentView_(tv);
 

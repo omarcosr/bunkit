@@ -154,6 +154,11 @@ export class WindowsBackend {
     winLib.bk_label_set_text(h, b as any, b.length);
   }
 
+  setLabelColor(h: NativeHandle, color?: string): void {
+    const b = cstr(color ?? "");
+    winLib.bk_label_set_color(h, b as any, b.length);
+  }
+
   getLabelText(h: NativeHandle): string {
     const len = winLib.bk_label_text_length(h) as number;
     if (len === 0) return "";

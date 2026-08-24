@@ -11,6 +11,7 @@ import {
 } from "../../src/index.ts";
 import { windowsBackend } from "../../src/platform/windows/backend.ts";
 import { winLib } from "../../src/platform/windows/ffi.ts";
+import { resolveColor, isThemeColor, reapplyAdaptiveColors, trackAdaptive } from "../../src/ui/adaptive.ts";
 
 let failures = 0;
 function check(cond: boolean, msg: string): void {
@@ -216,6 +217,31 @@ const keys = input();
 check(typeof keys.held("w") === "boolean", "input().held polls");
 const m = keys.mouse;
 check(typeof m.x === "number" && typeof m.buttons.size === "number", "input().mouse reads");
+
+// --- theme-adaptive colours --------------------------------------------------------------
+
+check(resolveColor({ light: "#ffffff", dark: "#000000" }, false) === "#ffffff", "resolveColor picks the light variant");
+check(resolveColor({ light: "#ffffff", dark: "#000000" }, true) === "#000000", "resolveColor picks the dark variant");
+check(resolveColor("#336699", true) === "#336699", "resolveColor leaves plain colours untouched");
+check(isThemeColor({ light: "#fff", dark: "#000" }), "isThemeColor recognises { light, dark }");
+check(!isThemeColor("#fff"), "isThemeColor rejects plain strings");
+
+// A { light, dark } colour resolves per theme and re-applies on setTheme:
+// the dark-mode toggle below (via the native registry read) is what drives it.
+const adaptiveLabel = new Label({ text: "theme", color: { light: "#123456", dark: "#654321" } });
+check(true, "Label accepts a { light, dark } color");
+const hex = Buffer.from("#336699") as any;
+check((winLib.bk_label_set_color((adaptiveLabel as any).handle, hex, 7) as number) === 0,
+  "bk_label_set_color applies a resolved colour to the label");
+check(typeof winLib.bk_theme_is_dark() === "number", "bk_theme_is_dark reads the registry");
+
+let reapplied = 0;
+trackAdaptive(() => { reapplied++; });
+setTheme("dark");
+for (let i = 0; i < 10; i++) { windowsBackend.pump(); await Bun.sleep(4); }
+check(reapplied >= 1, `setTheme re-applies adaptive colours (${reapplied}x)`);
+setTheme("default");
+for (let i = 0; i < 10; i++) { windowsBackend.pump(); await Bun.sleep(4); }
 
 // --- menu smoke -----------------------------------------------------------------------------
 

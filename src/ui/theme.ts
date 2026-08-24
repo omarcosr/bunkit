@@ -1,9 +1,10 @@
 // Theme — light/dark appearance for the whole app.
 //
 // Windows themes per window subtree (XAML RequestedTheme); macOS switches the
-// app-wide NSAppearance. `setTheme(null)` follows the system again.
+// app-wide NSAppearance. `setTheme("default")` follows the system again.
 
-import { objc } from "../objc.ts";
+import { objc, str } from "../objc.ts";
+import { reapplyAdaptiveColors } from "./adaptive.ts";
 
 export type Theme = "default" | "light" | "dark";
 
@@ -19,7 +20,20 @@ export function setTheme(
   const app = objc.NSApplication.sharedApplication();
   if (theme === "default") {
     app.setAppearance_(null);
-    return;
+  } else {
+    app.setAppearance_(objc.NSAppearance.appearanceNamed_(APPEARANCE[theme]));
   }
-  app.setAppearance_(objc.NSAppearance.appearanceNamed_(APPEARANCE[theme]));
+  // { light, dark } colours resolve against the new appearance.
+  reapplyAdaptiveColors();
+}
+
+/** Whether the app's effective appearance is dark (system, if following it). */
+export function currentThemeIsDark(): boolean {
+  try {
+    const app = objc.NSApplication.sharedApplication();
+    const name = str(app.effectiveAppearance().name());
+    return name.includes("Dark");
+  } catch {
+    return false;
+  }
 }

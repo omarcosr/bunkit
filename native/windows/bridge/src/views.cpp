@@ -6,6 +6,8 @@
 #include "runtime.h"
 #include "strings.h"
 
+#include <windows.h>
+
 #include <winrt/Microsoft.UI.Xaml.h>
 #include <winrt/Microsoft.UI.Xaml.Controls.h>
 #include <winrt/Microsoft.UI.Xaml.Shapes.h>
@@ -720,6 +722,18 @@ BK_EXPORT int32_t bk_control_set_corner_radius4(bk_handle c, double tl,
     }
   });
   return combine(rc, st);
+}
+
+// Whether the OS is in dark mode (AppsUseLightTheme = 0). Used to resolve
+// `{ light, dark }` colours when the app follows the system theme.
+BK_EXPORT int32_t bk_theme_is_dark(void) {
+  DWORD value = 1;
+  DWORD size = sizeof(value);
+  LONG rc = RegGetValueW(
+      HKEY_CURRENT_USER,
+      L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
+      L"AppsUseLightTheme", RRF_RT_REG_DWORD, nullptr, &value, &size);
+  return rc == ERROR_SUCCESS && value == 0 ? 1 : 0;
 }
 
 } // extern "C"

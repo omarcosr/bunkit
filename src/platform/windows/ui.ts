@@ -1,7 +1,9 @@
 // src/platform/windows/ui.ts — public API over the Windows backend.
 import { windowsBackend } from "./backend.ts";
 import type { NativeHandle } from "./ffi.ts";
+import { winLib } from "./ffi.ts";
 import { bindSignals, extractSignals } from "../../signal.ts";
+import { applyAdaptiveColor, reapplyAdaptiveColors, resolveColor, isThemeColor, trackAdaptive } from "../../ui/adaptive.ts";
 
 // macOS examples reach for raw AppKit through `.native`. WinUI has no Obj-C
 // runtime, so those escape hatches get a tolerant proxy: known names map to
@@ -77,7 +79,7 @@ export interface ViewOptions {
    *  [top, right, bottom, left], or per-side names (CSS border-width vocabulary). */
   border?: number | boolean | BorderSideSpec;
   borderWidth?: number;
-  borderColor?: string;
+  borderColor?: any;
   borderStyle?: "solid" | "dashed" | "dotted";
   /** A reusable styling object, merged into the options at construction.
    *  Inline props win over the style. */
@@ -123,21 +125,18 @@ export class View {
       const [tl, tr, br, bl] = normalizeCorners(options.borderRadius);
       windowsBackend.setControlCornerRadius(handle, tl, tr, br, bl);
     }
-    if (options.background !== undefined && typeof options.background === "string") {
-      windowsBackend.setControlBackground(handle, options.background);
-    } else if (options.backgroundColor !== undefined && typeof options.backgroundColor === "string") {
-      windowsBackend.setControlBackground(handle, options.backgroundColor);
+    if (options.background !== undefined || options.backgroundColor !== undefined) {
+      this.setBackground(options.background ?? options.backgroundColor);
     }
 
     // CSS-style borders: `border`/`borderWidth` (or `borderColor`/`borderStyle`
     // alone) turn the border on; `borderRadius` rides along when present.
     const borderSpec = options.border !== undefined ? options.border : options.borderWidth;
     if (borderSpec !== undefined || options.borderColor !== undefined || options.borderStyle !== undefined) {
-      const corners = normalizeCorners(options.borderRadius as CornerRadiusSpec | undefined);
       this.setBorder(
         options.borderColor ?? "#C6C6C8",
         borderSpec ?? 1,
-        corners,
+        options.borderRadius,
         options.borderStyle ?? "solid",
       );
     }
@@ -155,30 +154,34 @@ export class View {
   /** Keep a JS object alive for as long as this view is. */
   retainJS(_v: any): void {}
 
-  /** Background colour (hex string). On acrylic-backed views this tints the
-   *  acrylic instead of replacing it. */
+  /** Background colour (hex string or { light, dark }). On acrylic-backed
+   *  views this tints the acrylic instead of replacing it. */
   setBackground(color: any): this {
-    if (typeof color === "string") {
-      windowsBackend.setControlBackground(this.handle, color);
-    }
+    applyAdaptiveColor(color, themeIsDark, (c) => {
+      if (typeof c === "string") {
+        windowsBackend.setControlBackground(this.handle, c);
+      }
+    });
     return this;
   }
 
-  /** Border colour (hex string), width in px (one number or per-side — see
-   *  BorderSideSpec), optional corner radius (one number or per-corner — see
-   *  CornerRadiusSpec) and style. dashed/dotted draw with a pattern overlay on
-   *  Border-based views and fall back to solid on plain Controls. */
+  /** Border colour (hex string or { light, dark }), width in px (one number or
+   *  per-side — see BorderSideSpec), optional corner radius (one number or
+   *  per-corner — see CornerRadiusSpec) and style. dashed/dotted draw with a
+   *  pattern overlay on Border-based views and fall back to solid on plain
+   *  Controls. */
   setBorder(color: any, width: BorderSideSpec | boolean | number = 1, radius: CornerRadiusSpec | number = 0, style: "solid" | "dashed" | "dotted" = "solid"): this {
-    if (typeof color === "string") {
+    applyAdaptiveColor(color, themeIsDark, (c) => {
+      if (typeof c !== "string") return;
       const [tl, tr, br, bl] = normalizeCorners(radius as CornerRadiusSpec);
       const [top, right, bottom, left] = normalizeSides(width as BorderSideSpec);
       if (style === "solid") {
-        windowsBackend.setControlBorder(this.handle, color, top, right, bottom, left, tl, tr, br, bl);
+        windowsBackend.setControlBorder(this.handle, c, top, right, bottom, left, tl, tr, br, bl);
       } else {
         const code = style === "dotted" ? 2 : 1;
-        windowsBackend.setControlBorderStyle(this.handle, color, top, right, bottom, left, tl, tr, br, bl, code);
+        windowsBackend.setControlBorderStyle(this.handle, c, top, right, bottom, left, tl, tr, br, bl, code);
       }
-    }
+    });
     return this;
   }
 
@@ -348,6 +351,14 @@ function themeCode(theme: Theme | null): number {
   return theme === "light" ? 1 : theme === "dark" ? 2 : 0;
 }
 
+// Which way the theme resolves right now: the app theme if one was set,
+// otherwise the OS-level light/dark setting (AppsUseLightTheme registry).
+function themeIsDark(): boolean {
+  if (appTheme === "light") return false;
+  if (appTheme === "dark") return true;
+  try { return (winLib.bk_theme_is_dark() as number) !== 0; } catch { return false; }
+}
+
 export class Application {
   constructor(private opts: {
     name?: string;
@@ -434,13 +445,25 @@ export class Window {
 // --- controls ---------------------------------------------------------------------
 
 export class Label extends View {
-  constructor(opts: { text?: string; color?: string; font?: any; textAlign?: string; grow?: number } & ViewOptions = {}) {
+  constructor(opts: { text?: string; color?: any; font?: any; textAlign?: string; grow?: number } & ViewOptions = {}) {
     const bound = extractSignals(opts);
-    super(windowsBackend.createLabel(opts as any), opts);
+    // A { light, dark } colour must not cross into the native create call —
+    // it resolves per theme and re-applies on setTheme.
+    super(windowsBackend.createLabel({ ...opts, color: typeof opts.color === "string" ? opts.color : "" } as any), opts);
+    if (opts.color !== undefined) {
+      applyAdaptiveColor(opts.color, themeIsDark, (c) => {
+        if (typeof c === "string") windowsBackend.setLabelColor(this.handle, c);
+      });
+    }
     bindSignals(this, opts, bound);
   }
   get text(): string { return windowsBackend.getLabelText(this.handle); }
   set text(v: string) { windowsBackend.setLabelText(this.handle, v ?? ""); }
+  set color(v: any) {
+    applyAdaptiveColor(v, themeIsDark, (c) => {
+      if (typeof c === "string") windowsBackend.setLabelColor(this.handle, c);
+    });
+  }
 }
 
 export class Button extends View {
@@ -456,12 +479,20 @@ export class Button extends View {
 
 export class TextField extends View {
   secure: boolean;
-  constructor(opts: { value?: string; placeholder?: string; secure?: boolean; textColor?: string; placeholderColor?: string; onChange?: (v: string) => void; onSubmit?: (v: string) => void } & ViewOptions = {}) {
+  constructor(opts: { value?: string; placeholder?: string; secure?: boolean; textColor?: any; placeholderColor?: any; onChange?: (v: string) => void; onSubmit?: (v: string) => void } & ViewOptions = {}) {
     const bound = extractSignals(opts);
     super(windowsBackend.createTextField({ value: opts.value, placeholder: opts.placeholder, secure: opts.secure, onChange: opts.onChange }), opts);
     this.secure = !!opts.secure;
     if (opts.textColor !== undefined || opts.placeholderColor !== undefined) {
-      windowsBackend.setTextFieldColors(this.handle, opts.textColor, opts.placeholderColor);
+      const apply = () => {
+        const tc = resolveColor(opts.textColor, themeIsDark());
+        const pc = resolveColor(opts.placeholderColor, themeIsDark());
+        windowsBackend.setTextFieldColors(this.handle,
+          typeof tc === "string" ? tc : undefined,
+          typeof pc === "string" ? pc : undefined);
+      };
+      if (isThemeColor(opts.textColor) || isThemeColor(opts.placeholderColor)) trackAdaptive(apply);
+      apply();
     }
     if (opts.onSubmit) this.onSubmit(opts.onSubmit);
     bindSignals(this, opts, bound);
@@ -535,13 +566,17 @@ export class Segmented extends View {
 }
 
 export class TextArea extends View {
-  constructor(opts: { value?: string; editable?: boolean; richText?: boolean; font?: any; textColor?: string; onChange?: (value: string) => void } & ViewOptions = {}) {
+  constructor(opts: { value?: string; editable?: boolean; richText?: boolean; font?: any; textColor?: any; onChange?: (value: string) => void } & ViewOptions = {}) {
     const bound = extractSignals(opts);
     super(windowsBackend.createTextAreaEx(!!opts.richText), opts);
     if (opts.value !== undefined) this.value = opts.value;
     if (opts.editable === false) windowsBackend.setTextAreaReadOnly(this.handle, true);
     if (opts.font) windowsBackend.setTextAreaFont(this.handle, !!opts.font.monospace, opts.font.size ?? 0);
-    if (opts.textColor !== undefined) windowsBackend.setTextAreaForeground(this.handle, opts.textColor);
+    if (opts.textColor !== undefined) {
+      applyAdaptiveColor(opts.textColor, themeIsDark, (c) => {
+        if (typeof c === "string") windowsBackend.setTextAreaForeground(this.handle, c);
+      });
+    }
     if (opts.onChange) windowsBackend.setTextAreaCallback(this.handle, opts.onChange);
     bindSignals(this, opts, bound);
   }
@@ -923,6 +958,7 @@ export function setTheme(theme: Theme, opts?: { background?: string }): void {
   for (const handle of windowsBackend.allWindows) {
     windowsBackend.setControlTheme(handle, code, opts?.background);
   }
+  reapplyAdaptiveColors();
 }
 
 // --- clipboard ---------------------------------------------------------------------

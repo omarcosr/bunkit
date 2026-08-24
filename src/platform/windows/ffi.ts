@@ -67,6 +67,7 @@ function getLib(): any {
   bk_label_set_text: { args: ["u64", "ptr", "u32"], returns: "i32" },
   bk_label_text_length: { args: ["u64"], returns: "u32" },
   bk_label_copy_text: { args: ["u64", "ptr", "u32"], returns: "i32" },
+  bk_label_set_color: { args: ["u64", "ptr", "u32"], returns: "i32" },
 
   bk_button_create: { args: ["ptr", "u32"], returns: "u64" },
   bk_button_set_text: { args: ["u64", "ptr", "u32"], returns: "i32" },
@@ -165,6 +166,7 @@ function getLib(): any {
   bk_imageview_create: { args: ["ptr", "u32"], returns: "u64" },
   bk_blurview_create: { args: [], returns: "u64" },
   bk_blurview_set_content: { args: ["u64", "u64"], returns: "i32" },
+  bk_theme_is_dark: { args: [], returns: "i32" },
   bk_control_set_size: { args: ["u64", "f64", "f64"], returns: "i32" },
   bk_control_set_min_size: { args: ["u64", "f64", "f64"], returns: "i32" },
   bk_control_set_max_size: { args: ["u64", "f64", "f64"], returns: "i32" },

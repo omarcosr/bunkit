@@ -24,6 +24,7 @@ import {
   type MTLObject, type PixelFormatName, type RenderPipeline, type Snippet,
 } from "./gpu.ts";
 import { GPUView, type GPUViewOptions } from "./view.ts";
+import { resolveColor, type ColorValue } from "../ui/view.ts";
 import { declarationsOf } from "./effects.ts";
 import type { Frame, RenderPass } from "./frame.ts";
 import type { Bloom, BloomOptions } from "./post.ts";
@@ -508,7 +509,7 @@ export class Scene3D extends GPUView {
 
     this.camera = options.camera instanceof Camera ? options.camera : new Camera(options.camera);
     this.light = options.light instanceof Light ? options.light : new Light(options.light);
-    this.background = parseColor(options.background ?? "#0b0b0f");
+    this.background = parseColor((resolveColor(options.background as ColorValue, false) ?? "#0b0b0f") as unknown as Color);
     this.#maxInstances = options.maxInstances ?? 100_000;
     this.#uniforms = g.buffer(SceneUniforms, { label: "scene uniforms" });
 

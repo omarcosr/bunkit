@@ -151,6 +151,8 @@ BK_EXPORT int32_t bk_label_set_text(bk_handle l, const char* text,
 BK_EXPORT uint32_t bk_label_text_length(bk_handle l);
 BK_EXPORT int32_t bk_label_copy_text(bk_handle l, char* buffer,
                                      uint32_t capacity);
+BK_EXPORT int32_t bk_label_set_color(bk_handle l, const char* color,
+                                     uint32_t color_len);
 
 // --- button -----------------------------------------------------------------
 BK_EXPORT bk_handle bk_button_create(const char* text, uint32_t text_len);
@@ -359,6 +361,10 @@ BK_EXPORT int32_t bk_imageview_set_source(bk_handle c, const char* path,
 // Acrylic-backed panel (approximates NSVisualEffectView).
 BK_EXPORT bk_handle bk_blurview_create(void);
 BK_EXPORT int32_t bk_blurview_set_content(bk_handle b, bk_handle child);
+
+// 1 when the OS is in dark mode; used to resolve `{ light, dark }` colours
+// when the app follows the system theme.
+BK_EXPORT int32_t bk_theme_is_dark(void);
 
 // --- generic view options ------------------------------------------------------
 // 0 in a dimension leaves it unset. background is "#RRGGBB"/"#AARRGGBB".

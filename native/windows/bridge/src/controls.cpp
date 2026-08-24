@@ -656,6 +656,43 @@ winrt::Microsoft::UI::Xaml::Media::Brush resource_brush(const wchar_t* key) {
   }
 }
 
+// AppKit colour names -> nearest theme brush; any other string is parsed as
+// hex (#RRGGBB or #AARRGGBB). "" leaves the default foreground untouched.
+void apply_label_brush(cx::TextBlock label, const std::string& c) {
+  if (c.empty()) return;
+  winrt::Windows::UI::Color color{};
+  if (c[0] == '#') {
+    if (parse_hex_color(c, color)) {
+      label.Foreground(Media::SolidColorBrush(color));
+    }
+    return;
+  }
+  const wchar_t* brush_key = nullptr;
+  if (c == "secondaryLabel" || c == "placeholderText") {
+    brush_key = L"TextFillColorSecondaryBrush";
+  } else if (c == "tertiaryLabel") {
+    brush_key = L"TextFillColorTertiaryBrush";
+  } else if (c == "quaternaryLabel") {
+    brush_key = L"TextFillColorDisabledBrush";
+  } else if (c == "label" || c == "textColor") {
+    brush_key = L"TextFillColorPrimaryBrush";
+  } else if (c == "systemRed") {
+    brush_key = L"SystemFillColorCriticalBrush";
+  } else if (c == "systemYellow" || c == "systemOrange") {
+    brush_key = L"SystemFillColorCautionBrush";
+  } else if (c == "systemGreen") {
+    brush_key = L"SystemFillColorSuccessBrush";
+  } else if (c == "systemGray" || c == "systemBrown") {
+    brush_key = L"TextFillColorSecondaryBrush";
+  } else {
+    // Blue/purple/teal/pink and link -> the accent colour.
+    brush_key = L"AccentFillColorDefaultBrush";
+  }
+  if (auto brush = resource_brush(brush_key)) {
+    label.Foreground(brush);
+  }
+}
+
 } // namespace
 
 BK_EXPORT bk_handle bk_button_create_ex(const char* text, uint32_t text_len,
@@ -738,33 +775,7 @@ BK_EXPORT bk_handle bk_label_create_ex(const char* text, uint32_t text_len,
   const int32_t rc = bk::Runtime::instance().dispatch_sync([&] {
     auto label = cx::TextBlock();
     label.Text(bk::utf8_to_hstring(t.data(), static_cast<uint32_t>(t.size())));
-    // AppKit color names -> nearest theme brush.
-    const wchar_t* brush_key = nullptr;
-    if (c == "secondaryLabel" || c == "placeholderText") {
-      brush_key = L"TextFillColorSecondaryBrush";
-    } else if (c == "tertiaryLabel") {
-      brush_key = L"TextFillColorTertiaryBrush";
-    } else if (c == "quaternaryLabel") {
-      brush_key = L"TextFillColorDisabledBrush";
-    } else if (c == "label" || c == "textColor") {
-      brush_key = L"TextFillColorPrimaryBrush";
-    } else if (c == "systemRed") {
-      brush_key = L"SystemFillColorCriticalBrush";
-    } else if (c == "systemYellow" || c == "systemOrange") {
-      brush_key = L"SystemFillColorCautionBrush";
-    } else if (c == "systemGreen") {
-      brush_key = L"SystemFillColorSuccessBrush";
-    } else if (c == "systemGray" || c == "systemBrown") {
-      brush_key = L"TextFillColorSecondaryBrush";
-    } else if (!c.empty()) {
-      // Blue/purple/teal/pink and link → the accent colour.
-      brush_key = L"AccentFillColorDefaultBrush";
-    }
-    if (brush_key) {
-      if (auto brush = resource_brush(brush_key)) {
-        label.Foreground(brush);
-      }
-    }
+    apply_label_brush(label, c);
     if (font_size > 0) label.FontSize(font_size);
     // style_bits: 1 semibold, 2 title, 4 monospace
     if (style_bits & 2) {
@@ -786,6 +797,24 @@ BK_EXPORT bk_handle bk_label_create_ex(const char* text, uint32_t text_len,
     out = bk::registry().add(bk::NativeType::Label, shell);
   });
   return rc == BK_OK ? out : BK_HANDLE_NULL;
+}
+
+BK_EXPORT int32_t bk_label_set_color(bk_handle l, const char* color,
+                                     uint32_t color_len) {
+  if (require_running() != BK_OK) return BK_NOT_INITIALIZED;
+  const std::string c = (color && color_len) ? std::string(color, color_len)
+                                             : std::string();
+  int32_t st = BK_ERROR;
+  const int32_t rc = bk::Runtime::instance().dispatch_sync([&] {
+    auto* entry = bk::registry().get(l);
+    if (!entry || entry->type != bk::NativeType::Label) {
+      st = BK_INVALID_HANDLE;
+      return;
+    }
+    apply_label_brush(label_text_of(entry), c);
+    st = BK_OK;
+  });
+  return combine(rc, st);
 }
 
 BK_EXPORT int32_t bk_passwordbox_set_submit_callback(bk_handle pb, uint64_t cb) {
