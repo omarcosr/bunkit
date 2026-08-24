@@ -225,7 +225,7 @@ The rest of the macOS API has Windows equivalents too:
   content grid), `ImageView` (BitmapImage from a path/URL), `BlurView`
   (AcrylicBrush with a translucent fallback), and a `View` base class carrying
   `width/height/min/max`, `hidden`, `tooltip`, `alpha`, `background` (hex),
-  `cornerRadius`, `frame`, `children`, `setBackground`/`setBorder`.
+  `borderRadius`, `frame`, `children`, `setBackground`/`setBorder`.
 - **Table** — `multiSelect` + `selectedIndexes`, `headers: false`,
   `alternatingRows`, `font`, per-column `minWidth`/`maxWidth`, and `render`
   cells (each cell view crosses the ABI by handle and is embedded live).
@@ -331,9 +331,8 @@ bun test/win/parity2.ts       # views, advanced table, input, snapshot, debug
 ## Known approximations
 
 - Styling works on every control — `Label` and `ImageView` render inside a
-  Border shell, so `background`/`border`/`cornerRadius` apply to them too.
-  `cornerRadius` and `borderRadius` are aliases of the same thing. Both accept
-  one number, `[tl, tr, br, bl]`, or per-corner names
+  Border shell, so `background`/`border`/`borderRadius` apply to them too.
+  `borderRadius` accepts one number, `[tl, tr, br, bl]`, or per-corner names
   (`{ topLeft, topRight, bottomRight, bottomLeft }` — CSS border-radius
   vocabulary). `border` accepts one number, `true`, `[top, right, bottom,
   left]`, or per-side names (`{ top, right, bottom, left }` — CSS

@@ -182,14 +182,14 @@ const styledControls = (
   <GroupBox title="Styled controls" padding={10} spacing={8}>
     <VStack spacing={10}>
       <HStack spacing={10} scroll>
-        <Button title="Go" background="#2D7DD2" cornerRadius={10} border={2} borderColor="#1F3B4D" />
-        <TextField placeholder="tinted field" background="#fdcc05" cornerRadius={8} grow={1} textColor="#143C8C" placeholderColor="#7A2E00" />
-        <Select selected={0} items={["Alpha", "Beta"]} background="#FDE2E2" cornerRadius={8} width={110} />
+        <Button title="Go" background="#2D7DD2" borderRadius={10} border={2} borderColor="#1F3B4D" />
+        <TextField placeholder="tinted field" background="#fdcc05" borderRadius={8} grow={1} textColor="#143C8C" placeholderColor="#7A2E00" />
+        <Select selected={0} items={["Alpha", "Beta"]} background="#FDE2E2" borderRadius={8} width={110} />
       </HStack>
-      <ScrollView background="#E2F3E8" cornerRadius={10} height={56} border>
+      <ScrollView background="#E2F3E8" borderRadius={10} height={56} border>
         <Label text="a tinted, rounded, bordered scroll view" font={{ size: 11 }} color="#1F3B4D" align="center" />
       </ScrollView>
-      <TextArea value="…and a tinted text area." background="#E8F0FE" cornerRadius={8} height={40} editable={false} />
+      <TextArea value="…and a tinted text area." background="#E8F0FE" borderRadius={8} height={40} editable={false} />
     </VStack>
   </GroupBox>
 );
@@ -252,7 +252,6 @@ const sidebar = new BlurView({
   border: true,
   borderColor: "#0000ff",
   borderRadius: 8,
-  cornerRadius: 8,
 }, (
   <VStack spacing={10} padding={12}>
     <Label text="Gallery" font={{ style: "title", weight: "semibold" }} />

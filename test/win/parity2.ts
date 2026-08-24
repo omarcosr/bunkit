@@ -40,11 +40,11 @@ check(true, "ScrollView/SplitView/Container/BlurView/ImageView construct");
 // view options
 const tipped = new Label({ text: "tip", tooltip: "a tip", alpha: 0.5, background: "#336699" });
 check(true, "view options (tooltip/alpha/background) do not throw");
-// cornerRadius/borderRadius accept per-corner specs.
+// borderRadius/borderRadius accept per-corner specs.
 const uni = new Container({ background: "#2D7DD2", borderRadius: 24, width: 80, height: 60 });
 const [utl, utr, ubr, ubl] = (uni as any).frame ? [0, 0, 0, 0] : [0, 0, 0, 0];
-check(typeof (uni as any).setBorder === "function", "cornerRadius spec plumbing exists");
-const tupleC = new Container({ cornerRadius: [4, 8, 12, 16], width: 40, height: 30 });
+check(typeof (uni as any).setBorder === "function", "borderRadius spec plumbing exists");
+const tupleC = new Container({ borderRadius: [4, 8, 12, 16], width: 40, height: 30 });
 const namedC = new Container({ borderRadius: { topLeft: 5, bottomRight: 9 }, width: 40, height: 30 });
 check(true, "tuple and per-name corner specs do not throw");
 // Labels render inside a Border shell, so styling now applies to them too.
@@ -95,7 +95,7 @@ const wideRow = new HStack({ spacing: 10, scroll: true },
 check(describeViewTree(wideRow).includes("ScrollViewer"), "HStack scroll:true wraps a ScrollViewer");
 const tallColumn = new VStack({ spacing: 6, scroll: true }, [new Label({ text: "top" })]);
 check(describeViewTree(tallColumn).includes("ScrollViewer"), "VStack scroll:true wraps a ScrollViewer");
-const outlined = new Container({ width: 40, height: 30, background: "#2D7DD2", cornerRadius: 8 });
+const outlined = new Container({ width: 40, height: 30, background: "#2D7DD2", borderRadius: 8 });
 outlined.setBorder("#F26419", 2, 8);
 check(true, "setBorder (colour + width + radius) does not throw");
 // CSS-style options.

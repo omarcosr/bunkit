@@ -70,10 +70,8 @@ export interface ViewOptions {
   background?: any;
   /** CSS-style alias for `background`. */
   backgroundColor?: any;
-  /** Corner radius — same as `borderRadius`. One number, [tl,tr,br,bl], or
+  /** Corner radius — one number for all corners, [tl, tr, br, bl], or
    *  per-corner names (CSS border-radius vocabulary). */
-  cornerRadius?: CornerRadiusSpec;
-  /** Alias for `cornerRadius`. */
   borderRadius?: CornerRadiusSpec;
   /** Border width — one number for all sides, `true` for 1,
    *  [top, right, bottom, left], or per-side names (CSS border-width vocabulary). */
@@ -121,8 +119,8 @@ export class View {
     if (options.hidden !== undefined) this.hidden = options.hidden;
     if (options.tooltip !== undefined) windowsBackend.setControlTooltip(handle, options.tooltip);
     if (options.alpha !== undefined) windowsBackend.setControlAlpha(handle, options.alpha);
-    if (options.cornerRadius !== undefined || options.borderRadius !== undefined) {
-      const [tl, tr, br, bl] = normalizeCorners(options.cornerRadius ?? options.borderRadius);
+    if (options.borderRadius !== undefined) {
+      const [tl, tr, br, bl] = normalizeCorners(options.borderRadius);
       windowsBackend.setControlCornerRadius(handle, tl, tr, br, bl);
     }
     if (options.background !== undefined && typeof options.background === "string") {
@@ -135,8 +133,7 @@ export class View {
     // alone) turn the border on; `borderRadius` rides along when present.
     const borderSpec = options.border !== undefined ? options.border : options.borderWidth;
     if (borderSpec !== undefined || options.borderColor !== undefined || options.borderStyle !== undefined) {
-      const corners = normalizeCorners(
-        (options.borderRadius ?? options.cornerRadius) as CornerRadiusSpec | undefined);
+      const corners = normalizeCorners(options.borderRadius as CornerRadiusSpec | undefined);
       this.setBorder(
         options.borderColor ?? "#C6C6C8",
         borderSpec ?? 1,

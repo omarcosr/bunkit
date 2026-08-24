@@ -58,9 +58,6 @@ export interface ViewOptions {
   tooltip?: string;
   /** Opaque identifier; also used for view reuse in tables. */
   id?: string;
-  /** Corner radius — same as `borderRadius`. One number, [tl,tr,br,bl], or
-   *  per-corner names (CSS border-radius vocabulary). Turns on a layer. */
-  cornerRadius?: CornerRadiusSpec;
   /** Background colour: a semantic name, a CSS hex string, or an RGB object. */
   background?: ColorValue;
   /** CSS-style alias for `background`. */
@@ -72,7 +69,8 @@ export interface ViewOptions {
   borderWidth?: number;
   /** Border colour: a semantic name, a CSS hex string, or an RGB object. */
   borderColor?: ColorValue;
-  /** Alias for `cornerRadius`. */
+  /** Corner radius — one number for all corners, [tl, tr, br, bl], or
+   *  per-corner names (CSS border-radius vocabulary). */
   borderRadius?: CornerRadiusSpec;
   /** "solid" (default), "dashed" or "dotted". */
   borderStyle?: "solid" | "dashed" | "dotted";
@@ -229,8 +227,8 @@ export class View {
     if (o.tooltip !== undefined) this.native.setToolTip_(o.tooltip);
     if (o.id !== undefined) this.native.setIdentifier_(o.id);
     if (o.alpha !== undefined) this.native.setAlphaValue_(o.alpha);
-    if (o.cornerRadius !== undefined || o.borderRadius !== undefined) {
-      this.applyCorners(o.cornerRadius ?? o.borderRadius!);
+    if (o.borderRadius !== undefined) {
+      this.applyCorners(o.borderRadius);
     }
     if (o.background !== undefined) this.setBackground(o.background);
     else if (o.backgroundColor !== undefined) this.setBackground(o.backgroundColor);
@@ -242,7 +240,7 @@ export class View {
       this.setBorder(
         o.borderColor ?? "#C6C6C8",
         borderSpec ?? 1,
-        (o.borderRadius ?? o.cornerRadius) ?? 0,
+        o.borderRadius ?? 0,
         o.borderStyle ?? "solid",
       );
     }
@@ -463,7 +461,7 @@ export class View {
     return this;
   }
 
-  /** Corner radii on the backing layer. Uniform is a plain cornerRadius;
+  /** Corner radii on the backing layer. Uniform is a plain corner radius;
    *  per-corner needs a bezier path mask (CACornerMask covers rounding but
    *  not differing radii, so the path is the general answer). */
   applyCorners(spec: CornerRadiusSpec): this {
