@@ -2,9 +2,10 @@
 
 import { createDelegate, objc, str } from "../objc.ts";
 import { initApp, quit as runtimeQuit } from "../runtime.ts";
-import { View, ViewContent, toNSColor } from "./view.ts";
+import { View, ViewContent, toNSColor, applyAdaptiveColor } from "./view.ts";
 import { Container } from "./layout.ts";
 import { loadImage } from "./controls.ts";
+import { currentThemeIsDark } from "./theme.ts";
 import {
   BackingStore,
   WindowCollectionBehavior,
@@ -108,8 +109,10 @@ export class Window {
       this.native.setBackgroundColor_(toNSColor(options.background));
     }
     if (options.icon !== undefined) {
-      const img = loadImage(options.icon);
-      if (img) objc.NSApplication.sharedApplication().setApplicationIconImage_(img);
+      applyAdaptiveColor(options.icon, currentThemeIsDark, (icon) => {
+        const img = loadImage(icon);
+        if (img) objc.NSApplication.sharedApplication().setApplicationIconImage_(img);
+      });
     }
     this.native.setCollectionBehavior_(WindowCollectionBehavior.FullScreenPrimary);
 

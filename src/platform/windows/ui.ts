@@ -439,8 +439,8 @@ export class Window {
     minSize?: { width: number; height: number };
     /** Screen position of the bottom-left corner; omitted means centred. */
     position?: { x: number; y: number };
-    /** Window icon (titlebar + taskbar): .ico or .png path. */
-    icon?: string;
+    /** Window icon (titlebar + taskbar): .ico/.png path, or { light, dark }. */
+    icon?: any;
     content?: any;
     show?: boolean;
     onClose?: () => void;
@@ -461,7 +461,17 @@ export class Window {
   } = {}) {
     this.handle = windowsBackend.createWindow({ title: opts.title, size: opts.size });
     if (opts.minSize) windowsBackend.setWindowMinSize(this.handle, opts.minSize);
-    if (opts.icon !== undefined) windowsBackend.setWindowIcon(this.handle, resolveAssetPath(opts.icon));
+    // Icon resolves per theme and re-applies on setTheme.
+    if (opts.icon !== undefined) {
+      const applyIcon = () => {
+        const icon = resolveColor(opts.icon, themeIsDark());
+        if (typeof icon === "string") {
+          windowsBackend.setWindowIcon(this.handle, resolveAssetPath(icon));
+        }
+      };
+      if (isThemeColor(opts.icon)) trackAdaptive(applyIcon);
+      applyIcon();
+    }
     if (opts.position !== undefined) {
       windowsBackend.setWindowPosition(this.handle, opts.position.x, opts.position.y);
     } else {
