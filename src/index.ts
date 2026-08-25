@@ -81,6 +81,7 @@ export const GPUView: Ui["GPUView"] = mod.GPUView;
 export const Scene3D: Ui["Scene3D"] = mod.Scene3D;
 export const gpu: Ui["gpu"] = mod.gpu;
 export const gpuAvailable: Ui["gpuAvailable"] = mod.gpuAvailable;
+export const defineTheme: Ui["defineTheme"] = mod.defineTheme;
 export const struct: Ui["struct"] = mod.struct;
 export const msl: Ui["msl"] = mod.msl;
 export const vec4f: Ui["vec4f"] = mod.vec4f;

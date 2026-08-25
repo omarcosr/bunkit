@@ -205,6 +205,8 @@ function getLib(): any {
   bk_menu_popup: { args: ["u64", "ptr", "u32"], returns: "i32" },
   bk_control_border_thickness: { args: ["u64", "ptr"], returns: "i32" },
   bk_control_focus: { args: ["u64"], returns: "i32" },
+  bk_control_blur: { args: ["u64"], returns: "i32" },
+  bk_control_set_state_callback: { args: ["u64", "u64"], returns: "i32" },
   bk_debug_theme_brush: { args: ["ptr", "u32", "ptr"], returns: "i32" },
   bk_debug_app_setup: { args: ["u64"], returns: "i32" },
   bk_debug_window_with_textbox: { args: ["ptr", "u32"], returns: "u64" },

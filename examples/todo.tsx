@@ -13,6 +13,7 @@ import {
   HStack, ImageView, Label,
   ScrollView, Separator, Spacer,
   TextField, VStack, Window,
+  defineTheme,
   signal
 } from "bunkit";
 
@@ -92,6 +93,34 @@ function row(todo: Todo) {
   );
 }
 
+const theme = defineTheme({
+  colors: {
+    buttonBackground: {
+      light: "#2D7DD2",
+      dark: "#315A91",
+    },
+    buttonHover: {
+      light: "#3A8BE0",
+      dark: "#4776B7",
+    },
+    focus: {
+      light: "#2457D6",
+      dark: "#8BA7FF",
+    },
+  },
+
+  shadows: {
+    button: {
+      light: "0 2px 8px #00000040",
+      dark: "0 2px 8px #FFFFFF40",
+    },
+    buttonHover: {
+      light: "0 3px 10px #00000060",
+      dark: "0 3px 10px #FFFFFF60",
+    },
+  },
+});
+
 // ─ the window ────────────────────────────────────────────────────────────────
 const win = (
   <Window
@@ -125,12 +154,45 @@ const win = (
           textColor={textColor}
           borderColor={{ light: "#DADCE0", dark: "#3939fd" }}
           backgroundColor={{ light: "#FFFFFF", dark: "#0000ff" }}
-          placeholderColor="secondaryLabel"
+          placeholderColor="#ffffff"
           onSubmit={addTodo}
+
+          shadow={{
+            light: "0px 0px 10px #FFFFFF",
+            dark: "0px 0px 10px #0000ff",
+          }}
+
+          states={{
+            hover: {
+              placeholderColor: "#011213",
+              textColor: "#011213",
+              shadow: {
+                light: "0px 0px 10px #000000",
+                dark: "0px 0px 10px #FFFFFF",
+              }
+            },
+            focus: {
+              shadow: {
+                light: "0px 0px 10px #000000",
+                dark: "0px 0px 10px #FFFFFF",
+              }
+            },
+          }}
+
 
         // shadow="0px 0px 10px #0000ff"
         />
-        <Button title="Add" onClick={addTodo} style={{ textColor: { light: "#1900ff", dark: "#011213" } }} borderRadius={4} shadow={addShadow} />
+        <Button title="Add" onClick={addTodo} style={{ border: 1, borderColor: "#ffffff", textColor: { light: "#1900ff", dark: "#011213" } }} borderRadius={4} shadow={addShadow} states={{
+          hover: {
+            backgroundColor: "#ff00ff", borderColor: "#ff00ff", textColor: "#ffffff", shadow: {
+              light: "0px 0px 10px #000000",
+              dark: "0px 0px 10px #ff00ff",
+            }
+          },
+          focus: { borderColor: "#ff00ff" },
+          pressed: { alpha: 0.8 },
+          disabled: { alpha: 0.45, textColor: "#011213" },
+        }} />
       </HStack>
 
 

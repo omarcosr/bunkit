@@ -154,6 +154,7 @@ export interface ButtonOptions extends ViewOptions {
   primary?: boolean;
   destructive?: boolean;
   enabled?: boolean;
+  disabled?: boolean;
   /** An SF Symbol name, e.g. "plus.circle". */
   symbol?: string;
   bezel?: number;
@@ -201,7 +202,8 @@ export class Button extends View {
       options.borderRadius !== undefined;
     if (customChrome && options.bordered === undefined) b.setBordered_(false);
     if (options.bordered !== undefined) b.setBordered_(options.bordered);
-    if (options.enabled !== undefined) b.setEnabled_(options.enabled);
+    if (options.enabled !== undefined) this.enabled = options.enabled;
+    if (options.disabled !== undefined) this.disabled = options.disabled;
     if (options.primary) b.setKeyEquivalent_("\r");
     if (options.key) b.setKeyEquivalent_(options.key);
     if (options.destructive) {
@@ -255,6 +257,34 @@ export class Button extends View {
 
   set enabled(v: boolean) {
     this.native.setEnabled_(v);
+    this._setInteractionState("disabled", !v);
+  }
+
+  get disabled(): boolean {
+    return !this.enabled;
+  }
+
+  set disabled(v: boolean) {
+    this.enabled = !v;
+  }
+
+  focus(): this {
+    const w = this.native.window();
+    if (w) w.makeFirstResponder_(this.native);
+    this._setInteractionState("focus", true);
+    return this;
+  }
+
+  blur(): this {
+    const w = this.native.window();
+    if (w) w.makeFirstResponder_(null);
+    this._setInteractionState("focus", false);
+    return this;
+  }
+
+  disable(): this {
+    this.disabled = true;
+    return this;
   }
 }
 
@@ -357,6 +387,7 @@ export interface TextFieldOptions extends ViewOptions {
   secure?: boolean;
   editable?: boolean;
   font?: FontSpec | number;
+  disabled?: boolean;
   textAlign?: "left" | "center" | "right";
   enabled?: boolean;
   /** Text colour: a semantic name ("secondaryLabel"…) or a CSS hex string. */
@@ -395,7 +426,8 @@ export class TextField extends View {
       });
     }
     if (options.editable !== undefined) f.setEditable_(options.editable);
-    if (options.enabled !== undefined) f.setEnabled_(options.enabled);
+    if (options.enabled !== undefined) this.enabled = options.enabled;
+    if (options.disabled !== undefined) this.disabled = options.disabled;
     if (options.font !== undefined) f.setFont_(makeFont(options.font));
     if (options.textAlign !== undefined) {
       f.setAlignment_(
@@ -465,11 +497,42 @@ export class TextField extends View {
     this.native.setStringValue_(v ?? "");
   }
 
-  focus(): void {
-    const w = this.native.window();
-    if (w) w.makeFirstResponder_(this.native);
+
+  get enabled(): boolean {
+    return this.native.isEnabled();
   }
 
+  set enabled(v: boolean) {
+    this.native.setEnabled_(v);
+    this._setInteractionState("disabled", !v);
+  }
+
+  get disabled(): boolean {
+    return !this.enabled;
+  }
+
+  set disabled(v: boolean) {
+    this.enabled = !v;
+  }
+
+  focus(): this {
+    const w = this.native.window();
+    if (w) w.makeFirstResponder_(this.native);
+    this._setInteractionState("focus", true);
+    return this;
+  }
+
+  blur(): this {
+    const w = this.native.window();
+    if (w) w.makeFirstResponder_(null);
+    this._setInteractionState("focus", false);
+    return this;
+  }
+
+  disable(): this {
+    this.disabled = true;
+    return this;
+  }
   selectAll(): void {
     this.native.selectText_(null);
   }

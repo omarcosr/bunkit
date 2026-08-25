@@ -11,6 +11,16 @@ import type { CGRect, CGSize } from "../structs.ts";
 import { trackAdaptive, isThemeColor, resolveColor, applyAdaptiveColor } from "./adaptive.ts";
 import { currentThemeIsDark } from "./theme.ts";
 import { isThemeShadow, parseShadow, type ShadowValue } from "./shadow.ts";
+import {
+  composeStateStyle,
+  resolveStateStyle,
+  stateStyleFromOptions,
+  styleValueEqual,
+  type InteractionState,
+  type ViewStates,
+  type ViewStateStyle,
+} from "./states.ts";
+import { enableMacMouseMovedEvents, registerMacInteractionTarget } from "./macos-interaction.ts";
 
 // Re-export the adaptive colour helpers for importers that use view.ts as
 // their colour module (controls.ts, the metal scene).
@@ -86,6 +96,8 @@ export interface ViewOptions {
   borderStyle?: "solid" | "dashed" | "dotted";
   /** CSS-like outer box shadow, for example "0 4px 12px #0003". */
   shadow?: ShadowValue;
+  /** Styles applied while the view is hovered, focused, pressed or disabled. */
+  states?: ViewStates;
   alpha?: number;
   /** In a GridView parent: which grid row this view occupies (CSS grid-row). */
   gridRow?: number;
@@ -105,7 +117,7 @@ export interface ViewOptions {
 
 /** The visual styling subset of ViewOptions, for the `style` prop and for
  *  reusable style objects (`satisfies ViewStyle`). */
-export type ViewStyle = Omit<ViewOptions, "style" | "children">;
+export type ViewStyle = Omit<ViewOptions, "style" | "children" | "states">;
 
 /** A control's full `style` type: every option it takes (its own props
  *  included), minus `style`/`children`. `style={{ textColor: "#C33" }}` is
@@ -229,6 +241,15 @@ export class View {
   /** @internal */ _keepAlive: any[] = [];
   /** @internal Set once `grow` has been chosen explicitly. */
   _growExplicit = false;
+  #states: ViewStates | undefined;
+  #activeStates: Record<InteractionState, boolean> = {
+    hover: false,
+    focus: false,
+    pressed: false,
+    disabled: false,
+  };
+  #lastStateStyle: ViewStateStyle = {};
+  #hoverExitTimer: ReturnType<typeof setTimeout> | undefined;
 
   // React-compat stubs. If @types/react is in the program, its JSX namespace
   // requires class components to satisfy `Component<any, any, any>` (the
@@ -248,6 +269,7 @@ export class View {
     // Everything in Layer 3 is laid out with constraints, never springs.
     native.setTranslatesAutoresizingMaskIntoConstraints_(false);
     this.applyViewOptions(this.props);
+    this.installInteractionStates(this.props.states);
   }
 
   protected applyViewOptions(o: ViewOptions) {
@@ -281,6 +303,90 @@ export class View {
     }
     if (o.shadow !== undefined) this.setShadow(o.shadow);
   }
+  /** @internal Configure declarative interaction styles for this view. */
+  protected installInteractionStates(states?: ViewStates): void {
+    if (!states) return;
+    this.#states = states;
+    trackAdaptive(() => this.#applyInteractionStyles());
+    registerMacInteractionTarget(this);
+    queueMicrotask(() => this._enableInteractionWindow());
+    this.#applyInteractionStyles();
+  }
+
+  /** @internal Enable AppKit pointer events once this view is attached. */
+  _enableInteractionWindow(): void {
+    enableMacMouseMovedEvents(this);
+    for (const child of this._children) child._enableInteractionWindow();
+  }
+
+  /** @internal Used by the platform interaction trackers. */
+  _hasInteractionState(state: InteractionState): boolean {
+    return this.#states?.[state] !== undefined;
+  }
+
+  /** @internal Used by the platform interaction tracker. */
+  _isInteractionDisabled(): boolean {
+    return this.#activeStates.disabled;
+  }
+
+  /** @internal Used by the platform interaction trackers. */
+  _setInteractionState(state: InteractionState, active: boolean): void {
+    if (!this.#states) return;
+    if (state === "hover" && active) {
+      if (this.#hoverExitTimer !== undefined) clearTimeout(this.#hoverExitTimer);
+      this.#hoverExitTimer = undefined;
+    }
+    if (this.#activeStates[state] === active) return;
+    if (state === "hover" && !active) {
+      if (this.#hoverExitTimer !== undefined) clearTimeout(this.#hoverExitTimer);
+      this.#hoverExitTimer = setTimeout(() => {
+        this.#hoverExitTimer = undefined;
+        if (!this.#activeStates.hover) return;
+        this.#activeStates.hover = false;
+        this.#applyInteractionStyles();
+      }, 120);
+      return;
+    }
+    if (this.#activeStates.disabled && (state === "hover" || state === "pressed") && active) return;
+    if (state === "disabled" && active) {
+      this.#activeStates.hover = false;
+      this.#activeStates.pressed = false;
+    }
+    this.#activeStates[state] = active;
+    this.#applyInteractionStyles();
+  }
+
+  #applyInteractionStyles(): void {
+    if (!this.#states) return;
+    const merged = composeStateStyle(
+      stateStyleFromOptions(this.props),
+      this.#states,
+      this.#activeStates,
+    );
+    const next = resolveStateStyle(merged, currentThemeIsDark());
+    const previous = this.#lastStateStyle;
+    const keys = new Set([...Object.keys(previous), ...Object.keys(next)]);
+    const styleChanged = (key: keyof ViewStateStyle) => !styleValueEqual(previous[key], next[key]);
+
+    if (keys.has("backgroundColor") && styleChanged("backgroundColor")) {
+      this.setBackground("backgroundColor" in next ? next.backgroundColor : undefined);
+    }
+    if (["border", "borderColor", "borderRadius", "borderStyle"].some((key) => keys.has(key) && styleChanged(key as keyof ViewStateStyle))) {
+      const hasBorder = next.border !== undefined || next.borderColor !== undefined || next.borderStyle !== undefined;
+      this.setBorder(
+        next.borderColor ?? "#C6C6C8",
+        hasBorder ? (next.border ?? 1) : 0,
+        next.borderRadius ?? 0,
+        next.borderStyle ?? "solid",
+      );
+    }
+    if (keys.has("shadow") && styleChanged("shadow")) this.setShadow("shadow" in next ? (next.shadow ?? "none") : "none");
+    if (keys.has("alpha") && styleChanged("alpha")) this.native.setAlphaValue_(next.alpha ?? 1);
+    if (next.textColor !== undefined && "textColor" in next && styleChanged("textColor")) (this as any).textColor = next.textColor;
+    if (next.font !== undefined && "font" in next && styleChanged("font")) (this as any).font = next.font;
+
+    this.#lastStateStyle = next;
+  }
 
   /** Keep a JS object reachable for as long as this view is. */
   retainJS(v: any) {
@@ -301,6 +407,7 @@ export class View {
     this.native.addSubview_(child.native);
     this._children.push(child);
     child._parent = this;
+    child._enableInteractionWindow();
     return this;
   }
 
@@ -434,6 +541,10 @@ export class View {
 
   setBackground(color: any): this {
     this.native.setWantsLayer_(true);
+    if (color === undefined || color === null) {
+      this.native.layer().setBackgroundColor_(null);
+      return this;
+    }
     applyAdaptiveColor(color, currentThemeIsDark, (c) => {
       const nsColor = toNSColor(c);
       if (nsColor) this.native.layer().setBackgroundColor_(nsColor.send("CGColor"));

@@ -65,6 +65,7 @@ enum bk_event_type {
   BK_EVT_MENU_CLICK = 10,         // value1 = menu item id, payload = label
   BK_EVT_FILE_RESULT = 11,        // target = dialog id, payload = paths '\n'-joined
   BK_EVT_INPUT_KEY = 12,          // value1 = virtual key, value2 = 1 down / 0 up
+  BK_EVT_CONTROL_STATE = 13,      // value1 = hover/focus/pressed, value2 = active
 };
 
 // Wire format for one event: fixed little-endian header followed by an
@@ -402,6 +403,8 @@ BK_EXPORT int32_t bk_control_border_thickness(bk_handle c, double* out4);
 
 // Debug: give a registered control programmatic keyboard focus.
 BK_EXPORT int32_t bk_control_focus(bk_handle c);
+BK_EXPORT int32_t bk_control_blur(bk_handle c);
+BK_EXPORT int32_t bk_control_set_state_callback(bk_handle c, uint64_t callback);
 
 // Debug: resolve a theme brush key from the application resources and copy its
 // solid colour to out_hex ("RRGGBB"). Returns 1 when it resolves, else 0.

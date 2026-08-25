@@ -6,10 +6,21 @@ import { bindSignals, extractSignals } from "../../signal.ts";
 import { applyAdaptiveColor, reapplyAdaptiveColors, resolveColor, isThemeColor, trackAdaptive } from "../../ui/adaptive.ts";
 import { resolveAssetPath } from "../../asset.ts";
 import { colorToHex, isThemeShadow, parseShadow, type ShadowValue } from "../../ui/shadow.ts";
+import {
+  composeStateStyle,
+  resolveStateStyle,
+  stateStyleFromOptions,
+  styleValueEqual,
+  type InteractionState,
+  type ViewStates,
+  type ViewStateStyle,
+} from "../../ui/states.ts";
+export { defineTheme } from "../../ui/tokens.ts";
 
 // Theme-adaptive colour helpers, public on both platforms (macOS re-exports
 // them from view.ts). Re-exported here so `import { resolveColor } from
 // "bunkit"` works on Windows too.
+export type { ThemeTokens, ThemeTokenDefinition } from "../../ui/tokens.ts";
 export type { ShadowSpec, ShadowValue, ThemeShadow } from "../../ui/shadow.ts";
 export { isThemeColor, resolveColor, applyAdaptiveColor } from "../../ui/adaptive.ts";
 
@@ -80,6 +91,8 @@ export interface ViewOptions {
   background?: any;
   /** CSS-style alias for `background`. */
   backgroundColor?: any;
+  /** Styles applied while the view is hovered, focused, pressed or disabled. */
+  states?: ViewStates;
   /** Corner radius — one number for all corners, [tl, tr, br, bl], or
    *  per-corner names (CSS border-radius vocabulary). */
   borderRadius?: CornerRadiusSpec;
@@ -105,7 +118,7 @@ export interface ViewOptions {
 }
 
 /** The visual styling subset of ViewOptions, for the `style` prop. */
-export type ViewStyle = Omit<ViewOptions, "style" | "children">;
+export type ViewStyle = Omit<ViewOptions, "style" | "children" | "states">;
 
 /** A control's full `style` type: every option it takes, minus
  *  `style`/`children` (macOS parity — see `src/ui/view.ts`). */
@@ -133,6 +146,15 @@ export class View {
   /** @internal */ _children: View[] = [];
   /** @internal */ _parent: View | null = null;
   /** @internal */ _hidden = false;
+  #states: ViewStates | undefined;
+  #activeStates: Record<InteractionState, boolean> = {
+    hover: false,
+    focus: false,
+    pressed: false,
+    disabled: false,
+  };
+  #lastStateStyle: ViewStateStyle = {};
+  #hoverExitTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(handle: NativeHandle, options: ViewOptions = {}) {
     this.handle = handle;
@@ -171,8 +193,94 @@ export class View {
       );
     }
     if (o.shadow !== undefined) this.setShadow(o.shadow);
+    this.installInteractionStates(o.states);
+  }
+  /** @internal Configure declarative interaction styles for this view. */
+  protected installInteractionStates(states?: ViewStates): void {
+    if (!states) return;
+    this.#states = states;
+    trackAdaptive(() => this.#applyInteractionStyles());
+    this.#applyInteractionStyles();
   }
 
+  /** @internal Connect native pointer/focus events for a control. */
+  protected startInteractionTracking(): void {
+    if (!this.#states) return;
+    windowsBackend.setControlStateCallback(this.handle, (state, active) => {
+      const name = state === 1 ? "hover" : state === 2 ? "focus" : "pressed";
+      this._setInteractionState(name, active);
+    });
+  }
+
+  /** @internal Used by the platform interaction tracker. */
+  _hasInteractionState(state: InteractionState): boolean {
+    return this.#states?.[state] !== undefined;
+  }
+
+  /** @internal Used by the platform interaction tracker. */
+  _isInteractionDisabled(): boolean {
+    return this.#activeStates.disabled;
+  }
+
+  /** @internal Used by the platform interaction tracker. */
+  _setInteractionState(state: InteractionState, active: boolean): void {
+    if (!this.#states) return;
+    if (state === "hover" && active) {
+      if (this.#hoverExitTimer !== undefined) clearTimeout(this.#hoverExitTimer);
+      this.#hoverExitTimer = undefined;
+    }
+    if (this.#activeStates[state] === active) return;
+    if (state === "hover" && !active) {
+      if (this.#hoverExitTimer !== undefined) clearTimeout(this.#hoverExitTimer);
+      this.#hoverExitTimer = setTimeout(() => {
+        this.#hoverExitTimer = undefined;
+        if (!this.#activeStates.hover) return;
+        this.#activeStates.hover = false;
+        this.#applyInteractionStyles();
+      }, 120);
+      return;
+    }
+    if (this.#activeStates.disabled && (state === "hover" || state === "pressed") && active) return;
+    if (state === "disabled" && active) {
+      this.#activeStates.hover = false;
+      this.#activeStates.pressed = false;
+    }
+    this.#activeStates[state] = active;
+    this.#applyInteractionStyles();
+  }
+
+  #applyInteractionStyles(): void {
+    if (!this.#states) return;
+    const merged = composeStateStyle(
+      stateStyleFromOptions(this.props),
+      this.#states,
+      this.#activeStates,
+    );
+    const next = resolveStateStyle(merged, themeIsDark());
+    const previous = this.#lastStateStyle;
+    const keys = new Set([...Object.keys(previous), ...Object.keys(next)]);
+    const styleChanged = (key: keyof ViewStateStyle) => !styleValueEqual(previous[key], next[key]);
+
+    if (keys.has("backgroundColor") && styleChanged("backgroundColor")) {
+      this.setBackground("backgroundColor" in next ? next.backgroundColor : undefined);
+    }
+    if (["border", "borderColor", "borderRadius", "borderStyle"].some((key) => keys.has(key) && styleChanged(key as keyof ViewStateStyle))) {
+      const hasBorder = next.border !== undefined || next.borderColor !== undefined || next.borderStyle !== undefined;
+      this.setBorder(
+        next.borderColor ?? "#C6C6C8",
+        hasBorder ? (next.border ?? 1) : 0,
+        next.borderRadius ?? 0,
+        next.borderStyle ?? "solid",
+      );
+    }
+    if (keys.has("shadow") && styleChanged("shadow")) this.setShadow("shadow" in next ? (next.shadow ?? "none") : "none");
+    if (keys.has("alpha") && styleChanged("alpha")) windowsBackend.setControlAlpha(this.handle, next.alpha ?? 1);
+    if (next.textColor !== undefined && "textColor" in next && styleChanged("textColor")) (this as any).textColor = next.textColor;
+    if (next.font !== undefined && "font" in next && styleChanged("font")) (this as any).font = next.font;
+
+
+    this.#lastStateStyle = next;
+  }
   get children(): readonly View[] { return this._children; }
   get parent(): View | null { return this._parent; }
   get frame(): { x: number; y: number; width: number; height: number } {
@@ -188,6 +296,10 @@ export class View {
   /** Background colour (hex string or { light, dark }). On acrylic-backed
    *  views this tints the acrylic instead of replacing it. */
   setBackground(color: any): this {
+    if (color === undefined || color === null) {
+      windowsBackend.setControlBackground(this.handle, "");
+      return this;
+    }
     applyAdaptiveColor(color, themeIsDark, (c) => {
       if (typeof c === "string") {
         windowsBackend.setControlBackground(this.handle, c);
@@ -225,6 +337,7 @@ export class View {
         return;
       }
       const c = resolveColor(shadow.color, themeIsDark());
+
       const hex = colorToHex(c);
       if (hex) {
         windowsBackend.setControlShadow(
@@ -241,6 +354,40 @@ export class View {
     if (isThemeShadow(value) || (shadow !== null && isThemeColor(shadow.color))) {
       trackAdaptive(applyShadow);
     }
+    return this;
+  }
+
+  focus(): this {
+    windowsBackend.focusControl(this.handle);
+    this._setInteractionState("focus", true);
+    return this;
+  }
+
+  blur(): this {
+    windowsBackend.blurControl(this.handle);
+    this._setInteractionState("focus", false);
+    return this;
+  }
+
+  get enabled(): boolean {
+    return windowsBackend.getControlEnabled(this.handle);
+  }
+
+  set enabled(v: boolean) {
+    windowsBackend.setControlEnabled(this.handle, v);
+    this._setInteractionState("disabled", !v);
+  }
+
+  get disabled(): boolean {
+    return !this.enabled;
+  }
+
+  set disabled(v: boolean) {
+    this.enabled = !v;
+  }
+
+  disable(): this {
+    this.disabled = true;
     return this;
   }
 
@@ -624,13 +771,15 @@ export class Label extends View {
 }
 
 export class Button extends View {
-  constructor(opts: { title?: string; primary?: boolean; destructive?: boolean; symbol?: string; textColor?: any; font?: any; enabled?: boolean; onClick?: () => void ; style?: any } & ViewOptions = {}) {
+  constructor(opts: { title?: string; primary?: boolean; destructive?: boolean; symbol?: string; textColor?: any; font?: any; enabled?: boolean; disabled?: boolean; onClick?: () => void ; style?: any } & ViewOptions = {}) {
     opts = mergeStyle(opts);
     const bound = extractSignals(opts);
     super(windowsBackend.createButton(opts), opts);
+    this.startInteractionTracking();
     if (opts.textColor !== undefined) this.textColor = opts.textColor;
     if (opts.font !== undefined) this.font = opts.font;
     if (opts.enabled !== undefined) this.enabled = opts.enabled;
+    if (opts.disabled !== undefined) this.disabled = opts.disabled;
     if (opts.onClick) windowsBackend.setButtonClickCallback(this.handle, opts.onClick);
     bindSignals(this, opts, bound);
   }
@@ -647,16 +796,17 @@ export class Button extends View {
     windowsBackend.setButtonFont(this.handle, v);
   }
   get enabled(): boolean { return windowsBackend.getControlEnabled(this.handle); }
-  set enabled(v: boolean) { windowsBackend.setControlEnabled(this.handle, v); }
+  set enabled(v: boolean) { windowsBackend.setControlEnabled(this.handle, v); this._setInteractionState("disabled", !v); }
   onClick(fn: () => void): this { windowsBackend.setButtonClickCallback(this.handle, fn); return this; }
 }
 
 export class TextField extends View {
   secure: boolean;
-  constructor(opts: { value?: string; placeholder?: string; secure?: boolean; textColor?: any; placeholderColor?: any; onChange?: (v: string) => void; onSubmit?: (v: string) => void ; style?: any } & ViewOptions = {}) {
+  constructor(opts: { value?: string; placeholder?: string; secure?: boolean; textColor?: any; placeholderColor?: any; enabled?: boolean; disabled?: boolean; onChange?: (v: string) => void; onSubmit?: (v: string) => void ; style?: any } & ViewOptions = {}) {
     opts = mergeStyle(opts);
     const bound = extractSignals(opts);
     super(windowsBackend.createTextField({ value: opts.value, placeholder: opts.placeholder, secure: opts.secure, onChange: opts.onChange }), opts);
+    this.startInteractionTracking();
     this.secure = !!opts.secure;
     if (opts.textColor !== undefined || opts.placeholderColor !== undefined) {
       const apply = () => {
@@ -669,6 +819,8 @@ export class TextField extends View {
       if (isThemeColor(opts.textColor) || isThemeColor(opts.placeholderColor)) trackAdaptive(apply);
       apply();
     }
+    if (opts.enabled !== undefined) this.enabled = opts.enabled;
+    if (opts.disabled !== undefined) this.disabled = opts.disabled;
     if (opts.onSubmit) this.onSubmit(opts.onSubmit);
     bindSignals(this, opts, bound);
   }

@@ -9,8 +9,12 @@
 
 #include <windows.h>
 
+#include <winrt/Microsoft.UI.Dispatching.h>
+#include <winrt/Microsoft.UI.Xaml.Input.h>
 #include <winrt/Microsoft.UI.Xaml.h>
+#include <winrt/Microsoft.UI.Xaml.Markup.h>
 #include <winrt/Microsoft.UI.Xaml.Controls.h>
+#include <winrt/Microsoft.UI.Xaml.Controls.Primitives.h>
 #include <winrt/Microsoft.UI.Xaml.Shapes.h>
 #include <winrt/Microsoft.UI.Xaml.Media.h>
 #include <winrt/Microsoft.UI.Composition.h>
@@ -45,7 +49,114 @@ int32_t require_running() {
 inline int32_t combine(int32_t dispatch_rc, int32_t body_status) {
   return dispatch_rc == BK_OK ? body_status : dispatch_rc;
 }
+constexpr int32_t BK_STATE_HOVER = 1;
+constexpr int32_t BK_STATE_FOCUS = 2;
+constexpr int32_t BK_STATE_PRESSED = 3;
 
+void emit_control_state(bk_handle handle, int32_t state, bool active) {
+  auto* entry = bk::registry().get(handle);
+  if (!entry || entry->cb3 == 0) return;
+  bk::Event ev;
+  ev.header.type = BK_EVT_CONTROL_STATE;
+  ev.header.target = handle;
+  ev.header.callback = entry->cb3;
+  ev.header.value1 = state;
+  ev.header.value2 = active ? 1 : 0;
+  bk::event_queue().push(std::move(ev));
+}
+
+void emit_control_hover_state(bk_handle handle, bool active) {
+  auto* entry = bk::registry().get(handle);
+  if (!entry || entry->cb3 == 0) return;
+  if (entry->state_hover_active == active) return;
+  entry->state_hover_active = active;
+  emit_control_state(handle, BK_STATE_HOVER, active);
+}
+
+void emit_control_hover_exit_now(bk_handle handle) {
+  auto* entry = bk::registry().get(handle);
+  if (!entry || entry->cb3 == 0) return;
+  bool over = false;
+  try {
+    if (auto button = entry->object.try_as<cx::Primitives::ButtonBase>()) {
+      over = button.IsPointerOver();
+    }
+  } catch (...) {
+  }
+  if (!over) emit_control_hover_state(handle, false);
+}
+
+void emit_control_hover_exit(bk_handle handle) {
+  auto* entry = bk::registry().get(handle);
+  if (!entry || entry->cb3 == 0) return;
+  try {
+    auto dependency = entry->object.as<DependencyObject>();
+    auto queue = dependency.DispatcherQueue();
+    if (queue && queue.TryEnqueue(
+          winrt::Microsoft::UI::Dispatching::DispatcherQueueHandler(
+            [handle]() { emit_control_hover_exit_now(handle); }))) {
+      return;
+    }
+  } catch (...) {
+  }
+  emit_control_hover_exit_now(handle);
+}
+
+// WinUI's default Button template paints an inner ContentPresenter and
+// replaces its brush in PointerOver/Pressed/Disabled. Keep those ThemeResource
+// keys aligned with the brush controlled by Bunkit, otherwise the template can
+// cover a custom Control.Background while the border still looks correct.
+void sync_button_background_resources(cx::Control const& control,
+                                      Media::SolidColorBrush const& brush) {
+  try {
+    auto resources = control.Resources();
+    for (auto const* key : {
+           L"ButtonBackground", L"ButtonBackgroundPointerOver",
+           L"ButtonBackgroundPressed", L"ButtonBackgroundDisabled",
+           L"AccentButtonBackground", L"AccentButtonBackgroundPointerOver",
+           L"AccentButtonBackgroundPressed", L"AccentButtonBackgroundDisabled",
+         }) {
+      resources.Insert(winrt::box_value(key), brush);
+    }
+  } catch (...) {
+  }
+}
+
+void sync_button_border_resources(cx::Control const& control,
+                                  Media::SolidColorBrush const& brush) {
+  try {
+    auto resources = control.Resources();
+    for (auto const* key : {
+           L"ButtonBorderBrush", L"ButtonBorderBrushPointerOver",
+           L"ButtonBorderBrushPressed", L"ButtonBorderBrushDisabled",
+           L"AccentButtonBorderBrush", L"AccentButtonBorderBrushPointerOver",
+           L"AccentButtonBorderBrushPressed", L"AccentButtonBorderBrushDisabled",
+
+         }) {
+      resources.Insert(winrt::box_value(key), brush);
+    }
+  } catch (...) {
+  }
+}
+
+// Declarative Bunkit states are applied from JS. The stock WinUI Button
+// template has its own PointerOver/Pressed/Disabled storyboards which replace
+// the inner ContentPresenter brushes after the Control properties are set.
+// Use a template without those storyboards when a Button opts into states.
+void apply_interaction_button_template(cx::Button const& button) {
+  try {
+    if (!button.Background()) {
+      button.Background(Media::SolidColorBrush(
+          winrt::Windows::UI::Color{0, 0, 0, 0}));
+    }
+    const auto xaml = winrt::hstring(
+        LR"XAML(<ControlTemplate xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" TargetType="Button"><ContentPresenter Background="{TemplateBinding Background}" Foreground="{TemplateBinding Foreground}" BackgroundSizing="{TemplateBinding BackgroundSizing}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}" ContentTransitions="{TemplateBinding ContentTransitions}" CornerRadius="{TemplateBinding CornerRadius}" Padding="{TemplateBinding Padding}" HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" /></ControlTemplate>)XAML");
+    button.Template(
+        winrt::Microsoft::UI::Xaml::Markup::XamlReader::Load(xaml)
+            .as<cx::ControlTemplate>());
+  } catch (...) {
+  }
+}
 winrt::Windows::Foundation::IInspectable element_of(bk_handle h) {
   auto* entry = bk::registry().get(h);
   return entry ? entry->object : nullptr;
@@ -744,6 +855,36 @@ BK_EXPORT int32_t bk_control_set_background(bk_handle c, const char* hex,
   const int32_t rc = bk::Runtime::instance().dispatch_sync([&] {
     auto element = element_of(c);
     if (!element) { st = BK_INVALID_HANDLE; return; }
+    if (s.empty()) {
+      try {
+        auto control = element.as<cx::Control>();
+        auto* entry = bk::registry().get(c);
+        if (entry && entry->state_attached &&
+            control.try_as<cx::Primitives::ButtonBase>()) {
+          control.Background(Media::SolidColorBrush(
+              winrt::Windows::UI::Color{0, 0, 0, 0}));
+        } else {
+          control.Background(nullptr);
+        }
+        st = BK_OK;
+        return;
+      } catch (...) {
+      }
+      try {
+        element.as<cx::Border>().Background(nullptr);
+        st = BK_OK;
+        return;
+      } catch (...) {
+      }
+      try {
+        element.as<cx::Panel>().Background(nullptr);
+        st = BK_OK;
+        return;
+      } catch (...) {
+        st = BK_WRONG_TYPE;
+        return;
+      }
+    }
     uint32_t value = 0;
     try {
       // "#RRGGBB" and "#AARRGGBB" both carry the CSS prefix.
@@ -766,7 +907,12 @@ BK_EXPORT int32_t bk_control_set_background(bk_handle c, const char* hex,
       color.B = value & 0xFF;
     }
     try {
-      element.as<cx::Control>().Background(Media::SolidColorBrush(color));
+      auto control = element.as<cx::Control>();
+      const Media::SolidColorBrush brush(color);
+      control.Background(brush);
+      if (control.try_as<cx::Primitives::ButtonBase>()) {
+        sync_button_background_resources(control, brush);
+      }
       st = BK_OK;
       return;
     } catch (...) {
@@ -1049,6 +1195,9 @@ BK_EXPORT int32_t bk_control_set_border(bk_handle c, const char* hex,
     try {
       auto control = element.as<cx::Control>();
       control.BorderBrush(brush);
+      if (control.try_as<cx::Primitives::ButtonBase>()) {
+        sync_button_border_resources(control, brush);
+      }
       control.BorderThickness(thickness);
       control.CornerRadius(radius);
       st = BK_OK;
@@ -1276,4 +1425,81 @@ BK_EXPORT int32_t bk_debug_theme_brush(const char* key, uint32_t key_len,
   return found;
 }
 
+// Clear keyboard focus from the control. WinUI exposes Unfocused as the
+// neutral FocusState for this operation.
+BK_EXPORT int32_t bk_control_blur(bk_handle c) {
+  if (require_running() != BK_OK) return BK_NOT_INITIALIZED;
+  int32_t st = BK_ERROR;
+  const int32_t rc = bk::Runtime::instance().dispatch_sync([&] {
+    auto element = element_of(c);
+    if (!element) { st = BK_INVALID_HANDLE; return; }
+    auto control = element.try_as<cx::Control>();
+    if (!control) { st = BK_WRONG_TYPE; return; }
+    control.Focus(FocusState::Unfocused);
+    st = BK_OK;
+  });
+  return combine(rc, st);
+}
+
+// Register interaction events once. The callback id is read at dispatch time,
+// so replacing or clearing the JS listener never requires detaching WinUI
+// handlers.
+BK_EXPORT int32_t bk_control_set_state_callback(bk_handle c, uint64_t callback) {
+  if (require_running() != BK_OK) return BK_NOT_INITIALIZED;
+  int32_t st = BK_ERROR;
+  const int32_t rc = bk::Runtime::instance().dispatch_sync([&] {
+    auto* entry = bk::registry().get(c);
+    if (!entry) { st = BK_INVALID_HANDLE; return; }
+    auto control = entry->object.try_as<cx::Control>();
+    if (!control) { st = BK_WRONG_TYPE; return; }
+    entry->cb3 = callback;
+    if (callback == 0) {
+      entry->state_hover_active = false;
+      st = BK_OK;
+      return;
+    }
+    if (entry->state_attached) {
+      st = BK_OK;
+      return;
+    }
+
+    auto element = control.as<UIElement>();
+    entry->state_hover_entered_token = element.PointerEntered(
+        [handle = c](auto const&, auto const&) {
+          emit_control_hover_state(handle, true);
+        });
+    if (auto button = control.try_as<cx::Button>()) {
+      apply_interaction_button_template(button);
+    }
+    if (control.try_as<cx::Primitives::ButtonBase>()) {
+      entry->state_hover_moved_token = element.PointerMoved(
+          [handle = c](auto const&, auto const&) {
+            emit_control_hover_state(handle, true);
+          });
+    }
+    entry->state_hover_exited_token = element.PointerExited(
+        [handle = c](auto const&, auto const&) {
+          emit_control_hover_exit(handle);
+        });
+    entry->state_focus_gained_token = element.GotFocus(
+        [handle = c](auto const&, auto const&) {
+          emit_control_state(handle, BK_STATE_FOCUS, true);
+        });
+    entry->state_focus_lost_token = element.LostFocus(
+        [handle = c](auto const&, auto const&) {
+          emit_control_state(handle, BK_STATE_FOCUS, false);
+        });
+    entry->state_pressed_token = element.PointerPressed(
+        [handle = c](auto const&, auto const&) {
+          emit_control_state(handle, BK_STATE_PRESSED, true);
+        });
+    entry->state_released_token = element.PointerReleased(
+        [handle = c](auto const&, auto const&) {
+          emit_control_state(handle, BK_STATE_PRESSED, false);
+        });
+    entry->state_attached = true;
+    st = BK_OK;
+  });
+  return combine(rc, st);
+}
 } // extern "C"

@@ -53,6 +53,16 @@ struct NativeObject {
   winrt::event_token token3{};      // PasswordBox submit KeyDown
   uint64_t cb1{0};                  // callback id for token1's event
   uint64_t cb2{0};                  // second callback (Table double click, TextBox submit)
+  winrt::event_token state_hover_entered_token{};
+  winrt::event_token state_hover_exited_token{};
+  winrt::event_token state_hover_moved_token{};
+  winrt::event_token state_focus_gained_token{};
+  winrt::event_token state_focus_lost_token{};
+  winrt::event_token state_pressed_token{};
+  winrt::event_token state_released_token{};
+  uint64_t cb3{0};                  // interaction-state callback id
+  bool state_attached{false};
+  bool state_hover_active{false};
   winrt::event_token shadow_size_token{};
   winrt::event_token shadow_layout_token{};
   winrt::event_token shadow_mask_loaded_token{};

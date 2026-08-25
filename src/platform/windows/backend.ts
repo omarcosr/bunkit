@@ -13,6 +13,7 @@ function cstr(s: string): Buffer {
 
 const buttonCbMap = new Map<bigint, bigint>();
 const textCbMap = new Map<bigint, bigint>();
+const stateCbMap = new Map<bigint, bigint>();
 const advancedCbMap = new Map<bigint, bigint>();
 const submitCbMap = new Map<bigint, bigint>();
 const windowCbMap = new Map<bigint, bigint>();
@@ -52,6 +53,7 @@ export class WindowsBackend {
     winLib.bk_runtime_shutdown();
     this.inited = false;
     callbacks.clear();
+    stateCbMap.clear();
     buttonCbMap.clear();
     textCbMap.clear();
     advancedCbMap.clear();
@@ -891,6 +893,32 @@ export class WindowsBackend {
     winLib.bk_control_set_enabled(h, enabled ? 1 : 0);
   }
 
+  focusControl(h: NativeHandle): void {
+    winLib.bk_control_focus(h);
+  }
+
+  blurControl(h: NativeHandle): void {
+    winLib.bk_control_blur(h);
+  }
+
+  setControlStateCallback(
+    h: NativeHandle,
+    cb: ((state: number, active: boolean) => void) | null,
+  ): void {
+    const previous = stateCbMap.get(h);
+    if (previous) {
+      callbacks.unregister(previous);
+      stateCbMap.delete(h);
+    }
+    if (!cb) {
+      winLib.bk_control_set_state_callback(h, 0n);
+      return;
+    }
+    const id = callbacks.register((state: number, active: boolean) => cb(state, active));
+    stateCbMap.set(h, id);
+    winLib.bk_control_set_state_callback(h, id);
+  }
+
   destroy(handle: NativeHandle): void {
     const cb1 = buttonCbMap.get(handle);
     if (cb1) { callbacks.unregister(cb1); buttonCbMap.delete(handle); }
@@ -900,6 +928,8 @@ export class WindowsBackend {
     if (cb3) { callbacks.unregister(cb3); advancedCbMap.delete(handle); }
     const cb4 = submitCbMap.get(handle);
     if (cb4) { callbacks.unregister(cb4); submitCbMap.delete(handle); }
+    const stateCb = stateCbMap.get(handle);
+    if (stateCb) { callbacks.unregister(stateCb); stateCbMap.delete(handle); }
     winLib.bk_object_destroy(handle);
   }
 }
