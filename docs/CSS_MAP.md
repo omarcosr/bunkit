@@ -82,7 +82,7 @@ equivalent: `grid.add(view, { row: 1, column: 1, rowSpan: 2 })`.
 | `border-color` | `borderColor` |
 | `border-style` | `borderStyle: "solid" / "dashed" / "dotted"` |
 | `border-radius` | `borderRadius` (number, `[tl, tr, br, bl]`, or per-corner names) |
-| `box-shadow` | `shadow` (CSS-like string or `ShadowSpec`; one outer shadow) |
+| `box-shadow` | `shadow` (CSS-like string, `ShadowSpec`, or `{ light, dark }`; one outer shadow) |
 | `box-sizing` | always border-box |
 | `aspect-ratio` | n/a |
 
@@ -92,6 +92,7 @@ equivalent: `grid.add(view, { row: 1, column: 1, rowSpan: 2 })`.
   border={1}
   borderColor="#8A8A8A"
   borderRadius={12}
+  shadow={{ light: "0 2px 8px #00000040", dark: "0 2px 8px #FFFFFF40" }}
 >
   …
 </Container>

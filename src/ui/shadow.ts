@@ -16,8 +16,14 @@ export interface ShadowSpec {
   opacity?: number;
 }
 
-/** A CSS-like `box-shadow` value, or its typed equivalent. */
-export type ShadowValue = ShadowSpec | string;
+/** A shadow that selects a complete CSS-like value per appearance. */
+export interface ThemeShadow {
+  light: ShadowSpec | string;
+  dark: ShadowSpec | string;
+}
+
+/** A CSS-like `box-shadow` value, its typed equivalent, or a light/dark pair. */
+export type ShadowValue = ShadowSpec | string | ThemeShadow;
 
 export interface ParsedShadow {
   offsetX: number;
@@ -30,6 +36,11 @@ export interface ParsedShadow {
 
 const DEFAULT_SHADOW_COLOR = { r: 0, g: 0, b: 0, a: 0.25 } as const;
 
+/** True when `value` is a complete light/dark shadow pair. */
+export function isThemeShadow(value: unknown): value is ThemeShadow {
+  return typeof value === "object" && value !== null && "light" in value && "dark" in value;
+}
+
 /**
  * Parse the useful single-shadow subset of CSS `box-shadow`:
  * `offset-x offset-y [blur] [spread] [color]`.
@@ -38,8 +49,9 @@ const DEFAULT_SHADOW_COLOR = { r: 0, g: 0, b: 0, a: 0.25 } as const;
  * shadows are intentionally not accepted because CALayer/Composition do not
  * have an equivalent that behaves consistently on both supported platforms.
  */
-export function parseShadow(value: ShadowValue | undefined): ParsedShadow | null {
+export function parseShadow(value: ShadowValue | undefined, dark = false): ParsedShadow | null {
   if (value === undefined || value === null) return null;
+  if (isThemeShadow(value)) return parseShadow(value[dark ? "dark" : "light"], dark);
   if (typeof value === "object") {
     return {
       offsetX: finiteOr(value.offsetX, 0),

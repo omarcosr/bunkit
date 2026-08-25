@@ -10,7 +10,7 @@ import { LayoutAttribute, LayoutPriority, LayoutRelation, Orientation } from "./
 import type { CGRect, CGSize } from "../structs.ts";
 import { trackAdaptive, isThemeColor, resolveColor, applyAdaptiveColor } from "./adaptive.ts";
 import { currentThemeIsDark } from "./theme.ts";
-import { parseShadow, type ShadowValue } from "./shadow.ts";
+import { isThemeShadow, parseShadow, type ShadowValue } from "./shadow.ts";
 
 // Re-export the adaptive colour helpers for importers that use view.ts as
 // their colour module (controls.ts, the metal scene).
@@ -507,10 +507,11 @@ export class View {
     this.native.setWantsLayer_(true);
     const hostLayer = this.native.layer();
     this.#removeShadowLayer(hostLayer);
-    const shadow = parseShadow(value);
+    let shadow = parseShadow(value, currentThemeIsDark());
     if (!shadow) {
       return this;
     }
+    let activeShadow = shadow;
 
     // A layer's shadow is composited with that layer. Keeping it on the
     // control layer can paint over labels and native control text. A sibling
@@ -530,7 +531,7 @@ export class View {
       }
       if (!shadowLayer.superlayer()) return;
 
-      const spread = shadow.spread;
+      const spread = activeShadow.spread;
       shadowLayer.setFrame_(frame);
       shadowLayer.setShadowPath_(roundedBezier(
         {
@@ -548,15 +549,25 @@ export class View {
     this.#shadowRebuild();
     this.#installShadowFrameObserver();
 
-    applyAdaptiveColor(shadow.color, currentThemeIsDark, (c) => {
+    const applyShadow = () => {
+      const next = parseShadow(value, currentThemeIsDark());
+      if (!next || this.#shadowLayer !== shadowLayer) {
+        shadowLayer.setShadowOpacity_(0);
+        return;
+      }
+      activeShadow = next;
+      this.#shadowRebuild?.();
+      const c = resolveColor(activeShadow.color, currentThemeIsDark());
       if (this.#shadowLayer !== shadowLayer) return;
       const nsColor = toNSColor(c);
       if (!nsColor) return;
       shadowLayer.setShadowColor_(nsColor.send("CGColor"));
-      shadowLayer.setShadowOpacity_(shadow.opacity);
-      shadowLayer.setShadowOffset_({ width: shadow.offsetX, height: -shadow.offsetY });
-      shadowLayer.setShadowRadius_(shadow.blur);
-    });
+      shadowLayer.setShadowOpacity_(activeShadow.opacity);
+      shadowLayer.setShadowOffset_({ width: activeShadow.offsetX, height: -activeShadow.offsetY });
+      shadowLayer.setShadowRadius_(activeShadow.blur);
+    };
+    applyShadow();
+    if (isThemeShadow(value) || isThemeColor(activeShadow.color)) trackAdaptive(applyShadow);
     return this;
   }
   /** Corner radii on the backing layer. Uniform is a plain corner radius;

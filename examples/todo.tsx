@@ -6,7 +6,7 @@
 // row (checkbox + label in place), so the entrance animation plays on the new
 // element alone instead of every row. Colours are theme-adaptive
 // (`{ light, dark }`), following the system theme on both platforms.
-import type { ThemeColor } from "bunkit";
+import type { ThemeColor, ThemeShadow } from "bunkit";
 import {
   Application, Button, Checkbox,
   For,
@@ -27,6 +27,11 @@ let nextId = 1;
 const cardBg: ThemeColor = { light: "#FFFFFF", dark: "#23233A" };
 const textColor: ThemeColor = { light: "#202124", dark: "#E8E8F2" };
 const doneColor: ThemeColor = { light: "#9AA0A6", dark: "#565675" };
+
+const addShadow: ThemeShadow = {
+  light: "0px 0px 10px #000000",
+  dark: "0px 0px 10px #FFFFFF",
+};
 
 function addTodo(): void {
   const text = draft.value.trim();
@@ -125,7 +130,7 @@ const win = (
 
         // shadow="0px 0px 10px #0000ff"
         />
-        <Button title="Add" onClick={addTodo} style={{ textColor: { light: "#1900ff", dark: "#011213" } }} borderRadius={4} shadow="0px 0px 10px #ff00ff" />
+        <Button title="Add" onClick={addTodo} style={{ textColor: { light: "#1900ff", dark: "#011213" } }} borderRadius={4} shadow={addShadow} />
       </HStack>
 
 

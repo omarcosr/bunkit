@@ -5,12 +5,12 @@ import { winLib } from "./ffi.ts";
 import { bindSignals, extractSignals } from "../../signal.ts";
 import { applyAdaptiveColor, reapplyAdaptiveColors, resolveColor, isThemeColor, trackAdaptive } from "../../ui/adaptive.ts";
 import { resolveAssetPath } from "../../asset.ts";
-import { colorToHex, parseShadow, type ShadowValue } from "../../ui/shadow.ts";
+import { colorToHex, isThemeShadow, parseShadow, type ShadowValue } from "../../ui/shadow.ts";
 
 // Theme-adaptive colour helpers, public on both platforms (macOS re-exports
 // them from view.ts). Re-exported here so `import { resolveColor } from
 // "bunkit"` works on Windows too.
-export type { ShadowSpec, ShadowValue } from "../../ui/shadow.ts";
+export type { ShadowSpec, ShadowValue, ThemeShadow } from "../../ui/shadow.ts";
 export { isThemeColor, resolveColor, applyAdaptiveColor } from "../../ui/adaptive.ts";
 
 // macOS examples reach for raw AppKit through `.native`. WinUI has no Obj-C
@@ -217,12 +217,14 @@ export class View {
   }
   /** Apply a CSS-like outer box shadow. */
   setShadow(value: ShadowValue): this {
-    const shadow = parseShadow(value);
-    if (!shadow) {
-      windowsBackend.setControlShadow(this.handle, "", 0, 0, 0, 0);
-      return this;
-    }
-    applyAdaptiveColor(shadow.color, themeIsDark, (c) => {
+    let shadow = parseShadow(value, themeIsDark());
+    const applyShadow = () => {
+      shadow = parseShadow(value, themeIsDark());
+      if (!shadow) {
+        windowsBackend.setControlShadow(this.handle, "", 0, 0, 0, 0);
+        return;
+      }
+      const c = resolveColor(shadow.color, themeIsDark());
       const hex = colorToHex(c);
       if (hex) {
         windowsBackend.setControlShadow(
@@ -234,7 +236,11 @@ export class View {
           shadow.opacity,
         );
       }
-    });
+    };
+    applyShadow();
+    if (isThemeShadow(value) || (shadow !== null && isThemeColor(shadow.color))) {
+      trackAdaptive(applyShadow);
+    }
     return this;
   }
 
