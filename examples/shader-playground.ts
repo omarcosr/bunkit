@@ -137,7 +137,7 @@ let effect: Effect | null = null;
 let compiled = "";
 
 const status = new Label({
-  text: "", font: { monospace: true, size: 11 }, color: "secondaryLabel", lines: 5,
+  text: "", font: { monospace: true, size: 11 }, textColor: "secondaryLabel", lines: 5,
 });
 
 function compile(body: string): void {
@@ -146,11 +146,11 @@ function compile(body: string): void {
   try {
     effect = gpu().effect({ uniforms: Play, fragment: body, label: "playground" });
     status.text = "compiled";
-    status.color = "secondaryLabel";
+    status.textColor = "secondaryLabel";
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     status.text = message.split("\n").slice(0, 7).join("\n");
-    status.color = "systemRed";
+    status.textColor = "systemRed";
   }
 }
 
@@ -191,7 +191,7 @@ preview.onFrame((frame) => {
 // Chrome
 // ---------------------------------------------------------------------------
 
-const readout = new Label({ text: "", font: { monospace: true, size: 11 }, color: "tertiaryLabel" });
+const readout = new Label({ text: "", font: { monospace: true, size: 11 }, textColor: "tertiaryLabel" });
 let mark = 0;
 preview.onFrame((frame) => {
   if (frame.time - mark < 0.5) return;

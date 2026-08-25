@@ -45,7 +45,7 @@ const box = new GroupBox({ title: "Details", padding: 10 }, [
 
 const log = new TextArea({ value: "", editable: false, font: { monospace: true, size: 11 } });
 const title = new Label({ text: "Title", font: { style: "title", weight: "semibold" } });
-const secondary = new Label({ text: "secondary", color: "secondaryLabel" });
+const secondary = new Label({ text: "secondary", textColor: "secondaryLabel" });
 
 const win = new Window({
   title: "Parity",

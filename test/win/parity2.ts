@@ -233,8 +233,8 @@ check(!isThemeColor("#fff"), "isThemeColor rejects plain strings");
 
 // A { light, dark } colour resolves per theme and re-applies on setTheme:
 // the dark-mode toggle below (via the native registry read) is what drives it.
-const adaptiveLabel = new Label({ text: "theme", color: { light: "#123456", dark: "#654321" } });
-check(true, "Label accepts a { light, dark } color");
+const adaptiveLabel = new Label({ text: "theme", textColor: { light: "#123456", dark: "#654321" } });
+check(true, "Label accepts a { light, dark } textColor");
 const hex = Buffer.from("#336699") as any;
 check((winLib.bk_label_set_color((adaptiveLabel as any).handle, hex, 7) as number) === 0,
   "bk_label_set_color applies a resolved colour to the label");

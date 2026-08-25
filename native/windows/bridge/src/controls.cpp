@@ -520,6 +520,20 @@ BK_EXPORT int32_t bk_control_set_enabled(bk_handle c, int32_t enabled) {
   return combine(rc, st);
 }
 
+BK_EXPORT int32_t bk_control_get_enabled(bk_handle c) {
+  if (require_running() != BK_OK) return 0;
+  int32_t out = 0;
+  const int32_t rc = bk::Runtime::instance().dispatch_sync([&] {
+    auto* entry = bk::registry().get(c);
+    if (!entry) return;
+    try {
+      out = entry->object.as<cx::Control>().IsEnabled() ? 1 : 0;
+    } catch (...) {
+    }
+  });
+  return rc == BK_OK ? out : 0;
+}
+
 BK_EXPORT int32_t bk_control_set_visible(bk_handle c, int32_t visible) {
   if (require_running() != BK_OK) return BK_NOT_INITIALIZED;
   int32_t st = BK_ERROR;
@@ -656,15 +670,16 @@ winrt::Microsoft::UI::Xaml::Media::Brush resource_brush(const wchar_t* key) {
 }
 
 // AppKit colour names -> nearest theme brush; any other string is parsed as
-// hex (#RRGGBB or #AARRGGBB). "" leaves the default foreground untouched.
-void apply_label_brush(cx::TextBlock label, const std::string& c) {
-  if (c.empty()) return;
+// hex (#RRGGBB or #AARRGGBB). An empty string yields a null brush (leave the
+// foreground untouched). Shared by Label and Button foregrounds.
+Media::Brush resolve_foreground_brush(const std::string& c) {
+  if (c.empty()) return nullptr;
   winrt::Windows::UI::Color color{};
   if (c[0] == '#') {
     if (parse_hex_color(c, color)) {
-      label.Foreground(Media::SolidColorBrush(color));
+      return Media::SolidColorBrush(color);
     }
-    return;
+    return nullptr;
   }
   const wchar_t* brush_key = nullptr;
   if (c == "secondaryLabel" || c == "placeholderText") {
@@ -688,6 +703,13 @@ void apply_label_brush(cx::TextBlock label, const std::string& c) {
     brush_key = L"AccentFillColorDefaultBrush";
   }
   if (auto brush = resource_brush(brush_key)) {
+    return brush;
+  }
+  return nullptr;
+}
+
+void apply_label_brush(cx::TextBlock label, const std::string& c) {
+  if (auto brush = resolve_foreground_brush(c)) {
     label.Foreground(brush);
   }
 }
@@ -760,6 +782,68 @@ BK_EXPORT bk_handle bk_button_create_ex(const char* text, uint32_t text_len,
         });
   });
   return rc == BK_OK ? out : BK_HANDLE_NULL;
+}
+
+// Title colour: hex (#RRGGBB / #AARRGGBB) or an AppKit-style semantic name.
+// Applies to the Button's Foreground (template-bound for plain titles, and
+// inherited by a symbol button's TextBlock content).
+BK_EXPORT int32_t bk_button_set_color(bk_handle b, const char* color,
+                                      uint32_t color_len) {
+  if (require_running() != BK_OK) return BK_NOT_INITIALIZED;
+  const std::string c = color && color_len ? std::string(color, color_len) : "";
+  int32_t st = BK_ERROR;
+  const int32_t rc = bk::Runtime::instance().dispatch_sync([&] {
+    auto* entry = bk::registry().get(b);
+    if (!entry || entry->type != bk::NativeType::Button) {
+      st = BK_INVALID_HANDLE;
+      return;
+    }
+    if (auto brush = resolve_foreground_brush(c)) {
+      entry->object.as<cx::Button>().Foreground(brush);
+    }
+    st = BK_OK;
+  });
+  return combine(rc, st);
+}
+
+// Title font. style_bits: 1 semibold, 2 title (semibold, default 20pt),
+// 4 monospace — the same vocabulary as labels. Symbol buttons keep their
+// text in a TextBlock with an explicit FontSize, so those get the properties
+// directly as well (the Button's own font properties template-bind to the
+// ContentPresenter for plain string content).
+BK_EXPORT int32_t bk_button_set_font(bk_handle b, double font_size,
+                                     int32_t style_bits) {
+  if (require_running() != BK_OK) return BK_NOT_INITIALIZED;
+  int32_t st = BK_ERROR;
+  const int32_t rc = bk::Runtime::instance().dispatch_sync([&] {
+    auto* entry = bk::registry().get(b);
+    if (!entry || entry->type != bk::NativeType::Button) {
+      st = BK_INVALID_HANDLE;
+      return;
+    }
+    auto button = entry->object.as<cx::Button>();
+    if (font_size > 0) button.FontSize(font_size);
+    if (style_bits & 2) {
+      button.FontSize(font_size > 0 ? font_size : 20.0);
+      button.FontWeight(winrt::Windows::UI::Text::FontWeights::SemiBold());
+    } else if (style_bits & 1) {
+      button.FontWeight(winrt::Windows::UI::Text::FontWeights::SemiBold());
+    }
+    if (style_bits & 4) {
+      button.FontFamily(winrt::Microsoft::UI::Xaml::Media::FontFamily(L"Cascadia Mono"));
+    }
+    if (auto tb = button.Content().try_as<cx::TextBlock>()) {
+      if (font_size > 0) tb.FontSize(font_size);
+      if (style_bits & 1 || style_bits & 2) {
+        tb.FontWeight(winrt::Windows::UI::Text::FontWeights::SemiBold());
+      }
+      if (style_bits & 4) {
+        tb.FontFamily(winrt::Microsoft::UI::Xaml::Media::FontFamily(L"Cascadia Mono"));
+      }
+    }
+    st = BK_OK;
+  });
+  return combine(rc, st);
 }
 
 BK_EXPORT bk_handle bk_label_create_ex(const char* text, uint32_t text_len,

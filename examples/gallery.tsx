@@ -151,7 +151,7 @@ function swatch(label: string, view: any): any {
   return (
     <VStack spacing={4}>
       {view}
-      <Label text={label} font={{ size: 11 }} color="textBackground" textAlign="center" />
+      <Label text={label} font={{ size: 11 }} textColor="textBackground" textAlign="center" />
     </VStack>
   );
 }
@@ -188,7 +188,7 @@ const styledControls = (
         <Select selected={0} items={["Alpha", "Beta"]} background="#FDE2E2" borderRadius={8} width={110} />
       </HStack>
       <ScrollView background="#E2F3E8" borderRadius={10} height={56} border>
-        <Label text="a tinted, rounded, bordered scroll view" font={{ size: 11 }} color="#1F3B4D" textAlign="center" />
+        <Label text="a tinted, rounded, bordered scroll view" font={{ size: 11 }} textColor="#1F3B4D" textAlign="center" />
       </ScrollView>
       <TextArea value="…and a tinted text area." background="#E8F0FE" borderRadius={8} height={40} editable={false} />
     </VStack>
@@ -204,7 +204,7 @@ const adaptiveBox = (
     <HStack spacing={14}>
       {swatch("fill", <Container backgroundColor={{ light: "#DFF3FF", dark: "#143C5C" }} borderRadius={14} width={72} height={56} />)}
       {swatch("border", <Container border={2} borderColor={{ light: "#F26419", dark: "#FFB088" }} borderRadius={12} width={72} height={56} />)}
-      {swatch("text", <Label text="Aa" font={{ style: "title", weight: "semibold" }} color={{ light: "#143C8C", dark: "#9CC8FF" }} />)}
+      {swatch("text", <Label text="Aa" font={{ style: "title", weight: "semibold" }} textColor={{ light: "#143C8C", dark: "#9CC8FF" }} />)}
     </HStack>
   </GroupBox>
 );
@@ -218,11 +218,11 @@ const nameField = new TextField({
   grow: 1,
   onSubmit: () => say(`hello, ${name.value || "stranger"}!`),
 });
-const nameEcho = new Label({ text: name, color: "#7A2E00", font: { size: 11 } });
+const nameEcho = new Label({ text: name, textColor: "#7A2E00", font: { size: 11 } });
 
 const flag = signal(false);
 const flagBox = new Checkbox({ title: "Signal flag", checked: flag });
-const flagLabel = new Label({ text: "off", color: "#7A2E00", font: { size: 11 } });
+const flagLabel = new Label({ text: "off", textColor: "#7A2E00", font: { size: 11 } });
 flag.subscribe((on) => {
   console.log(`flag -> ${on ? "on" : "off"}`);
   flagLabel.text = on ? "on" : "off";
@@ -243,8 +243,8 @@ const detail = (
         <ImageView src={covers[0]!} width={96} height={96} />
         <VStack spacing={6}>
           <Label text={albums[0]!.title} font={{ style: "title", weight: "semibold" }} />
-          <Label text={albums[0]!.artist} color="#7A2E00" />
-          <Label text={String(albums[0]!.year)} color="#7A2E00" />
+          <Label text={albums[0]!.artist} textColor="#7A2E00" />
+          <Label text={String(albums[0]!.year)} textColor="#7A2E00" />
         </VStack>
       </HStack>
       <Separator />
@@ -271,7 +271,7 @@ const sidebar = new BlurView({
 }, (
   <VStack spacing={10} padding={12}>
     <Label text="Gallery" font={{ style: "title", weight: "semibold" }} />
-    <Label text="5 albums" color="#7A2E00" font={{ size: 11 }} />
+    <Label text="5 albums" textColor="#7A2E00" font={{ size: 11 }} />
     <Separator />
     <Segmented items={["Detail", "Collection"]} selected={1} onChange={(i) => say(`mode -> ${i === 0 ? "detail" : "collection"}`)} />
     <Checkbox title="Dark mode" checked={false} onChange={(on) => { applyAppTheme(on); say(`theme -> ${on ? "dark" : "light"}`); }} />
@@ -294,7 +294,7 @@ function applyAppTheme(dark: boolean): void {
 // ─ footer: clock, snapshot, export, debug, selection, clipboard ──────────
 const keys = input();
 const clock = new Label({
-  text: "", font: { monospace: true, size: 11 }, color: "#7A2E00",
+  text: "", font: { monospace: true, size: 11 }, textColor: "#7A2E00",
 });
 
 const win = new Window({

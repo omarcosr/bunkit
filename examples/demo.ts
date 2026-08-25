@@ -180,7 +180,7 @@ function log(msg: string) {
 const clock = new Label({
   text: "",
   font: { monospace: true, size: 11 },
-  color: "secondaryLabel",
+  textColor: "secondaryLabel",
 });
 
 const win = new Window({
@@ -200,7 +200,7 @@ const win = new Window({
     new Label({
       text: "Event log",
       font: { size: 11, weight: "semibold" },
-      color: "secondaryLabel",
+      textColor: "secondaryLabel",
     }),
     logView,
   ]),

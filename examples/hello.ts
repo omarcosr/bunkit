@@ -15,7 +15,7 @@ import {
 const app = new Application({ name: "Hello" });
 
 const name = new TextField({ placeholder: "Your name", grow: 1 });
-const greeting = new Label({ text: "Type a name and press Greet.", color: "secondaryLabel" });
+const greeting = new Label({ text: "Type a name and press Greet.", textColor: "secondaryLabel" });
 
 const greet = () => {
   greeting.text = name.value ? `Hello, ${name.value}!` : "Type a name first.";

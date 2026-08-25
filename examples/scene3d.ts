@@ -93,7 +93,7 @@ scene.onFrame(({ time, dt }) => {
 
 // --- chrome -----------------------------------------------------------------
 
-const fps = new Label({ text: "…", font: { monospace: true, size: 11 }, color: "secondaryLabel" });
+const fps = new Label({ text: "…", font: { monospace: true, size: 11 }, textColor: "secondaryLabel" });
 let frames = 0;
 let mark = 0;
 scene.onFrame(({ time }) => {

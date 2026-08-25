@@ -110,10 +110,10 @@ equivalent: `grid.add(view, { row: 1, column: 1, rowSpan: 2 })`.
 
 | CSS | BunKit |
 |---|---|
-| `font-size` | `font.size` (Label, TextField, TextArea) |
+| `font-size` | `font.size` (Label, Button, TextField, TextArea) |
 | `font-weight` | `font.weight: "regular" / "medium" / "semibold" / "bold"` |
 | `font-family` | `font.family` / `font.monospace: true` |
-| `color` | `color` on `Label` — plain hex or theme-adaptive `{ light, dark }` |
+| `color` | `textColor` on `Label`, `Button`, `TextField`, `TextArea` — plain hex or theme-adaptive `{ light, dark }` |
 | `text-align` | `alignment` on `Label` |
 | `line-height` | n/a |
 | `letter-spacing` | n/a |
@@ -142,13 +142,36 @@ There is no `prefers-color-scheme` in CSS-in-JS terms; BunKit colours are
 **theme-adaptive by construction**:
 
 ```tsx
-<Label color={{ light: "#1F3B4D", dark: "#E0E0E0" }} />
+<Label textColor={{ light: "#1F3B4D", dark: "#E0E0E0" }} />
 ```
 
 Every option that takes a colour accepts `{ light, dark }`; the active variant
 resolves against the current theme (`Application({ theme })` or `setTheme`)
 and re-resolves automatically when the theme changes. `Application({
 theme: "default" })` follows the system.
+
+## Buttons
+
+A `Button` takes the full view style surface (`backgroundColor`, `border`,
+`borderRadius`, `shadow`, `alpha`, …) plus its own typography options
+(`textColor`, `font`) and behaviour flags (`primary`, `destructive`, `symbol`,
+`enabled`):
+
+```tsx
+<Button
+  title="Add"
+  primary
+  backgroundColor="#2D7DD2"
+  textColor="#FFFFFF"
+  font={{ size: 18, weight: "semibold" }}
+  borderRadius={10}
+/>
+```
+
+Platform notes: on macOS a custom fill (background, border or radius) turns
+off the system bezel so the layer chrome actually shows — an explicit
+`bordered` still wins. On Windows the background, border and radius bind
+straight to the Button template's own properties.
 
 ## Reactivity
 

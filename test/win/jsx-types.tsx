@@ -21,7 +21,7 @@ list.selectedIndex = 1;                   // Segmented.selectedIndex setter
 const ok = (
   <Window title="t" size={{ width: 100, height: 100 }}>
     <VStack spacing={8} padding={12}>
-      <Label text="hi" color="secondaryLabel" font={{ style: "title", weight: "semibold" }} />
+      <Label text="hi" textColor="secondaryLabel" font={{ style: "title", weight: "semibold" }} />
       <Button title="Go" primary onClick={(b) => { void b; }} />
       <TextField placeholder="name" value={name} onSubmit={(v, f) => { void v; void f; }} />
       <Checkbox title="Dark" checked={dark} onChange={(on) => { void on; }} />
@@ -29,7 +29,7 @@ const ok = (
       <Slider value={0.5} min={0} max={1} onChange={(v) => { void v; }} />
       {/* style accepts the control's own props, not just ViewOptions */}
       <TextField style={{ textColor: "#C33", placeholderColor: "#888", font: { size: 14 } }} />
-      <Label style={{ color: "secondaryLabel", font: { weight: "bold" } }} text="styled" />
+      <Label style={{ textColor: "secondaryLabel", font: { weight: "bold" } }} text="styled" />
       <VStack style={{ spacing: 16, alignItems: "center" }} />
       <Button style={{ primary: true, title: "styled button" }} />
     </VStack>
@@ -54,5 +54,5 @@ const bad6 = <Nonexistent />;
 const bad7 = <TextField value={123} />;
 // @ts-expect-error checked must be a boolean or a Signal<boolean>, not a string
 const bad8 = <Checkbox checked="yes" />;
-// @ts-expect-error color is a known name or a hex string, not a random word
-const bad9 = <Label color="not-a-color" />;
+// @ts-expect-error textColor is a known name or a hex string, not a random word
+const bad9 = <Label textColor="not-a-color" />;

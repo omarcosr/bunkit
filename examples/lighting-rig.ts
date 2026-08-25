@@ -395,7 +395,7 @@ scene.onFrame(({ time, dt }) => {
 // ---------------------------------------------------------------------------
 
 const readout = new Label({
-  text: "…", font: { monospace: true, size: 11 }, color: "secondaryLabel",
+  text: "…", font: { monospace: true, size: 11 }, textColor: "secondaryLabel",
 });
 let mark = 0;
 scene.onFrame(({ time }) => {
@@ -416,7 +416,7 @@ const win = new Window({
       new Label({ text: "Rig", font: { style: "title", weight: "semibold" } }),
       new Label({
         text: "right-drag to look · wasd to fly · shift for speed",
-        color: "tertiaryLabel",
+        textColor: "tertiaryLabel",
       }),
       new Spacer(),
       readout,

@@ -81,7 +81,7 @@ export interface LabelOptions extends ViewOptions {
   text?: string | Signal<string>;
   font?: FontSpec | number;
   /** Text colour: a semantic name ("secondaryLabel"…) or a CSS hex string. */
-  color?: ColorValue | Signal<ColorValue>;
+  textColor?: ColorValue | Signal<ColorValue>;
   textAlign?: "left" | "center" | "right";
   /** Wrap onto multiple lines instead of truncating. */
   wrap?: boolean;
@@ -105,8 +105,8 @@ export class Label extends View {
   protected applyLabelOptions(o: LabelOptions) {
     const f = this.native;
     if (o.font !== undefined) f.setFont_(makeFont(o.font));
-    if (o.color !== undefined) {
-      applyAdaptiveColor(unwrap(o.color), currentThemeIsDark, (c) => f.setTextColor_(toNSColor(c)));
+    if (o.textColor !== undefined) {
+      applyAdaptiveColor(unwrap(o.textColor), currentThemeIsDark, (c) => f.setTextColor_(toNSColor(c)));
     }
     if (o.textAlign !== undefined) {
       f.setAlignment_(
@@ -134,7 +134,7 @@ export class Label extends View {
     this.native.setStringValue_(v ?? "");
   }
 
-  set color(v: any) {
+  set textColor(v: any) {
     applyAdaptiveColor(v, currentThemeIsDark, (c) => this.native.setTextColor_(toNSColor(c)));
   }
 
@@ -160,6 +160,12 @@ export interface ButtonOptions extends ViewOptions {
   size?: number;
   key?: string;
   bordered?: boolean;
+  /** Title colour: a semantic name, a CSS hex string, or an RGB object
+   *  (theme-adaptive `{ light, dark }` like every colour). Tints the symbol
+   *  image too. */
+  textColor?: ColorValue;
+  /** Title font — `size`, `weight`, `style: "title"`, `monospace`. */
+  font?: FontSpec | number;
   /** Inline styling object; accepts every Button option. */
   style?: StyleOf<ButtonOptions>;
 }
@@ -185,6 +191,15 @@ export class Button extends View {
     }
     if (options.bezel !== undefined) b.setBezelStyle_(options.bezel);
     if (options.size !== undefined) b.setControlSize_(options.size);
+    // Custom chrome (background, border or corner radius) replaces the
+    // system bezel, which would otherwise paint over the layer fill/border.
+    // An explicit `bordered` still wins.
+    const customChrome =
+      options.background !== undefined || options.backgroundColor !== undefined ||
+      options.border !== undefined || options.borderWidth !== undefined ||
+      options.borderColor !== undefined || options.borderStyle !== undefined ||
+      options.borderRadius !== undefined;
+    if (customChrome && options.bordered === undefined) b.setBordered_(false);
     if (options.bordered !== undefined) b.setBordered_(options.bordered);
     if (options.enabled !== undefined) b.setEnabled_(options.enabled);
     if (options.primary) b.setKeyEquivalent_("\r");
@@ -193,6 +208,8 @@ export class Button extends View {
       b.setContentTintColor_(toNSColor("red"));
       if (b.respondsTo("setHasDestructiveAction:")) b.setHasDestructiveAction_(true);
     }
+    if (options.textColor !== undefined) this.textColor = unwrap(options.textColor);
+    if (options.font !== undefined) this.font = options.font;
     if (options.onClick) this.onClick(options.onClick);
     bindSignals(this, options);
   }
@@ -217,6 +234,19 @@ export class Button extends View {
 
   set title(v: string) {
     this.native.setTitle_(v);
+  }
+
+  /** Title colour; re-resolves on theme change and tints the symbol image. */
+  set textColor(v: any) {
+    applyAdaptiveColor(v, currentThemeIsDark, (c) => {
+      const nsColor = toNSColor(c);
+      if (nsColor) this.native.setContentTintColor_(nsColor);
+    });
+  }
+
+  /** Title font — same vocabulary as `Label.font`. */
+  set font(v: FontSpec | number) {
+    this.native.setFont_(makeFont(v));
   }
 
   get enabled(): boolean {

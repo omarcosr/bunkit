@@ -318,7 +318,7 @@ surface.onFrame((frame) => {
 // Chrome
 // ---------------------------------------------------------------------------
 
-const readout = new Label({ text: "", font: { monospace: true, size: 11 }, color: "secondaryLabel" });
+const readout = new Label({ text: "", font: { monospace: true, size: 11 }, textColor: "secondaryLabel" });
 let mark = 0;
 surface.onFrame((frame) => {
   if (frame.time - mark < 0.5) return;
@@ -336,7 +336,7 @@ const win = new Window({
   content: new VStack({ spacing: 12, padding: 16 }, [
     new HStack({ spacing: 10, alignItems: "center" }, [
       new Label({ text: "Compute", font: { style: "title", weight: "semibold" } }),
-      new Label({ text: "drag inside the view to pull them around", color: "tertiaryLabel" }),
+      new Label({ text: "drag inside the view to pull them around", textColor: "tertiaryLabel" }),
       new Spacer(),
       readout,
     ]),

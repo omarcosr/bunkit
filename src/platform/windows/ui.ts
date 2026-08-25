@@ -595,14 +595,14 @@ export class Window {
 // --- controls ---------------------------------------------------------------------
 
 export class Label extends View {
-  constructor(opts: { text?: string; color?: any; font?: any; textAlign?: string; grow?: number ; style?: any } & ViewOptions = {}) {
+  constructor(opts: { text?: string; textColor?: any; font?: any; textAlign?: string; grow?: number ; style?: any } & ViewOptions = {}) {
     opts = mergeStyle(opts);
     const bound = extractSignals(opts);
     // A { light, dark } colour must not cross into the native create call —
     // it resolves per theme and re-applies on setTheme.
-    super(windowsBackend.createLabel({ ...opts, color: typeof opts.color === "string" ? opts.color : "" } as any), opts);
-    if (opts.color !== undefined) {
-      applyAdaptiveColor(opts.color, themeIsDark, (c) => {
+    super(windowsBackend.createLabel({ ...opts, textColor: typeof opts.textColor === "string" ? opts.textColor : "" } as any), opts);
+    if (opts.textColor !== undefined) {
+      applyAdaptiveColor(opts.textColor, themeIsDark, (c) => {
         if (typeof c === "string") windowsBackend.setLabelColor(this.handle, c);
       });
     }
@@ -610,7 +610,7 @@ export class Label extends View {
   }
   get text(): string { return windowsBackend.getLabelText(this.handle); }
   set text(v: string) { windowsBackend.setLabelText(this.handle, v ?? ""); }
-  set color(v: any) {
+  set textColor(v: any) {
     applyAdaptiveColor(v, themeIsDark, (c) => {
       if (typeof c === "string") windowsBackend.setLabelColor(this.handle, c);
     });
@@ -618,14 +618,30 @@ export class Label extends View {
 }
 
 export class Button extends View {
-  constructor(opts: { title?: string; primary?: boolean; destructive?: boolean; symbol?: string; onClick?: () => void ; style?: any } & ViewOptions = {}) {
+  constructor(opts: { title?: string; primary?: boolean; destructive?: boolean; symbol?: string; textColor?: any; font?: any; enabled?: boolean; onClick?: () => void ; style?: any } & ViewOptions = {}) {
     opts = mergeStyle(opts);
     const bound = extractSignals(opts);
     super(windowsBackend.createButton(opts), opts);
+    if (opts.textColor !== undefined) this.textColor = opts.textColor;
+    if (opts.font !== undefined) this.font = opts.font;
+    if (opts.enabled !== undefined) this.enabled = opts.enabled;
     if (opts.onClick) windowsBackend.setButtonClickCallback(this.handle, opts.onClick);
     bindSignals(this, opts, bound);
   }
   set title(v: string) { windowsBackend.setButtonText(this.handle, v); }
+  /** Title colour (hex, semantic name, or { light, dark }); re-resolves on
+   *  theme change. */
+  set textColor(v: any) {
+    applyAdaptiveColor(v, themeIsDark, (c) => {
+      if (typeof c === "string") windowsBackend.setButtonColor(this.handle, c);
+    });
+  }
+  /** Title font — same vocabulary as `Label.font`. */
+  set font(v: any) {
+    windowsBackend.setButtonFont(this.handle, v);
+  }
+  get enabled(): boolean { return windowsBackend.getControlEnabled(this.handle); }
+  set enabled(v: boolean) { windowsBackend.setControlEnabled(this.handle, v); }
   onClick(fn: () => void): this { windowsBackend.setButtonClickCallback(this.handle, fn); return this; }
 }
 

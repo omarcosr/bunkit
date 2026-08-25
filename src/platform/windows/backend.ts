@@ -186,10 +186,10 @@ export class WindowsBackend {
     else map.delete(handle);
   }
 
-  createLabel(opts: { text?: string; color?: string; font?: any; align?: string; width?: number; height?: number }): NativeHandle {
+  createLabel(opts: { text?: string; textColor?: string; font?: any; align?: string; width?: number; height?: number }): NativeHandle {
     this.ensureInited();
     const t = cstr(opts.text ?? "");
-    const color = cstr(opts.color ?? "");
+    const color = cstr(opts.textColor ?? "");
     const font = opts.font ?? {};
     const fontSize = typeof font === "number" ? font : (font.size ?? 0);
     let bits = 0;
@@ -241,6 +241,23 @@ export class WindowsBackend {
   setButtonText(h: NativeHandle, text: string): void {
     const b = cstr(text);
     winLib.bk_button_set_text(h, b as any, b.length);
+  }
+
+  setButtonColor(h: NativeHandle, color?: string): void {
+    const c = cstr(color ?? "");
+    winLib.bk_button_set_color(h, c as any, c.length);
+  }
+
+  setButtonFont(h: NativeHandle, font?: any): void {
+    const f = font ?? {};
+    const fontSize = typeof f === "number" ? f : (f.size ?? 0);
+    let bits = 0;
+    if (typeof f === "object") {
+      if (f.weight === "semibold" || f.weight === "bold") bits |= 1;
+      if (f.style === "title") bits |= 2;
+      if (f.monospace) bits |= 4;
+    }
+    winLib.bk_button_set_font(h, fontSize, bits);
   }
 
   setButtonClickCallback(h: NativeHandle, cb: (() => void) | null): void {
@@ -864,6 +881,14 @@ export class WindowsBackend {
 
   setControlVisible(h: NativeHandle, visible: boolean): void {
     winLib.bk_control_set_visible(h, visible ? 1 : 0);
+  }
+
+  getControlEnabled(h: NativeHandle): boolean {
+    return (winLib.bk_control_get_enabled(h) as number) !== 0;
+  }
+
+  setControlEnabled(h: NativeHandle, enabled: boolean): void {
+    winLib.bk_control_set_enabled(h, enabled ? 1 : 0);
   }
 
   destroy(handle: NativeHandle): void {

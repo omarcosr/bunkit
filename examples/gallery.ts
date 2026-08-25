@@ -156,7 +156,7 @@ const notesBox = new GroupBox({ title: "Notes", padding: 10, spacing: 8 }, [note
 function swatch(label: string, view: any): any {
   return new VStack({ spacing: 4 }, [
     view,
-    new Label({ text: label, font: { size: 11 }, color: "secondaryLabel", textAlign: "center" }),
+    new Label({ text: label, font: { size: 11 }, textColor: "secondaryLabel", textAlign: "center" }),
   ]);
 }
 const styleBox = new GroupBox({ title: "Palette", padding: 10, spacing: 8 }, [
@@ -217,7 +217,7 @@ const styledControls = new GroupBox({ title: "Styled controls", padding: 10, spa
   ]),
   new ScrollView(
     { background: "#E2F3E8", borderRadius: 10, height: 56, border: true },
-    new Label({ text: "a tinted, rounded, bordered scroll view", font: { size: 11 }, color: "#1F3B4D", textAlign: "center" }),
+    new Label({ text: "a tinted, rounded, bordered scroll view", font: { size: 11 }, textColor: "#1F3B4D", textAlign: "center" }),
   ),
   new TextArea({
     value: "…and a tinted text area.", background: "#E8F0FE",
@@ -242,7 +242,7 @@ const adaptiveBox = new GroupBox({ title: "Adaptive colours", padding: 10, spaci
     })),
     swatch("text", new Label({
       text: "Aa", font: { style: "title", weight: "semibold" },
-      color: { light: "#143C8C", dark: "#9CC8FF" },
+      textColor: { light: "#143C8C", dark: "#9CC8FF" },
     })),
   ]),
 ]);
@@ -260,13 +260,13 @@ const nameField = new TextField({
   grow: 1,
   onSubmit: () => say(`hello, ${name.value || "stranger"}!`),
 });
-const nameEcho = new Label({ text: name.value, color: "#7A2E00", font: { size: 11 } });
+const nameEcho = new Label({ text: name.value, textColor: "#7A2E00", font: { size: 11 } });
 bind(nameField, "value", name); // two-way
 bind(nameEcho, "text", name);   // one-way: live echo
 
 const flag = signal(false);
 const flagBox = new Checkbox({ title: "Signal flag", checked: flag.value });
-const flagLabel = new Label({ text: "off", color: "#7A2E00", font: { size: 11 } });
+const flagLabel = new Label({ text: "off", textColor: "#7A2E00", font: { size: 11 } });
 bind(flagBox, "checked", flag);
 flag.subscribe((on) => { flagLabel.text = on ? "on" : "off"; });
 
@@ -280,8 +280,8 @@ const detail = new ScrollView({ border: false }, new VStack({ spacing: 12, paddi
     new ImageView({ src: covers[0]!, width: 96, height: 96 }),
     new VStack({ spacing: 6 }, [
       new Label({ text: albums[0]!.title, font: { style: "title", weight: "semibold" } }),
-      new Label({ text: albums[0]!.artist, color: "#7A2E00" }),
-      new Label({ text: String(albums[0]!.year), color: "#7A2E00" }),
+      new Label({ text: albums[0]!.artist, textColor: "#7A2E00" }),
+      new Label({ text: String(albums[0]!.year), textColor: "#7A2E00" }),
     ]),
   ]),
   new Separator(),
@@ -330,7 +330,7 @@ const sidebar = new BlurView({
   borderRadius: 8,
 }, new VStack({ spacing: 10, padding: 12 }, [
   new Label({ text: "Gallery", font: { style: "title", weight: "semibold" } }),
-  new Label({ text: "5 albums", color: "#7A2E00", font: { size: 11 } }),
+  new Label({ text: "5 albums", textColor: "#7A2E00", font: { size: 11 } }),
   new Separator(),
   mode,
   darkMode,
@@ -353,7 +353,7 @@ const sidebar = new BlurView({
 
 const keys = input();
 
-const clock = new Label({ text: "", font: { monospace: true, size: 11 }, color: "#7A2E00" });
+const clock = new Label({ text: "", font: { monospace: true, size: 11 }, textColor: "#7A2E00" });
 
 const win = new Window({
   title: "BunKit Gallery",

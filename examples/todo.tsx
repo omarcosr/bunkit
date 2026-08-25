@@ -49,10 +49,10 @@ function clearCompleted(): void {
 }
 
 // ─ the list: a declarative <For> reconciles the rows from the signal ────────
-const countLabel = new Label({ text: "", font: { size: 12 }, color: "secondaryLabel" });
+const countLabel = new Label({ text: "", font: { size: 12 }, textColor: "secondaryLabel" });
 const emptyLabel = new Label({
   text: "Nothing here yet — add a task above.",
-  color: "secondaryLabel",
+  textColor: "secondaryLabel",
   font: { size: 13 },
   textAlign: "center",
 });
@@ -80,7 +80,7 @@ function row(todo: Todo) {
         text={todo.text}
         grow={1}
         font={{ size: 14 }}
-        color={todo.done ? doneColor : textColor}
+        textColor={todo.done ? doneColor : textColor}
       />
       <Button title="✕" onClick={() => deleteTodo(todo.id)} />
     </HStack>
@@ -109,23 +109,23 @@ const win = (
         {countLabel}
       </HStack>
       <ImageView src="./icons/sparkle.svg" width={24} height={24} tint="#5bd680" />
-      <Label text="Get things done." font={{ size: 12 }} color="secondaryLabel" />
+      <Label text="Get things done." font={{ size: 12 }} textColor="secondaryLabel" />
 
       <HStack spacing={10}>
         <TextField
           value={draft}
           placeholder="Add a task…"
           grow={1}
-          borderRadius={14}
+          borderRadius={8}
           textColor={textColor}
-          borderColor={{ light: "#DADCE0", dark: "#565675" }}
+          borderColor={{ light: "#DADCE0", dark: "#3939fd" }}
           backgroundColor={{ light: "#FFFFFF", dark: "#0000ff" }}
           placeholderColor="secondaryLabel"
           onSubmit={addTodo}
 
-          shadow="0px 0px 10px #ff00ff"
+        // shadow="0px 0px 10px #0000ff"
         />
-        <Button title="Add" onClick={addTodo} borderRadius={14} shadow="0px 0px 10px #ff00ff" />
+        <Button title="Add" onClick={addTodo} style={{ textColor: { light: "#1900ff", dark: "#011213" } }} borderRadius={4} shadow="0px 0px 10px #ff00ff" />
       </HStack>
 
 
@@ -141,7 +141,7 @@ const win = (
       </ScrollView>
 
       <HStack spacing={10} alignItems="center">
-        <Label text="Check an item to mark it done." font={{ size: 11 }} color="tertiaryLabel" grow={1} />
+        <Label text="Check an item to mark it done." font={{ size: 11 }} textColor="tertiaryLabel" grow={1} />
         <Spacer />
         <Button title="Clear completed" onClick={clearCompleted} />
       </HStack>

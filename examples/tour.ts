@@ -32,7 +32,7 @@ const table = new Table<Task>({
   onDoubleClick: (t, i) => { t.done = !t.done; table.reloadRow(i); },
 });
 
-const status = new Label({ text: "1 task", color: "secondaryLabel" });
+const status = new Label({ text: "1 task", textColor: "secondaryLabel" });
 
 function add() {
   if (!input.value) return;

@@ -211,7 +211,7 @@ that theme without flashing; `setTheme("light" | "dark" | "default",
 { background }?)` re-tunes live windows via XAML RequestedTheme and
 repaints the page background — pass `{ background: "#14141F" }` to choose
 the colour used for that mode), and the styling
-options (`Button.primary/destructive/symbol`, `Label.color/font/textAlign`,
+options (`Button.primary/destructive/symbol`, `Label.textColor/font/textAlign`,
 `TextField.onSubmit` including secure fields, `Window.minSize`,
 `TextField.textColor`/`placeholderColor` and `TextArea.textColor` as hex —
 secure fields take the text colour only, the placeholder keeps the theme
