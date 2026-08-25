@@ -203,6 +203,7 @@ export class View {
   protected installInteractionStates(states?: ViewStates): void {
     if (!states) return;
     this.#states = states;
+    this.#lastStateStyle = resolveStateStyle(stateStyleFromOptions(this.props), themeIsDark());
     trackAdaptive(() => this.#applyInteractionStyles());
     this.#applyInteractionStyles();
   }

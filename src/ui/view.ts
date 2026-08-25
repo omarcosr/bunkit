@@ -313,6 +313,7 @@ export class View {
     if (!states && this.#cursor === undefined) return;
     if (!states) { registerMacInteractionTarget(this); return; }
     this.#states = states;
+    this.#lastStateStyle = resolveStateStyle(stateStyleFromOptions(this.props), currentThemeIsDark());
     trackAdaptive(() => this.#applyInteractionStyles());
     registerMacInteractionTarget(this);
     queueMicrotask(() => this._enableInteractionWindow());
@@ -637,18 +638,20 @@ export class View {
   setShadow(value: ShadowValue): this {
     this.native.setWantsLayer_(true);
     const hostLayer = this.native.layer();
-    this.#removeShadowLayer(hostLayer);
     let shadow = parseShadow(value, currentThemeIsDark());
     if (!shadow) {
+      this.#shadowGeneration++;
+      this.#removeShadowLayer(hostLayer);
       return this;
     }
     let activeShadow = shadow;
+    const generation = ++this.#shadowGeneration;
 
     // A layer's shadow is composited with that layer. Keeping it on the
     // control layer can paint over labels and native control text. A sibling
     // layer inserted below the control keeps the shadow behind its content.
     hostLayer.setMasksToBounds_(false);
-    const shadowLayer = objc.CALayer.layer();
+    const shadowLayer = this.#shadowLayer ?? objc.CALayer.layer();
     shadowLayer.setMasksToBounds_(false);
     this.#shadowLayer = shadowLayer;
 
@@ -682,7 +685,7 @@ export class View {
 
     const applyShadow = () => {
       const next = parseShadow(value, currentThemeIsDark());
-      if (!next || this.#shadowLayer !== shadowLayer) {
+      if (!next || this.#shadowLayer !== shadowLayer || this.#shadowGeneration !== generation) {
         shadowLayer.setShadowOpacity_(0);
         return;
       }
@@ -730,6 +733,7 @@ export class View {
   }
 
   #borderShapes: any[] = [];
+  #shadowGeneration = 0;
   #shadowLayer: any = null;
   #shadowRebuild: (() => void) | null = null;
   #shadowFrameObserver: any = null;

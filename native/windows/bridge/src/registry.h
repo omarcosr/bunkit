@@ -65,9 +65,13 @@ struct NativeObject {
   bool state_hover_active{false};
   winrt::event_token shadow_size_token{};
   winrt::event_token shadow_layout_token{};
-  winrt::event_token shadow_mask_loaded_token{};
-  winrt::event_token shadow_mask_size_token{};
+  winrt::event_token shadow_loaded_token{};
+  uint64_t shadow_generation{0};
   winrt::Windows::Foundation::IInspectable shadow_visual{nullptr};
+  winrt::Windows::Foundation::IInspectable shadow_drop_shadow{nullptr};
+  winrt::Windows::Foundation::IInspectable shadow_mask_visual{nullptr};
+  winrt::Windows::Foundation::IInspectable shadow_mask_surface{nullptr};
+  winrt::Windows::Foundation::IInspectable shadow_mask_brush{nullptr};
   winrt::Windows::Foundation::IInspectable shadow_mask_shape{nullptr};
   int32_t aux{0};                   // Stack: bk_stack_orientation
   int32_t suppress{0};              // >0 while a programmatic set is in flight

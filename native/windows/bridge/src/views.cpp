@@ -50,6 +50,20 @@ int32_t require_running() {
 inline int32_t combine(int32_t dispatch_rc, int32_t body_status) {
   return dispatch_rc == BK_OK ? body_status : dispatch_rc;
 }
+void update_shadow_mask_radius(bk_handle handle,
+                               CornerRadius const& corners) {
+  auto* entry = bk::registry().get(handle);
+  if (!entry || !entry->shadow_mask_shape) return;
+  const float radius = static_cast<float>(std::max(
+      std::max(corners.TopLeft, corners.TopRight),
+      std::max(corners.BottomRight, corners.BottomLeft)));
+  try {
+    entry->shadow_mask_shape
+        .as<comp::CompositionRoundedRectangleGeometry>()
+        .CornerRadius({radius, radius});
+  } catch (...) {
+  }
+}
 constexpr int32_t BK_STATE_HOVER = 1;
 constexpr int32_t BK_STATE_FOCUS = 2;
 constexpr int32_t BK_STATE_PRESSED = 3;
@@ -969,11 +983,11 @@ BK_EXPORT int32_t bk_control_set_background(bk_handle c, const char* hex,
   });
   return combine(rc, st);
 }
-// Composition DropShadow is hosted by a sibling SpriteVisual. Its explicit
-// mask comes from a XAML Rectangle with the target's corner radius, so the
-// shadow does not fall back to the SpriteVisual's rectangular bounds. The
-// mask is attached after layout and the sibling is inserted below the element
-// so it stays behind native content such as a Button label.
+// Composition DropShadow is hosted by a sibling SpriteVisual. Its rounded mask
+// is rendered by an off-tree ShapeVisual captured in a VisualSurface, so no
+// XAML element is added beside the target to paint or participate in layout.
+// The sibling is inserted below the element so the shadow stays behind native
+// content such as a Button label.
 BK_EXPORT int32_t bk_control_set_shadow(bk_handle c, const char* hex,
                                         uint32_t hex_len, double offset_x,
                                         double offset_y, double blur,
@@ -994,6 +1008,7 @@ BK_EXPORT int32_t bk_control_set_shadow(bk_handle c, const char* hex,
       if (!entry) { st = BK_INVALID_HANDLE; return; }
 
       const auto clear_shadow = [&] {
+        ++entry->shadow_generation;
         if (entry->shadow_size_token.value != 0) {
           try { framework.SizeChanged(entry->shadow_size_token); } catch (...) {}
           entry->shadow_size_token = {};
@@ -1001,6 +1016,10 @@ BK_EXPORT int32_t bk_control_set_shadow(bk_handle c, const char* hex,
         if (entry->shadow_layout_token.value != 0) {
           try { framework.LayoutUpdated(entry->shadow_layout_token); } catch (...) {}
           entry->shadow_layout_token = {};
+        }
+        if (entry->shadow_loaded_token.value != 0) {
+          try { framework.Loaded(entry->shadow_loaded_token); } catch (...) {}
+          entry->shadow_loaded_token = {};
         }
         if (entry->shadow_visual) {
           try {
@@ -1010,30 +1029,12 @@ BK_EXPORT int32_t bk_control_set_shadow(bk_handle c, const char* hex,
             }
           } catch (...) {}
           entry->shadow_visual = nullptr;
+          entry->shadow_drop_shadow = nullptr;
         }
-        if (entry->shadow_mask_loaded_token.value != 0) {
-          try { entry->shadow_mask_shape.as<FrameworkElement>().Loaded(entry->shadow_mask_loaded_token); } catch (...) {}
-          entry->shadow_mask_loaded_token = {};
-        }
-        if (entry->shadow_mask_size_token.value != 0) {
-          try { entry->shadow_mask_shape.as<FrameworkElement>().SizeChanged(entry->shadow_mask_size_token); } catch (...) {}
-          entry->shadow_mask_size_token = {};
-        }
-        if (entry->shadow_mask_shape) {
-          try {
-            const auto mask = entry->shadow_mask_shape.as<UIElement>();
-            if (const auto owner = mask.as<FrameworkElement>().Parent().try_as<cx::Panel>()) {
-              auto children = owner.Children();
-              for (uint32_t i = 0; i < children.Size(); ++i) {
-                if (children.GetAt(i) == mask) {
-                  children.RemoveAt(i);
-                  break;
-                }
-              }
-            }
-          } catch (...) {}
-          entry->shadow_mask_shape = nullptr;
-        }
+        entry->shadow_mask_visual = nullptr;
+        entry->shadow_mask_surface = nullptr;
+        entry->shadow_mask_brush = nullptr;
+        entry->shadow_mask_shape = nullptr;
       };
       if (s.empty()) {
         hosting::ElementCompositionPreview::SetElementChildVisual(ui, nullptr);
@@ -1048,8 +1049,6 @@ BK_EXPORT int32_t bk_control_set_shadow(bk_handle c, const char* hex,
         st = BK_INVALID_ARGUMENT;
         return;
       }
-      hosting::ElementCompositionPreview::SetElementChildVisual(ui, nullptr);
-      clear_shadow();
       const uint32_t value = static_cast<uint32_t>(
           std::stoul(digits, nullptr, 16));
       winrt::Windows::UI::Color color;
@@ -1064,6 +1063,30 @@ BK_EXPORT int32_t bk_control_set_shadow(bk_handle c, const char* hex,
         color.G = (value >> 8) & 0xFF;
         color.B = value & 0xFF;
       }
+      bool can_update_shadow = false;
+      if (entry->shadow_visual && entry->shadow_drop_shadow && entry->shadow_mask_brush) {
+        try {
+          const auto current_parent = hosting::ElementCompositionPreview::GetElementVisual(ui).Parent();
+          const auto shadow_parent = entry->shadow_visual.as<comp::Visual>().Parent();
+          can_update_shadow = current_parent && shadow_parent == current_parent;
+        } catch (...) {}
+      }
+      if (can_update_shadow) {
+        try {
+          auto dropShadow = entry->shadow_drop_shadow.as<comp::DropShadow>();
+          dropShadow.Mask(entry->shadow_mask_brush.as<comp::CompositionBrush>());
+          entry->shadow_visual.as<comp::SpriteVisual>().Shadow(dropShadow);
+          dropShadow.Color(color);
+          dropShadow.Offset({static_cast<float>(offset_x), static_cast<float>(offset_y), 0.0f});
+          dropShadow.BlurRadius(static_cast<float>(std::max(0.0, blur)));
+          dropShadow.Opacity(static_cast<float>(std::clamp(opacity, 0.0, 1.0)));
+          st = BK_OK;
+          return;
+        } catch (...) {}
+      }
+      hosting::ElementCompositionPreview::SetElementChildVisual(ui, nullptr);
+      clear_shadow();
+      const uint64_t shadow_generation = ++entry->shadow_generation;
 
       auto shadowVisual = compositor.CreateSpriteVisual();
       shadowVisual.Size(element_visual.Size());
@@ -1078,12 +1101,19 @@ BK_EXPORT int32_t bk_control_set_shadow(bk_handle c, const char* hex,
       const float cornerRadius = static_cast<float>(std::max(
           std::max(corner.TopLeft, corner.TopRight),
           std::max(corner.BottomRight, corner.BottomLeft)));
-      auto maskShape = shp::Rectangle();
-      maskShape.Width(element_visual.Size().x);
-      maskShape.Height(element_visual.Size().y);
-      maskShape.RadiusX(cornerRadius);
-      maskShape.RadiusY(cornerRadius);
-      maskShape.Fill(Media::SolidColorBrush(winrt::Windows::UI::Color{255, 255, 255, 255}));
+      auto maskGeometry = compositor.CreateRoundedRectangleGeometry();
+      maskGeometry.Size(element_visual.Size());
+      maskGeometry.CornerRadius({cornerRadius, cornerRadius});
+      auto maskShape = compositor.CreateSpriteShape(maskGeometry);
+      maskShape.FillBrush(compositor.CreateColorBrush(
+          winrt::Windows::UI::Color{255, 255, 255, 255}));
+      auto maskVisual = compositor.CreateShapeVisual();
+      maskVisual.Size(element_visual.Size());
+      maskVisual.Shapes().Append(maskShape);
+      auto maskSurface = compositor.CreateVisualSurface();
+      maskSurface.SourceVisual(maskVisual);
+      maskSurface.SourceSize(element_visual.Size());
+      auto maskBrush = compositor.CreateSurfaceBrush(maskSurface);
       auto dropShadow = compositor.CreateDropShadow();
       dropShadow.Color(color);
       dropShadow.Offset({static_cast<float>(offset_x),
@@ -1091,60 +1121,43 @@ BK_EXPORT int32_t bk_control_set_shadow(bk_handle c, const char* hex,
       dropShadow.BlurRadius(static_cast<float>(std::max(0.0, blur)));
       dropShadow.Opacity(static_cast<float>(
           std::clamp(opacity, 0.0, 1.0)));
-      const auto apply_mask = [maskShape, dropShadow] {
-        try { dropShadow.Mask(maskShape.GetAlphaMask()); } catch (...) {}
-      };
+      dropShadow.Mask(maskBrush);
       const auto sync_visual =
-          [shadowVisual, element_visual, maskShape, cornerRadius, framework, entry, apply_mask] {
-        const auto visual_size = element_visual.Size();
+          [shadowVisual, ui, maskVisual, maskGeometry, maskSurface,
+           framework, entry, shadow_generation] {
+        if (entry->shadow_generation != shadow_generation) return;
+        const auto current_element_visual =
+            hosting::ElementCompositionPreview::GetElementVisual(ui);
+        const auto visual_size = current_element_visual.Size();
         const auto actual_width = framework.ActualWidth();
         const auto actual_height = framework.ActualHeight();
         const float width = actual_width > 0.0
             ? static_cast<float>(actual_width) : visual_size.x;
         const float height = actual_height > 0.0
             ? static_cast<float>(actual_height) : visual_size.y;
-        maskShape.Width(width);
-        maskShape.Height(height);
-        maskShape.RadiusX(cornerRadius);
-        maskShape.RadiusY(cornerRadius);
-        const auto parent = element_visual.Parent();
+        maskGeometry.Size({width, height});
+        CornerRadius currentCorner{};
+        if (auto control = ui.try_as<cx::Control>()) {
+          currentCorner = control.CornerRadius();
+        } else if (auto border = ui.try_as<cx::Border>()) {
+          currentCorner = border.CornerRadius();
+        }
+        const float currentCornerRadius = static_cast<float>(std::max(
+            std::max(currentCorner.TopLeft, currentCorner.TopRight),
+            std::max(currentCorner.BottomRight, currentCorner.BottomLeft)));
+        maskGeometry.CornerRadius(
+            {currentCornerRadius, currentCornerRadius});
+        maskVisual.Size({width, height});
+        maskSurface.SourceSize({width, height});
+        const auto parent = current_element_visual.Parent();
         if (!parent) return;
         const auto panel = framework.Parent().try_as<cx::Panel>();
-        if (!entry->shadow_mask_shape) {
-          if (panel) {
-            if (const auto grid = panel.try_as<cx::Grid>()) {
-              const auto target = framework;
-              cx::Grid::SetRow(maskShape, cx::Grid::GetRow(target));
-              cx::Grid::SetColumn(maskShape, cx::Grid::GetColumn(target));
-              cx::Grid::SetRowSpan(maskShape, cx::Grid::GetRowSpan(target));
-              cx::Grid::SetColumnSpan(maskShape, cx::Grid::GetColumnSpan(target));
-            }
-            maskShape.HorizontalAlignment(framework.HorizontalAlignment());
-            maskShape.VerticalAlignment(framework.VerticalAlignment());
-            maskShape.Margin(framework.Margin());
-            maskShape.UseLayoutRounding(framework.UseLayoutRounding());
-            maskShape.IsHitTestVisible(false);
-            panel.Children().InsertAt(0, maskShape);
-            entry->shadow_mask_shape = maskShape;
-            entry->shadow_mask_loaded_token = maskShape.Loaded(
-                [apply_mask](auto const&, auto const&) {
-                  apply_mask();
-                });
-            entry->shadow_mask_size_token = maskShape.SizeChanged(
-                [apply_mask](auto const&, auto const&) {
-                  apply_mask();
-                });
-          }
-        }
-        if (entry->shadow_mask_shape) {
-          apply_mask();
-        }
         const auto current_parent = shadowVisual.Parent();
         if (current_parent && current_parent != parent) {
           current_parent.Children().Remove(shadowVisual);
         }
         if (!shadowVisual.Parent()) {
-          parent.Children().InsertBelow(shadowVisual, element_visual);
+          parent.Children().InsertBelow(shadowVisual, current_element_visual);
         }
         shadowVisual.Size({width, height});
         if (panel) {
@@ -1153,10 +1166,10 @@ BK_EXPORT int32_t bk_control_set_shadow(bk_handle c, const char* hex,
             shadowVisual.Offset({static_cast<float>(point.X),
                                  static_cast<float>(point.Y), 0.0f});
           } catch (...) {
-            shadowVisual.Offset(element_visual.Offset());
+            shadowVisual.Offset(current_element_visual.Offset());
           }
         } else {
-          shadowVisual.Offset(element_visual.Offset());
+          shadowVisual.Offset(current_element_visual.Offset());
         }
       };
       sync_visual();
@@ -1164,9 +1177,16 @@ BK_EXPORT int32_t bk_control_set_shadow(bk_handle c, const char* hex,
           [sync_visual](auto const&, auto const&) { sync_visual(); });
       entry->shadow_layout_token = framework.LayoutUpdated(
           [sync_visual](auto const&, auto const&) { sync_visual(); });
+      entry->shadow_loaded_token = framework.Loaded(
+          [sync_visual](auto const&, auto const&) { sync_visual(); });
 
       shadowVisual.Shadow(dropShadow);
       entry->shadow_visual = shadowVisual;
+      entry->shadow_drop_shadow = dropShadow;
+      entry->shadow_mask_visual = maskVisual;
+      entry->shadow_mask_surface = maskSurface;
+      entry->shadow_mask_brush = maskBrush;
+      entry->shadow_mask_shape = maskGeometry;
       sync_visual();
       st = BK_OK;
     } catch (...) {
@@ -1226,6 +1246,7 @@ BK_EXPORT int32_t bk_control_set_border(bk_handle c, const char* hex,
       }
       control.BorderThickness(thickness);
       control.CornerRadius(radius);
+      update_shadow_mask_radius(c, radius);
       st = BK_OK;
       return;
     } catch (...) {
@@ -1235,6 +1256,7 @@ BK_EXPORT int32_t bk_control_set_border(bk_handle c, const char* hex,
       border.BorderBrush(brush);
       border.BorderThickness(thickness);
       border.CornerRadius(radius);
+      update_shadow_mask_radius(c, radius);
       st = BK_OK;
     } catch (...) {
       st = BK_WRONG_TYPE;
@@ -1347,10 +1369,12 @@ BK_EXPORT int32_t bk_control_set_corner_radius4(bk_handle c, double tl,
     const CornerRadius radius{tl, tr, br, bl};
     try {
       element.as<cx::Control>().CornerRadius(radius);
+      update_shadow_mask_radius(c, radius);
       st = BK_OK;
     } catch (...) {
       try {
         element.as<cx::Border>().CornerRadius(radius);
+        update_shadow_mask_radius(c, radius);
         st = BK_OK;
       } catch (...) {
         st = BK_WRONG_TYPE;
