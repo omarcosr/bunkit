@@ -1,6 +1,7 @@
 import type { BorderSideSpec, ColorValue, CornerRadiusSpec, ViewOptions } from "./view.ts";
 import { isThemeColor, resolveColor } from "./adaptive.ts";
 import { isThemeShadow, type ShadowValue } from "./shadow.ts";
+import type { CursorValue } from "./cursor.ts";
 
 /** Interaction states supported by controls and views. */
 export type InteractionState = "hover" | "focus" | "pressed" | "disabled";
@@ -19,6 +20,7 @@ export interface ViewStateStyle {
   textColor?: ColorValue;
   placeholderColor?: ColorValue;
   font?: any;
+  cursor?: CursorValue;
 }
 
 /** State styles are layered over the normal `style`/props values. */
@@ -61,6 +63,7 @@ export function stateStyleFromOptions(options: ViewOptions | Record<string, any>
     alpha: o.alpha,
     textColor: o.textColor,
     placeholderColor: o.placeholderColor,
+    cursor: o.cursor,
     font: o.font,
   });
 }

@@ -642,6 +642,24 @@ BK_EXPORT int32_t bk_textbox_set_colors(bk_handle tb, const char* text_hex,
   });
   return combine(rc, st);
 }
+BK_EXPORT int32_t bk_textbox_reset_placeholder_color(bk_handle tb) {
+  if (require_running() != BK_OK) return BK_NOT_INITIALIZED;
+  int32_t st = BK_ERROR;
+  const int32_t rc = bk::Runtime::instance().dispatch_sync([&] {
+    auto* entry = bk::registry().get(tb);
+    if (!entry || (entry->type != bk::NativeType::TextBox &&
+                   entry->type != bk::NativeType::SecureTextBox)) {
+      st = BK_INVALID_HANDLE;
+      return;
+    }
+    if (entry->type == bk::NativeType::TextBox) {
+      entry->object.as<cx::TextBox>().ClearValue(
+          cx::TextBox::PlaceholderForegroundProperty());
+    }
+    st = BK_OK;
+  });
+  return combine(rc, st);
+}
 
 // --- option variants (macOS parity) ------------------------------------------
 

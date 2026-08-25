@@ -1,12 +1,14 @@
 import { createBlock, objc } from "../objc.ts";
 import { NIL } from "../bridge.ts";
 import type { InteractionState } from "./states.ts";
+import type { CursorValue } from "./cursor.ts";
 
 export interface MacInteractionTarget {
   native: any;
   _hasInteractionState(state: InteractionState): boolean;
   _isInteractionDisabled(): boolean;
   _setInteractionState(state: InteractionState, active: boolean): void;
+  _getInteractionCursor?(): CursorValue | undefined;
 }
 
 const Mask = {
@@ -34,6 +36,64 @@ const EventType = {
 
 const targets = new Set<MacInteractionTarget>();
 let monitor: any = null;
+let cursorHidden = false;
+let cursorManaged = false;
+
+const MAC_CURSOR_SELECTORS: Partial<Record<CursorValue, string>> = {
+  auto: "arrowCursor",
+  default: "arrowCursor",
+  pointer: "pointingHandCursor",
+  text: "IBeamCursor",
+  "vertical-text": "IBeamCursor",
+  crosshair: "crosshairCursor",
+  move: "openHandCursor",
+  "all-scroll": "closedHandCursor",
+  grab: "openHandCursor",
+  grabbing: "closedHandCursor",
+  "not-allowed": "operationNotAllowedCursor",
+  "no-drop": "operationNotAllowedCursor",
+  wait: "busyButClickableCursor",
+  progress: "busyButClickableCursor",
+  "e-resize": "resizeLeftRightCursor",
+  "w-resize": "resizeLeftRightCursor",
+  "ew-resize": "resizeLeftRightCursor",
+  "col-resize": "resizeLeftRightCursor",
+  "n-resize": "resizeUpDownCursor",
+  "s-resize": "resizeUpDownCursor",
+  "ns-resize": "resizeUpDownCursor",
+  "row-resize": "resizeUpDownCursor",
+  "ne-resize": "resizeUpCursor",
+  "sw-resize": "resizeUpCursor",
+  "nesw-resize": "resizeUpCursor",
+  "nw-resize": "resizeUpCursor",
+  "se-resize": "resizeUpCursor",
+  "nwse-resize": "resizeUpCursor",
+};
+
+function setMacCursor(value: CursorValue | undefined): void {
+  try {
+    if (value === undefined && !cursorManaged) return;
+    if (value === "none") {
+      if (!cursorHidden) {
+        objc.NSCursor.hide();
+        cursorHidden = true;
+      }
+      cursorManaged = true;
+      return;
+    }
+    if (cursorHidden) {
+      objc.NSCursor.unhide();
+      cursorHidden = false;
+    }
+    const selector = MAC_CURSOR_SELECTORS[value ?? "default"] ?? "arrowCursor";
+    const cursor = (objc.NSCursor as any)[selector]?.() ?? objc.NSCursor.arrowCursor();
+    cursor.set();
+    cursorManaged = true;
+  } catch {
+    // Cursor changes are cosmetic; a missing selector must not break input.
+  }
+}
+
 let block: any = null;
 
 /** AppKit does not deliver mouseMoved events to a window by default. */
@@ -78,8 +138,13 @@ function handle(event: any): void {
     type === EventType.leftMouseUp || type === EventType.leftMouseDragged || type === EventType.rightMouseDragged;
 
   if (insideEvent) {
+    let cursor: CursorValue | undefined;
     for (const target of targets) {
       const inside = contains(target, eventWindow, event);
+      if (inside && !target._isInteractionDisabled()) {
+        const candidate = target._getInteractionCursor?.();
+        if (candidate !== undefined) cursor = candidate;
+      }
       if (target._isInteractionDisabled()) {
         if (target._hasInteractionState("hover")) target._setInteractionState("hover", false);
         if (target._hasInteractionState("pressed")) target._setInteractionState("pressed", false);
@@ -91,6 +156,7 @@ function handle(event: any): void {
         else if (type === EventType.leftMouseUp) target._setInteractionState("pressed", false);
       }
     }
+    setMacCursor(cursor);
   }
 
   if (type === EventType.leftMouseDown || type === EventType.leftMouseUp ||

@@ -150,7 +150,7 @@ const win = (
           value={draft}
           placeholder="Add a task…"
           grow={1}
-          borderRadius={8}
+          borderRadius={4}
           textColor={textColor}
           borderColor={{ light: "#DADCE0", dark: "#3939fd" }}
           backgroundColor={{ light: "#FFFFFF", dark: "#0000ff" }}
@@ -182,7 +182,16 @@ const win = (
 
         // shadow="0px 0px 10px #0000ff"
         />
-        <Button title="Add" onClick={addTodo} style={{ border: 1, borderColor: "#ffffff", textColor: { light: "#1900ff", dark: "#011213" } }} borderRadius={4} shadow={addShadow} states={{
+        <Button title="Add" onClick={addTodo} style={{
+          border: 1,
+          borderColor: "#ffffff",
+          textColor: {
+            light: "#1900ff",
+            dark: "#011213",
+          },
+          borderRadius: 4,
+          shadow: addShadow
+        }} states={{
           hover: {
             backgroundColor: "#ff00ff", borderColor: "#ff00ff", textColor: "#ffffff", shadow: {
               light: "0px 0px 10px #000000",

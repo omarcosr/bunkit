@@ -425,6 +425,7 @@ BK_EXPORT int32_t bk_control_set_theme(bk_handle c, int32_t theme,
 BK_EXPORT int32_t bk_control_set_tooltip(bk_handle c, const char* text,
                                          uint32_t text_len);
 BK_EXPORT int32_t bk_control_set_alpha(bk_handle c, double alpha);
+BK_EXPORT int32_t bk_control_set_cursor(bk_handle c, int32_t shape);
 BK_EXPORT int32_t bk_control_set_background(bk_handle c, const char* hex,
                                             uint32_t hex_len);
 // CSS-like outer shadow. hex is #AARRGGBB or #RRGGBB; offset is in
@@ -509,6 +510,7 @@ BK_EXPORT int32_t bk_textbox_set_colors(bk_handle tb, const char* text_hex,
                                         uint32_t text_len,
                                         const char* ph_hex,
                                         uint32_t ph_len);
+BK_EXPORT int32_t bk_textbox_reset_placeholder_color(bk_handle tb);
 // Text colour for multiline areas.
 BK_EXPORT int32_t bk_textarea_set_foreground(bk_handle t, const char* hex,
                                              uint32_t hex_len);

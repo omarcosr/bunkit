@@ -15,6 +15,7 @@ import {
   type ViewStates,
   type ViewStateStyle,
 } from "../../ui/states.ts";
+import type { CursorValue } from "../../ui/cursor.ts";
 export { defineTheme } from "../../ui/tokens.ts";
 
 // Theme-adaptive colour helpers, public on both platforms (macOS re-exports
@@ -103,6 +104,8 @@ export interface ViewOptions {
   borderColor?: any;
   /** CSS-like outer box shadow, for example "0 4px 12px #0003". */
   shadow?: ShadowValue;
+  /** CSS-like system cursor shown while the pointer is over this view. */
+  cursor?: CursorValue;
   borderStyle?: "solid" | "dashed" | "dotted";
   /** In a GridView parent: which grid row this view occupies (CSS grid-row). */
   gridRow?: number;
@@ -193,6 +196,7 @@ export class View {
       );
     }
     if (o.shadow !== undefined) this.setShadow(o.shadow);
+    if (o.cursor !== undefined) this.cursor = o.cursor;
     this.installInteractionStates(o.states);
   }
   /** @internal Configure declarative interaction styles for this view. */
@@ -275,6 +279,10 @@ export class View {
     }
     if (keys.has("shadow") && styleChanged("shadow")) this.setShadow("shadow" in next ? (next.shadow ?? "none") : "none");
     if (keys.has("alpha") && styleChanged("alpha")) windowsBackend.setControlAlpha(this.handle, next.alpha ?? 1);
+    if (keys.has("cursor") && styleChanged("cursor")) this.cursor = next.cursor;
+    if (keys.has("placeholderColor") && styleChanged("placeholderColor")) {
+      (this as any).placeholderColor = "placeholderColor" in next ? next.placeholderColor : undefined;
+    }
     if (next.textColor !== undefined && "textColor" in next && styleChanged("textColor")) (this as any).textColor = next.textColor;
     if (next.font !== undefined && "font" in next && styleChanged("font")) (this as any).font = next.font;
 
@@ -289,6 +297,9 @@ export class View {
   }
   get hidden(): boolean { return this._hidden; }
   set hidden(v: boolean) { this._hidden = v; windowsBackend.setControlVisible(this.handle, !v); }
+  /** CSS-like system cursor shown while the pointer is over this view. */
+  set cursor(v: CursorValue | undefined) { windowsBackend.setControlCursor(this.handle, v); }
+
 
   /** Keep a JS object alive for as long as this view is. */
   retainJS(_v: any): void {}
@@ -773,6 +784,7 @@ export class Label extends View {
 export class Button extends View {
   constructor(opts: { title?: string; primary?: boolean; destructive?: boolean; symbol?: string; textColor?: any; font?: any; enabled?: boolean; disabled?: boolean; onClick?: () => void ; style?: any } & ViewOptions = {}) {
     opts = mergeStyle(opts);
+    if (opts.cursor === undefined) opts.cursor = "pointer";
     const bound = extractSignals(opts);
     super(windowsBackend.createButton(opts), opts);
     this.startInteractionTracking();
@@ -835,6 +847,10 @@ export class TextField extends View {
   }
   /** Placeholder colour; re-resolves on theme change. */
   set placeholderColor(v: any) {
+    if (v === undefined) {
+      windowsBackend.resetTextFieldPlaceholderColor(this.handle);
+      return;
+    }
     applyAdaptiveColor(v, themeIsDark, (c) => {
       if (typeof c === "string") windowsBackend.setTextFieldColors(this.handle, undefined, c);
     });

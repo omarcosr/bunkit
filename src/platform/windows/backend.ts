@@ -2,6 +2,7 @@
 import { winLib } from "./ffi.ts";
 import * as callbacks from "./callbacks.ts";
 import { dispatch as dispatchEvents, dialogResolvers, menuHandlers } from "./events.ts";
+import type { CursorValue } from "../../ui/cursor.ts";
 
 export type NativeHandle = bigint;
 
@@ -561,6 +562,10 @@ export class WindowsBackend {
     const p = placeholderColor ? cstr(placeholderColor) : null;
     winLib.bk_textbox_set_colors(h, t ? (t as any) : 0, t ? t.length : 0, p ? (p as any) : 0, p ? p.length : 0);
   }
+  resetTextFieldPlaceholderColor(h: NativeHandle): void {
+    winLib.bk_textbox_reset_placeholder_color(h);
+  }
+
 
   setTextAreaForeground(h: NativeHandle, color?: string): void {
     if (!color) return;
@@ -706,6 +711,18 @@ export class WindowsBackend {
     winLib.bk_control_set_theme(h, theme, bg ? (bg as any) : 0, bg ? bg.length : 0);
   }
   setControlAlpha(h: NativeHandle, alpha: number): void { winLib.bk_control_set_alpha(h, alpha); }
+  setControlCursor(h: NativeHandle, cursor?: CursorValue): void {
+    const shape: Record<string, number> = {
+      auto: 0, default: 0, none: -1, pointer: 3, text: 5, "vertical-text": 5,
+      crosshair: 1, move: 6, "all-scroll": 6, grab: 6, grabbing: 6,
+      "not-allowed": 11, "no-drop": 11, wait: 13, progress: 13, help: 4,
+      "e-resize": 10, "w-resize": 10, "ew-resize": 10, "col-resize": 10,
+      "n-resize": 8, "s-resize": 8, "ns-resize": 8, "row-resize": 8,
+      "ne-resize": 7, "sw-resize": 7, "nesw-resize": 7,
+      "nw-resize": 9, "se-resize": 9, "nwse-resize": 9,
+    };
+    winLib.bk_control_set_cursor(h, cursor === undefined ? -1 : (shape[cursor] ?? 0));
+  }
   setControlBackground(h: NativeHandle, hex: string): void { const b = cstr(hex); winLib.bk_control_set_background(h, b as any, b.length); }
   setControlShadow(h: NativeHandle, hex: string, offsetX: number, offsetY: number, blur: number, opacity: number): void { const b = cstr(hex); winLib.bk_control_set_shadow(h, b as any, b.length, offsetX, offsetY, blur, opacity); }
   setControlCornerRadius(h: NativeHandle, tl: number, tr: number, br: number, bl: number): void { winLib.bk_control_set_corner_radius4(h, tl, tr, br, bl); }

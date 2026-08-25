@@ -178,6 +178,7 @@ export class Button extends View {
 
   constructor(options: ButtonOptions = {}) {
     options = mergeStyle(options);
+    if (options.cursor === undefined) options.cursor = "pointer";
     const b = objc.NSButton.buttonWithTitle_target_action_(unwrap(options.title) ?? "", null, null);
     super(b, options);
 
@@ -479,7 +480,11 @@ export class TextField extends View {
   }
 
   /** Placeholder colour; re-applies over the current placeholder text. */
-  set placeholderColor(v: ColorValue) {
+  set placeholderColor(v: ColorValue | undefined) {
+    if (v === undefined) {
+      this.native.setPlaceholderString_(this.native.placeholderString());
+      return;
+    }
     applyAdaptiveColor(v, currentThemeIsDark, (c) => {
       const ph = this.native.placeholderString();
       const attrs = objc.NSDictionary.dictionaryWithObject_forKey_(

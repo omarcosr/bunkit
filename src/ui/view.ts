@@ -21,6 +21,7 @@ import {
   type ViewStateStyle,
 } from "./states.ts";
 import { enableMacMouseMovedEvents, registerMacInteractionTarget } from "./macos-interaction.ts";
+import type { CursorValue } from "./cursor.ts";
 
 // Re-export the adaptive colour helpers for importers that use view.ts as
 // their colour module (controls.ts, the metal scene).
@@ -96,6 +97,8 @@ export interface ViewOptions {
   borderStyle?: "solid" | "dashed" | "dotted";
   /** CSS-like outer box shadow, for example "0 4px 12px #0003". */
   shadow?: ShadowValue;
+  /** CSS-like system cursor shown while the pointer is over this view. */
+  cursor?: CursorValue;
   /** Styles applied while the view is hovered, focused, pressed or disabled. */
   states?: ViewStates;
   alpha?: number;
@@ -248,6 +251,7 @@ export class View {
     pressed: false,
     disabled: false,
   };
+  #cursor: CursorValue | undefined;
   #lastStateStyle: ViewStateStyle = {};
   #hoverExitTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -302,10 +306,12 @@ export class View {
       );
     }
     if (o.shadow !== undefined) this.setShadow(o.shadow);
+    if (o.cursor !== undefined) this.cursor = o.cursor;
   }
   /** @internal Configure declarative interaction styles for this view. */
   protected installInteractionStates(states?: ViewStates): void {
-    if (!states) return;
+    if (!states && this.#cursor === undefined) return;
+    if (!states) { registerMacInteractionTarget(this); return; }
     this.#states = states;
     trackAdaptive(() => this.#applyInteractionStyles());
     registerMacInteractionTarget(this);
@@ -382,6 +388,10 @@ export class View {
     }
     if (keys.has("shadow") && styleChanged("shadow")) this.setShadow("shadow" in next ? (next.shadow ?? "none") : "none");
     if (keys.has("alpha") && styleChanged("alpha")) this.native.setAlphaValue_(next.alpha ?? 1);
+    if (keys.has("cursor") && styleChanged("cursor")) this.cursor = next.cursor;
+    if (keys.has("placeholderColor") && styleChanged("placeholderColor")) {
+      (this as any).placeholderColor = "placeholderColor" in next ? next.placeholderColor : undefined;
+    }
     if (next.textColor !== undefined && "textColor" in next && styleChanged("textColor")) (this as any).textColor = next.textColor;
     if (next.font !== undefined && "font" in next && styleChanged("font")) (this as any).font = next.font;
 
@@ -539,6 +549,16 @@ export class View {
     this.native.setHidden_(v);
   }
 
+  /** CSS-like system cursor shown while the pointer is over this view. */
+  set cursor(v: CursorValue | undefined) {
+    this.#cursor = v;
+    registerMacInteractionTarget(this);
+  }
+
+  /** @internal Used by the platform interaction tracker. */
+  _getInteractionCursor(): CursorValue | undefined {
+    return this.#cursor;
+  }
   setBackground(color: any): this {
     this.native.setWantsLayer_(true);
     if (color === undefined || color === null) {

@@ -11,6 +11,7 @@
 
 #include <winrt/Microsoft.UI.Dispatching.h>
 #include <winrt/Microsoft.UI.Xaml.Input.h>
+#include <winrt/Microsoft.UI.Input.h>
 #include <winrt/Microsoft.UI.Xaml.h>
 #include <winrt/Microsoft.UI.Xaml.Markup.h>
 #include <winrt/Microsoft.UI.Xaml.Controls.h>
@@ -843,6 +844,31 @@ BK_EXPORT int32_t bk_control_set_alpha(bk_handle c, double alpha) {
     if (!element) { st = BK_INVALID_HANDLE; return; }
     element.as<UIElement>().Opacity(alpha);
     st = BK_OK;
+  });
+  return combine(rc, st);
+}
+BK_EXPORT int32_t bk_control_set_cursor(bk_handle c, int32_t shape) {
+  if (require_running() != BK_OK) return BK_NOT_INITIALIZED;
+  int32_t st = BK_ERROR;
+  const int32_t rc = bk::Runtime::instance().dispatch_sync([&] {
+    auto element = element_of(c);
+    if (!element) { st = BK_INVALID_HANDLE; return; }
+    try {
+      auto protected_element = element.as<IUIElementProtected>();
+      if (shape < 0) {
+        protected_element.ProtectedCursor(
+            winrt::Microsoft::UI::Input::InputCursor{nullptr});
+      } else {
+        const auto cursor =
+            winrt::Microsoft::UI::Input::InputSystemCursor::Create(
+                static_cast<winrt::Microsoft::UI::Input::InputSystemCursorShape>(
+                    shape));
+        protected_element.ProtectedCursor(cursor);
+      }
+      st = BK_OK;
+    } catch (...) {
+      st = BK_WRONG_TYPE;
+    }
   });
   return combine(rc, st);
 }
