@@ -9,7 +9,8 @@
 import type { ThemeColor } from "bunkit";
 import {
   Application, Button, Checkbox,
-  For, GridView, HStack, ImageView, Label,
+  For,
+  HStack, ImageView, Label,
   ScrollView, Separator, Spacer,
   TextField, VStack, Window,
   signal
@@ -102,13 +103,7 @@ const win = (
       padding={24}
       backgroundColor={{ light: "#F4F5F7", dark: "#16161E" }}
     >
-      <GridView columns={["fill", 200]} rows={["auto", "auto"]} spacing={12}>
-        <Label text="Name" gridColumn={0} gridRow={0} />
-        <TextField gridColumn={1} gridRow={0} style={{ borderRadius: 4 }} />
 
-        <Label text="Notes" gridColumn={0} gridRow={1} gridRowSpan={2} />
-        <TextField gridColumn={1} gridRow={1} value="Notes" style={{ borderRadius: 4, background: "#1e1e29", borderColor: "#2a2a3a", textColor: "#FFFFFF" }} />
-      </GridView>
       <HStack spacing={8} alignItems="center">
         <Label text="Today" font={{ style: "title", weight: "semibold" }} grow={1} />
         {countLabel}
@@ -121,15 +116,18 @@ const win = (
           value={draft}
           placeholder="Add a task…"
           grow={1}
-          borderRadius={4}
+          borderRadius={14}
           textColor={textColor}
           borderColor={{ light: "#DADCE0", dark: "#565675" }}
-          backgroundColor={{ light: "#FFFFFF", dark: "#23233A" }}
+          backgroundColor={{ light: "#FFFFFF", dark: "#0000ff" }}
           placeholderColor="secondaryLabel"
           onSubmit={addTodo}
+
+          shadow="0px 0px 10px #ff00ff"
         />
-        <Button title="Add" primary onClick={addTodo} />
+        <Button title="Add" onClick={addTodo} borderRadius={14} shadow="0px 0px 10px #ff00ff" />
       </HStack>
+
 
       <Separator />
 

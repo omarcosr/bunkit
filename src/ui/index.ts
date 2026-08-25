@@ -7,6 +7,7 @@
 
 export * from "./appkit.ts";
 export * from "./view.ts";
+export * from "./shadow.ts";
 export * from "./layout.ts";
 export * from "./controls.ts";
 export * from "./window.ts";

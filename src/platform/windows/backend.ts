@@ -688,6 +688,7 @@ export class WindowsBackend {
   }
   setControlAlpha(h: NativeHandle, alpha: number): void { winLib.bk_control_set_alpha(h, alpha); }
   setControlBackground(h: NativeHandle, hex: string): void { const b = cstr(hex); winLib.bk_control_set_background(h, b as any, b.length); }
+  setControlShadow(h: NativeHandle, hex: string, offsetX: number, offsetY: number, blur: number, opacity: number): void { const b = cstr(hex); winLib.bk_control_set_shadow(h, b as any, b.length, offsetX, offsetY, blur, opacity); }
   setControlCornerRadius(h: NativeHandle, tl: number, tr: number, br: number, bl: number): void { winLib.bk_control_set_corner_radius4(h, tl, tr, br, bl); }
   // radii cross as a double[4] buffer — bun:ffi corrupts trailing f64s in
   // 8-argument win64 signatures (documented in WINDOWS.md). Border widths

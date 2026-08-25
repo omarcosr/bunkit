@@ -185,6 +185,7 @@ function getLib(): any {
   bk_control_set_tooltip: { args: ["u64", "ptr", "u32"], returns: "i32" },
   bk_control_set_alpha: { args: ["u64", "f64"], returns: "i32" },
   bk_control_set_background: { args: ["u64", "ptr", "u32"], returns: "i32" },
+  bk_control_set_shadow: { args: ["u64", "ptr", "u32", "f64", "f64", "f64", "f64"], returns: "i32" },
   bk_control_set_corner_radius4: { args: ["u64", "f64", "f64", "f64", "f64"], returns: "i32" },
   bk_control_set_border: { args: ["u64", "ptr", "u32", "ptr", "ptr"], returns: "i32" },
   bk_control_set_border_style: { args: ["u64", "ptr", "u32", "ptr", "ptr", "i32"], returns: "i32" },

@@ -53,6 +53,12 @@ struct NativeObject {
   winrt::event_token token3{};      // PasswordBox submit KeyDown
   uint64_t cb1{0};                  // callback id for token1's event
   uint64_t cb2{0};                  // second callback (Table double click, TextBox submit)
+  winrt::event_token shadow_size_token{};
+  winrt::event_token shadow_layout_token{};
+  winrt::event_token shadow_mask_loaded_token{};
+  winrt::event_token shadow_mask_size_token{};
+  winrt::Windows::Foundation::IInspectable shadow_visual{nullptr};
+  winrt::Windows::Foundation::IInspectable shadow_mask_shape{nullptr};
   int32_t aux{0};                   // Stack: bk_stack_orientation
   int32_t suppress{0};              // >0 while a programmatic set is in flight
   int32_t align{0};                 // Stack: 0 leading, 1 center, 2 trailing, 3 fill

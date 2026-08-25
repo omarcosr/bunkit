@@ -82,7 +82,7 @@ equivalent: `grid.add(view, { row: 1, column: 1, rowSpan: 2 })`.
 | `border-color` | `borderColor` |
 | `border-style` | `borderStyle: "solid" / "dashed" / "dotted"` |
 | `border-radius` | `borderRadius` (number, `[tl, tr, br, bl]`, or per-corner names) |
-| `box-shadow` | n/a — fake it with a background or `alpha` |
+| `box-shadow` | `shadow` (CSS-like string or `ShadowSpec`; one outer shadow) |
 | `box-sizing` | always border-box |
 | `aspect-ratio` | n/a |
 

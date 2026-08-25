@@ -13,6 +13,8 @@
 #include <winrt/Microsoft.UI.Xaml.Controls.h>
 #include <winrt/Microsoft.UI.Xaml.Shapes.h>
 #include <winrt/Microsoft.UI.Xaml.Media.h>
+#include <winrt/Microsoft.UI.Composition.h>
+#include <winrt/Microsoft.UI.Xaml.Hosting.h>
 #include <winrt/Microsoft.UI.Xaml.Media.Imaging.h>
 #include <winrt/Windows.Foundation.Collections.h>
 
@@ -25,8 +27,10 @@
 #include <string>
 
 using namespace winrt::Microsoft::UI::Xaml;
+namespace hosting = winrt::Microsoft::UI::Xaml::Hosting;
 namespace cx = winrt::Microsoft::UI::Xaml::Controls;
 namespace shp = winrt::Microsoft::UI::Xaml::Shapes;
+namespace comp = winrt::Microsoft::UI::Composition;
 
 namespace {
 
@@ -786,6 +790,212 @@ BK_EXPORT int32_t bk_control_set_background(bk_handle c, const char* hex,
     try {
       // Stacks are plain Grids (Panel) — they take a Background like any Panel.
       element.as<cx::Panel>().Background(Media::SolidColorBrush(color));
+      st = BK_OK;
+    } catch (...) {
+      st = BK_WRONG_TYPE;
+    }
+  });
+  return combine(rc, st);
+}
+// Composition DropShadow is hosted by a sibling SpriteVisual. Its explicit
+// mask comes from a XAML Rectangle with the target's corner radius, so the
+// shadow does not fall back to the SpriteVisual's rectangular bounds. The
+// mask is attached after layout and the sibling is inserted below the element
+// so it stays behind native content such as a Button label.
+BK_EXPORT int32_t bk_control_set_shadow(bk_handle c, const char* hex,
+                                        uint32_t hex_len, double offset_x,
+                                        double offset_y, double blur,
+                                        double opacity) {
+  if (require_running() != BK_OK) return BK_NOT_INITIALIZED;
+  const std::string s = hex && hex_len ? std::string(hex, hex_len) : "";
+  int32_t st = BK_ERROR;
+  const int32_t rc = bk::Runtime::instance().dispatch_sync([&] {
+    auto element = element_of(c);
+    if (!element) { st = BK_INVALID_HANDLE; return; }
+    try {
+      const auto ui = element.as<UIElement>();
+      const auto element_visual =
+          hosting::ElementCompositionPreview::GetElementVisual(ui);
+      const auto compositor = element_visual.Compositor();
+      const auto framework = element.as<FrameworkElement>();
+      auto entry = bk::registry().get(c);
+      if (!entry) { st = BK_INVALID_HANDLE; return; }
+
+      const auto clear_shadow = [&] {
+        if (entry->shadow_size_token.value != 0) {
+          try { framework.SizeChanged(entry->shadow_size_token); } catch (...) {}
+          entry->shadow_size_token = {};
+        }
+        if (entry->shadow_layout_token.value != 0) {
+          try { framework.LayoutUpdated(entry->shadow_layout_token); } catch (...) {}
+          entry->shadow_layout_token = {};
+        }
+        if (entry->shadow_visual) {
+          try {
+            const auto visual = entry->shadow_visual.as<comp::Visual>();
+            if (const auto parent = visual.Parent()) {
+              parent.Children().Remove(visual);
+            }
+          } catch (...) {}
+          entry->shadow_visual = nullptr;
+        }
+        if (entry->shadow_mask_loaded_token.value != 0) {
+          try { entry->shadow_mask_shape.as<FrameworkElement>().Loaded(entry->shadow_mask_loaded_token); } catch (...) {}
+          entry->shadow_mask_loaded_token = {};
+        }
+        if (entry->shadow_mask_size_token.value != 0) {
+          try { entry->shadow_mask_shape.as<FrameworkElement>().SizeChanged(entry->shadow_mask_size_token); } catch (...) {}
+          entry->shadow_mask_size_token = {};
+        }
+        if (entry->shadow_mask_shape) {
+          try {
+            const auto mask = entry->shadow_mask_shape.as<UIElement>();
+            if (const auto owner = mask.as<FrameworkElement>().Parent().try_as<cx::Panel>()) {
+              auto children = owner.Children();
+              for (uint32_t i = 0; i < children.Size(); ++i) {
+                if (children.GetAt(i) == mask) {
+                  children.RemoveAt(i);
+                  break;
+                }
+              }
+            }
+          } catch (...) {}
+          entry->shadow_mask_shape = nullptr;
+        }
+      };
+      if (s.empty()) {
+        hosting::ElementCompositionPreview::SetElementChildVisual(ui, nullptr);
+        clear_shadow();
+        st = BK_OK;
+        return;
+      }
+
+      const std::string digits = (!s.empty() && s[0] == '#')
+          ? s.substr(1) : s;
+      if (digits.size() != 6 && digits.size() != 8) {
+        st = BK_INVALID_ARGUMENT;
+        return;
+      }
+      hosting::ElementCompositionPreview::SetElementChildVisual(ui, nullptr);
+      clear_shadow();
+      const uint32_t value = static_cast<uint32_t>(
+          std::stoul(digits, nullptr, 16));
+      winrt::Windows::UI::Color color;
+      if (digits.size() == 8) {
+        color.A = (value >> 24) & 0xFF;
+        color.R = (value >> 16) & 0xFF;
+        color.G = (value >> 8) & 0xFF;
+        color.B = value & 0xFF;
+      } else {
+        color.A = 255;
+        color.R = (value >> 16) & 0xFF;
+        color.G = (value >> 8) & 0xFF;
+        color.B = value & 0xFF;
+      }
+
+      auto shadowVisual = compositor.CreateSpriteVisual();
+      shadowVisual.Size(element_visual.Size());
+      shadowVisual.Offset(element_visual.Offset());
+
+      CornerRadius corner{};
+      try {
+        corner = element.as<cx::Control>().CornerRadius();
+      } catch (...) {
+        try { corner = element.as<cx::Border>().CornerRadius(); } catch (...) {}
+      }
+      const float cornerRadius = static_cast<float>(std::max(
+          std::max(corner.TopLeft, corner.TopRight),
+          std::max(corner.BottomRight, corner.BottomLeft)));
+      auto maskShape = shp::Rectangle();
+      maskShape.Width(element_visual.Size().x);
+      maskShape.Height(element_visual.Size().y);
+      maskShape.RadiusX(cornerRadius);
+      maskShape.RadiusY(cornerRadius);
+      maskShape.Fill(Media::SolidColorBrush(winrt::Windows::UI::Color{255, 255, 255, 255}));
+      auto dropShadow = compositor.CreateDropShadow();
+      dropShadow.Color(color);
+      dropShadow.Offset({static_cast<float>(offset_x),
+                         static_cast<float>(offset_y), 0.0f});
+      dropShadow.BlurRadius(static_cast<float>(std::max(0.0, blur)));
+      dropShadow.Opacity(static_cast<float>(
+          std::clamp(opacity, 0.0, 1.0)));
+      const auto apply_mask = [maskShape, dropShadow] {
+        try { dropShadow.Mask(maskShape.GetAlphaMask()); } catch (...) {}
+      };
+      const auto sync_visual =
+          [shadowVisual, element_visual, maskShape, cornerRadius, framework, entry, apply_mask] {
+        const auto visual_size = element_visual.Size();
+        const auto actual_width = framework.ActualWidth();
+        const auto actual_height = framework.ActualHeight();
+        const float width = actual_width > 0.0
+            ? static_cast<float>(actual_width) : visual_size.x;
+        const float height = actual_height > 0.0
+            ? static_cast<float>(actual_height) : visual_size.y;
+        maskShape.Width(width);
+        maskShape.Height(height);
+        maskShape.RadiusX(cornerRadius);
+        maskShape.RadiusY(cornerRadius);
+        const auto parent = element_visual.Parent();
+        if (!parent) return;
+        const auto panel = framework.Parent().try_as<cx::Panel>();
+        if (!entry->shadow_mask_shape) {
+          if (panel) {
+            if (const auto grid = panel.try_as<cx::Grid>()) {
+              const auto target = framework;
+              cx::Grid::SetRow(maskShape, cx::Grid::GetRow(target));
+              cx::Grid::SetColumn(maskShape, cx::Grid::GetColumn(target));
+              cx::Grid::SetRowSpan(maskShape, cx::Grid::GetRowSpan(target));
+              cx::Grid::SetColumnSpan(maskShape, cx::Grid::GetColumnSpan(target));
+            }
+            maskShape.HorizontalAlignment(framework.HorizontalAlignment());
+            maskShape.VerticalAlignment(framework.VerticalAlignment());
+            maskShape.Margin(framework.Margin());
+            maskShape.UseLayoutRounding(framework.UseLayoutRounding());
+            maskShape.IsHitTestVisible(false);
+            panel.Children().InsertAt(0, maskShape);
+            entry->shadow_mask_shape = maskShape;
+            entry->shadow_mask_loaded_token = maskShape.Loaded(
+                [apply_mask](auto const&, auto const&) {
+                  apply_mask();
+                });
+            entry->shadow_mask_size_token = maskShape.SizeChanged(
+                [apply_mask](auto const&, auto const&) {
+                  apply_mask();
+                });
+          }
+        }
+        if (entry->shadow_mask_shape) {
+          apply_mask();
+        }
+        const auto current_parent = shadowVisual.Parent();
+        if (current_parent && current_parent != parent) {
+          current_parent.Children().Remove(shadowVisual);
+        }
+        if (!shadowVisual.Parent()) {
+          parent.Children().InsertBelow(shadowVisual, element_visual);
+        }
+        shadowVisual.Size({width, height});
+        if (panel) {
+          try {
+            const auto point = framework.TransformToVisual(panel).TransformPoint({0.0, 0.0});
+            shadowVisual.Offset({static_cast<float>(point.X),
+                                 static_cast<float>(point.Y), 0.0f});
+          } catch (...) {
+            shadowVisual.Offset(element_visual.Offset());
+          }
+        } else {
+          shadowVisual.Offset(element_visual.Offset());
+        }
+      };
+      sync_visual();
+      entry->shadow_size_token = framework.SizeChanged(
+          [sync_visual](auto const&, auto const&) { sync_visual(); });
+      entry->shadow_layout_token = framework.LayoutUpdated(
+          [sync_visual](auto const&, auto const&) { sync_visual(); });
+
+      shadowVisual.Shadow(dropShadow);
+      entry->shadow_visual = shadowVisual;
+      sync_visual();
       st = BK_OK;
     } catch (...) {
       st = BK_WRONG_TYPE;

@@ -5,10 +5,12 @@ import { winLib } from "./ffi.ts";
 import { bindSignals, extractSignals } from "../../signal.ts";
 import { applyAdaptiveColor, reapplyAdaptiveColors, resolveColor, isThemeColor, trackAdaptive } from "../../ui/adaptive.ts";
 import { resolveAssetPath } from "../../asset.ts";
+import { colorToHex, parseShadow, type ShadowValue } from "../../ui/shadow.ts";
 
 // Theme-adaptive colour helpers, public on both platforms (macOS re-exports
 // them from view.ts). Re-exported here so `import { resolveColor } from
 // "bunkit"` works on Windows too.
+export type { ShadowSpec, ShadowValue } from "../../ui/shadow.ts";
 export { isThemeColor, resolveColor, applyAdaptiveColor } from "../../ui/adaptive.ts";
 
 // macOS examples reach for raw AppKit through `.native`. WinUI has no Obj-C
@@ -86,6 +88,8 @@ export interface ViewOptions {
   border?: number | boolean | BorderSideSpec;
   borderWidth?: number;
   borderColor?: any;
+  /** CSS-like outer box shadow, for example "0 4px 12px #0003". */
+  shadow?: ShadowValue;
   borderStyle?: "solid" | "dashed" | "dotted";
   /** In a GridView parent: which grid row this view occupies (CSS grid-row). */
   gridRow?: number;
@@ -166,6 +170,7 @@ export class View {
         o.borderStyle ?? "solid",
       );
     }
+    if (o.shadow !== undefined) this.setShadow(o.shadow);
   }
 
   get children(): readonly View[] { return this._children; }
@@ -206,6 +211,28 @@ export class View {
       } else {
         const code = style === "dotted" ? 2 : 1;
         windowsBackend.setControlBorderStyle(this.handle, c, top, right, bottom, left, tl, tr, br, bl, code);
+      }
+    });
+    return this;
+  }
+  /** Apply a CSS-like outer box shadow. */
+  setShadow(value: ShadowValue): this {
+    const shadow = parseShadow(value);
+    if (!shadow) {
+      windowsBackend.setControlShadow(this.handle, "", 0, 0, 0, 0);
+      return this;
+    }
+    applyAdaptiveColor(shadow.color, themeIsDark, (c) => {
+      const hex = colorToHex(c);
+      if (hex) {
+        windowsBackend.setControlShadow(
+          this.handle,
+          hex,
+          shadow.offsetX,
+          shadow.offsetY,
+          shadow.blur,
+          shadow.opacity,
+        );
       }
     });
     return this;

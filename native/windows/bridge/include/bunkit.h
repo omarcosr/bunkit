@@ -424,6 +424,12 @@ BK_EXPORT int32_t bk_control_set_tooltip(bk_handle c, const char* text,
 BK_EXPORT int32_t bk_control_set_alpha(bk_handle c, double alpha);
 BK_EXPORT int32_t bk_control_set_background(bk_handle c, const char* hex,
                                             uint32_t hex_len);
+// CSS-like outer shadow. hex is #AARRGGBB or #RRGGBB; offset is in
+// device-independent pixels and positive y points down.
+BK_EXPORT int32_t bk_control_set_shadow(bk_handle c, const char* hex,
+                                         uint32_t hex_len, double offset_x,
+                                         double offset_y, double blur,
+                                         double opacity);
 // tl/tr/br/bl: per-corner radii; pass one value four times for uniform.
 BK_EXPORT int32_t bk_control_set_corner_radius4(bk_handle c, double tl,
                                                 double tr, double br,

@@ -99,6 +99,11 @@ check(describeViewTree(tallColumn).includes("ScrollViewer"), "VStack scroll:true
 const outlined = new Container({ width: 40, height: 30, background: "#2D7DD2", borderRadius: 8 });
 outlined.setBorder("#F26419", 2, 8);
 check(true, "setBorder (colour + width + radius) does not throw");
+const shadowRow = new HStack({ spacing: 10 }, [
+  new TextField({ placeholder: "Add a task…", grow: 1 }),
+  new Button({ title: "Add", borderRadius: 14, shadow: "2px 2px 2px #ff00ff" }),
+]);
+check(true, "shadow button composes below its native label");
 // CSS-style options.
 const cssy = new Container({
   backgroundColor: "#97D8B2", borderRadius: 10,
@@ -195,7 +200,7 @@ check(rich.value.endsWith("rich"), `RichEditBox roundtrip ("${rich.value}")`);
 const win = new Window({
   title: "Parity2",
   size: { width: 520, height: 400 },
-  content: new VStack({ spacing: 10, padding: 12 }, [box, multi, rendered, rich, tipped]),
+  content: new VStack({ spacing: 10, padding: 12 }, [box, multi, rendered, rich, tipped, shadowRow]),
 });
 await Bun.sleep(800);
 for (let i = 0; i < 30; i++) { windowsBackend.pump(); await Bun.sleep(4); }
@@ -252,6 +257,21 @@ check(sections >= 3, `standardMenu builds sections (${sections})`);
 beep();
 check(true, "beep still fine");
 
+const shadowWindow = new Window({
+  title: "ShadowProbe",
+  size: { width: 320, height: 100 },
+  content: new VStack({ padding: 18 }, [
+    new HStack({ spacing: 10 }, [
+      new TextField({ placeholder: "Add a task…", grow: 1 }),
+      new Button({ title: "Add", borderRadius: 14, shadow: "2px 2px 2px #ff00ff" }),
+    ]),
+  ]),
+});
+await Bun.sleep(300);
+for (let i = 0; i < 20; i++) { windowsBackend.pump(); await Bun.sleep(4); }
+const shadowBytes = snapshotView(shadowWindow, "parity2_shadow_snapshot.png");
+check(shadowBytes > 100, `shadow snapshot wrote PNG (${shadowBytes} bytes)`);
+shadowWindow.close();
 win.close();
 await Bun.sleep(400);
 console.log(failures === 0 ? "PARITY2 OK" : `PARITY2 FAILED (${failures})`);

@@ -10,6 +10,7 @@ import { LayoutAttribute, LayoutPriority, LayoutRelation, Orientation } from "./
 import type { CGRect, CGSize } from "../structs.ts";
 import { trackAdaptive, isThemeColor, resolveColor, applyAdaptiveColor } from "./adaptive.ts";
 import { currentThemeIsDark } from "./theme.ts";
+import { parseShadow, type ShadowValue } from "./shadow.ts";
 
 // Re-export the adaptive colour helpers for importers that use view.ts as
 // their colour module (controls.ts, the metal scene).
@@ -83,6 +84,8 @@ export interface ViewOptions {
   borderRadius?: CornerRadiusSpec;
   /** "solid" (default), "dashed" or "dotted". */
   borderStyle?: "solid" | "dashed" | "dotted";
+  /** CSS-like outer box shadow, for example "0 4px 12px #0003". */
+  shadow?: ShadowValue;
   alpha?: number;
   /** In a GridView parent: which grid row this view occupies (CSS grid-row). */
   gridRow?: number;
@@ -276,6 +279,7 @@ export class View {
         o.borderStyle ?? "solid",
       );
     }
+    if (o.shadow !== undefined) this.setShadow(o.shadow);
   }
 
   /** Keep a JS object reachable for as long as this view is. */
@@ -497,6 +501,64 @@ export class View {
     return this;
   }
 
+  /** Apply a CSS-like outer box shadow. Inset and multiple shadows are
+   * intentionally outside the shared cross-platform subset. */
+  setShadow(value: ShadowValue): this {
+    this.native.setWantsLayer_(true);
+    const hostLayer = this.native.layer();
+    this.#removeShadowLayer(hostLayer);
+    const shadow = parseShadow(value);
+    if (!shadow) {
+      return this;
+    }
+
+    // A layer's shadow is composited with that layer. Keeping it on the
+    // control layer can paint over labels and native control text. A sibling
+    // layer inserted below the control keeps the shadow behind its content.
+    hostLayer.setMasksToBounds_(false);
+    const shadowLayer = objc.CALayer.layer();
+    shadowLayer.setMasksToBounds_(false);
+    this.#shadowLayer = shadowLayer;
+
+    const [tl, tr, br, bl] = normalizeCorners(this.props.borderRadius);
+    this.#shadowRebuild = () => {
+      const frame = hostLayer.frame();
+      const parent = hostLayer.superlayer();
+      if (parent && shadowLayer.superlayer() !== parent) {
+        try { shadowLayer.removeFromSuperlayer(); } catch { /* already gone */ }
+        parent.insertSublayer_below_(shadowLayer, hostLayer);
+      }
+      if (!shadowLayer.superlayer()) return;
+
+      const spread = shadow.spread;
+      shadowLayer.setFrame_(frame);
+      shadowLayer.setShadowPath_(roundedBezier(
+        {
+          x: -spread,
+          y: -spread,
+          width: frame.width + spread * 2,
+          height: frame.height + spread * 2,
+        },
+        Math.max(0, tl + spread),
+        Math.max(0, tr + spread),
+        Math.max(0, br + spread),
+        Math.max(0, bl + spread),
+      ).CGPath());
+    };
+    this.#shadowRebuild();
+    this.#installShadowFrameObserver();
+
+    applyAdaptiveColor(shadow.color, currentThemeIsDark, (c) => {
+      if (this.#shadowLayer !== shadowLayer) return;
+      const nsColor = toNSColor(c);
+      if (!nsColor) return;
+      shadowLayer.setShadowColor_(nsColor.send("CGColor"));
+      shadowLayer.setShadowOpacity_(shadow.opacity);
+      shadowLayer.setShadowOffset_({ width: shadow.offsetX, height: -shadow.offsetY });
+      shadowLayer.setShadowRadius_(shadow.blur);
+    });
+    return this;
+  }
   /** Corner radii on the backing layer. Uniform is a plain corner radius;
    *  per-corner needs a bezier path mask (CACornerMask covers rounding but
    *  not differing radii, so the path is the general answer). */
@@ -526,12 +588,40 @@ export class View {
   }
 
   #borderShapes: any[] = [];
+  #shadowLayer: any = null;
+  #shadowRebuild: (() => void) | null = null;
+  #shadowFrameObserver: any = null;
+
+  #installShadowFrameObserver() {
+    if (this.#shadowFrameObserver) return;
+    this.native.setPostsFrameChangedNotification_(true);
+    const block = createBlock("v@?@@", () => this.#shadowRebuild?.());
+    this.retainJS(block);
+    this.#shadowFrameObserver = objc.NSNotificationCenter.defaultCenter()
+      .addObserverForName_object_queue_usingBlock_(
+        "NSViewFrameDidChangeNotification", this.native, null, block);
+    const moveObserver = objc.NSNotificationCenter.defaultCenter()
+      .addObserverForName_object_queue_usingBlock_(
+        "NSViewDidMoveToWindowNotification", this.native, null, block);
+    this.#shadowFrameObserver = [this.#shadowFrameObserver, moveObserver];
+    this.retainJS(this.#shadowFrameObserver);
+  }
 
   #removeBorderShapes() {
     for (const shape of this.#borderShapes) {
       try { shape.removeFromSuperlayer(); } catch { /* already gone */ }
     }
     this.#borderShapes = [];
+  }
+  #removeShadowLayer(hostLayer = this.native.layer()) {
+    hostLayer.setShadowColor_(null);
+    hostLayer.setShadowOpacity_(0);
+    hostLayer.setShadowPath_(null);
+    if (this.#shadowLayer) {
+      try { this.#shadowLayer.removeFromSuperlayer(); } catch { /* already gone */ }
+    }
+    this.#shadowLayer = null;
+    this.#shadowRebuild = null;
   }
 
   needsDisplay(): void {

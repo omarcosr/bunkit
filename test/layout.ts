@@ -59,6 +59,29 @@ function show(name: string, w: Window, root: View) {
 
 const W = 800;
 const H = 500;
+{
+  const shadowButton = new Button({ title: "Add", borderRadius: 14, shadow: "2px 2px 2px #ff00ff" });
+  const shadowStack = new VStack({}, [shadowButton]);
+  const shadowWindow = new Window({ title: "shadow", size: { width: 220, height: 120 }, content: shadowStack, show: false });
+  show("00-shadow", shadowWindow, shadowStack);
+  const buttonLayer = shadowButton.native.layer();
+  check("shadow stays off the button content layer", buttonLayer.shadowOpacity() === 0, buttonLayer.shadowOpacity());
+  const parentLayer = buttonLayer.superlayer();
+  const layers = parentLayer ? parentLayer.sublayers() : null;
+  let shadowLayer: any = null;
+  if (layers) {
+    const count = layers.count();
+    for (let i = 0; i < count; i++) {
+      const candidate = layers.objectAtIndex_(i);
+      if (candidate !== buttonLayer && candidate.shadowOpacity() > 0) shadowLayer = candidate;
+    }
+  }
+  const buttonIndex = layers ? layers.indexOfObject_(buttonLayer) : -1;
+  const shadowIndex = shadowLayer && layers ? layers.indexOfObject_(shadowLayer) : -1;
+  check("shadow layer has a rounded path", !!shadowLayer?.shadowPath());
+  check("shadow layer is behind the button", shadowIndex >= 0 && shadowIndex < buttonIndex, shadowIndex + " < " + buttonIndex);
+  shadowWindow.close();
+}
 
 // ---------------------------------------------------------------------------
 // 1. A vertical stack should fill the window's width
