@@ -212,7 +212,7 @@ export class Stack extends View {
     this.#applyFill(child);
     this.#applyMainAxisHugging(child);
     child._enableInteractionWindow();
-    child._refreshShadowTree();
+    child._refreshShadowTreeLater();
     return this;
   }
 
@@ -224,7 +224,7 @@ export class Stack extends View {
     this.#applyFill(child);
     this.#applyMainAxisHugging(child);
     child._enableInteractionWindow();
-    child._refreshShadowTree();
+    child._refreshShadowTreeLater();
     return this;
   }
 
@@ -611,7 +611,7 @@ export class GridView extends View {
     this._children.push(child);
     child._parent = this;
     child._enableInteractionWindow();
-    child._refreshShadowTree();
+    child._refreshShadowTreeLater();
     return this;
   }
 

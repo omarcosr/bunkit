@@ -420,13 +420,19 @@ export class View {
     this._children.push(child);
     child._parent = this;
     child._enableInteractionWindow();
-    child._refreshShadowTree();
+    child._refreshShadowTreeLater();
     return this;
   }
 
   /** @internal Whether this view or a descendant needs a layer-backed host. */
   _hasShadowTree(): boolean {
     return this.#shadowLayer !== null || this._children.some((child) => child._hasShadowTree());
+  }
+
+  /** @internal Refresh now and once after AppKit finishes the current run loop. */
+  _refreshShadowTreeLater(): void {
+    this._refreshShadowTree();
+    setTimeout(() => this._refreshShadowTree(), 0);
   }
 
   /** @internal Reattach descendant shadow layers after a native hierarchy change. */
@@ -764,7 +770,7 @@ export class View {
     this.native.setPostsFrameChangedNotifications_(true);
     const block = createBlock("v@?@@", () => {
       this.#shadowRebuild?.();
-      queueMicrotask(() => this.#shadowRebuild?.());
+      setTimeout(() => this.#shadowRebuild?.(), 0);
     });
     this.retainJS(block);
     this.#shadowFrameObserver = objc.NSNotificationCenter.defaultCenter()
