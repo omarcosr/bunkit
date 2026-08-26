@@ -34,7 +34,7 @@ extern "C" {
 BK_EXPORT int32_t bk_test_add(int32_t a, int32_t b) { return a + b; }
 
 BK_EXPORT const char* bk_version(void) {
-  return "winbridge 0.1.0 (bunkit windows)";
+  return "winbridge 0.1.1 (bunkit windows)";
 }
 
 // --- runtime -----------------------------------------------------------------
