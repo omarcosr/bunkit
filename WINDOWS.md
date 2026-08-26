@@ -54,7 +54,7 @@ runtime (`process.platform === "win32"` → WinUI, otherwise AppKit).
 
 ```ts
 // same file on macOS and Windows
-import { Application, Window, VStack, Label, Button, TextField } from "bunkit";
+import { Application, Window, VStack, Label, Button, TextField } from "@omarcos/bunkit";
 
 const app = new Application({ name: "Hello" });
 const name = new TextField({ placeholder: "Your name", grow: 1 });
@@ -94,7 +94,7 @@ compiles `.tsx` directly). Configure it once in `tsconfig.json`:
 ```jsonc
 "compilerOptions": {
   "jsx": "react-jsx",
-  "jsxImportSource": "bunkit"
+  "jsxImportSource": "@omarcos/bunkit"
 }
 ```
 
@@ -113,16 +113,16 @@ option names (`onClick`, `onChange`, `onSubmit`…). Bare text between tags is
 dropped — put text in `text`/`title`/`placeholder` props. Plain functions
 are custom components (functions returning more JSX). The only imports you
 need are the controls, `Application`, and helpers like `setTheme` from
-`"bunkit"`. `src/jsx-runtime.tsx` is the reference. The same file runs on
+`"@omarcos/bunkit"`. `src/jsx-runtime.tsx` is the reference. The same file runs on
 macOS and Windows.
 
 ### Reactive bindings (signals)
 
-`signal()` (from `"bunkit"`) is a tiny reactive cell in the SolidJS style,
+`signal()` (from `"@omarcos/bunkit"`) is a tiny reactive cell in the SolidJS style,
 and the JSX runtime binds it to a control when you pass it as a prop:
 
 ```tsx
-import { Application, signal, TextField, Label, Checkbox } from "bunkit";
+import { Application, signal, TextField, Label, Checkbox } from "@omarcos/bunkit";
 
 const name = signal("");
 const dark = signal(false);
@@ -180,7 +180,7 @@ both platforms.
 into the options:
 
 ```ts
-import type { ViewStyle } from "bunkit";
+import type { ViewStyle } from "@omarcos/bunkit";
 
 const tinted = { backgroundColor: "#2D7DD2", borderRadius: 14 } satisfies ViewStyle;
 

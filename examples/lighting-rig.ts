@@ -25,11 +25,11 @@ if (process.platform !== "darwin") {
 
 import {
   Application, Checkbox, HStack, Label, Segmented, Slider, Spacer, VStack, Window,
-} from "bunkit";
+} from "@omarcos/bunkit";
 import {
   Scene3D, box, cone, cylinder, plane, sphere, material, emissive,
   gpuAvailable, kelvin, noise2, type Node,
-} from "bunkit/metal";
+} from "@omarcos/bunkit/metal";
 
 const app = new Application({ name: "Lighting Rig" });
 

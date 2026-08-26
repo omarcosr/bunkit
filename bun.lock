@@ -7,9 +7,25 @@
         "@types/bun": "^1.3.14",
         "typescript": "^7.0.2",
       },
+      "optionalDependencies": {
+        "@omarcos/bunkit-darwin-arm64": "workspace:*",
+        "@omarcos/bunkit-win32-x64": "workspace:*",
+      },
+    },
+    "packages/bunkit-darwin-arm64": {
+      "name": "@omarcos/bunkit-darwin-arm64",
+      "version": "0.1.0",
+    },
+    "packages/bunkit-win32-x64": {
+      "name": "@omarcos/bunkit-win32-x64",
+      "version": "0.1.0",
     },
   },
   "packages": {
+    "@omarcos/bunkit-darwin-arm64": ["@omarcos/bunkit-darwin-arm64@workspace:packages/bunkit-darwin-arm64"],
+
+    "@omarcos/bunkit-win32-x64": ["@omarcos/bunkit-win32-x64@workspace:packages/bunkit-win32-x64"],
+
     "@types/bun": ["@types/bun@1.3.14", "", { "dependencies": { "bun-types": "1.3.14" } }, "sha512-h1hFqFVcvAvD9j9K7ZW7vd82aSA+rTdznZa+5bwvCwqSB1jmmfLcbIWhOLx1/+boy/xmjgCs/OMUL8hRJSmnPw=="],
 
     "@types/node": ["@types/node@26.2.0", "", { "dependencies": { "undici-types": "~8.3.0" } }, "sha512-5IviulTZeRNp2vAJ514cc/HUlY5nZ9fCbq9DMyC52BrhFZACo3nI0R7qBxhQmo/d27NFe96ur/b7Wwxklda+kg=="],

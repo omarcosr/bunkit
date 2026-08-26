@@ -21,8 +21,8 @@ if (process.platform !== "darwin") {
 import {
   Application, GPUView, HStack, Label, Segmented, Spacer, TextArea, VStack, Window,
   gpu, gpuAvailable, struct, vec4f,
-} from "bunkit";
-import type { Effect } from "bunkit/metal";
+} from "@omarcos/bunkit";
+import type { Effect } from "@omarcos/bunkit/metal";
 
 const app = new Application({ name: "Shader Playground" });
 

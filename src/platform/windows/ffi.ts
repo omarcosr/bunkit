@@ -1,25 +1,39 @@
 // src/platform/windows/ffi.ts — loads winbridge.dll via bun:ffi.
 import { dlopen, FFIType, suffix } from "bun:ffi";
 import { existsSync } from "node:fs";
+import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 export type NativeHandle = bigint;
 
 const here = dirname(fileURLToPath(import.meta.url));
+const packageRequire = createRequire(import.meta.url);
+
+function installedBridge(): string | undefined {
+  try {
+    return packageRequire.resolve("@omarcos/bunkit-win32-x64/winbridge.dll");
+  } catch {
+    return undefined;
+  }
+}
 
 function findWinBridge(): string {
   const candidates = [
     process.env.WINBRIDGE_DLL,
+    // Local contributor builds take precedence over an installed workspace package.
     resolve(here, "../../build/winbridge.dll"),
     resolve(here, "../../../build/winbridge.dll"),
+    installedBridge(),
     resolve(dirname(process.execPath), "winbridge.dll"),
     resolve(process.cwd(), "build/winbridge.dll"),
     `winbridge.${suffix}`,
   ].filter(Boolean) as string[];
   for (const c of candidates) if (existsSync(c)) return c;
   throw new Error(
-    `winbridge.dll not found. Run bun run build:windows first.\nLooked in:\n  ${candidates.join("\n  ")}`,
+    `Windows native bridge not found for @omarcos/bunkit.\n` +
+    `Reinstall the package so @omarcos/bunkit-win32-x64 can be selected automatically.\n` +
+    `For a contributor checkout, run bun run build:windows.\nLooked in:\n  ${candidates.join("\n  ")}`,
   );
 }
 
@@ -27,6 +41,9 @@ let _path: string | null = null;
 function getPath(): string {
   if (_path) return _path;
   if (process.platform !== "win32") throw new Error("winbridge requested on non-Windows");
+  if (process.arch !== "x64") {
+    throw new Error(`@omarcos/bunkit supports Windows x64; received win32/${process.arch}.`);
+  }
   _path = findWinBridge();
   return _path;
 }

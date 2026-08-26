@@ -10,7 +10,7 @@ import {
     TextField,
     VStack,
     Window,
-} from "bunkit";
+} from "@omarcos/bunkit";
 
 const app = new Application({ name: "Hello" });
 

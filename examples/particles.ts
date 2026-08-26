@@ -21,7 +21,7 @@ if (process.platform !== "darwin") {
 import {
   Application, Checkbox, HStack, Label, Segmented, Slider, Spacer, VStack, Window,
   GPUView, gpu, gpuAvailable, msl, struct, f32, u32, vec4f,
-} from "bunkit";
+} from "@omarcos/bunkit";
 
 const app = new Application({ name: "Particles" });
 

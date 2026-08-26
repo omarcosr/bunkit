@@ -20,7 +20,7 @@ export { defineTheme } from "../../ui/tokens.ts";
 
 // Theme-adaptive colour helpers, public on both platforms (macOS re-exports
 // them from view.ts). Re-exported here so `import { resolveColor } from
-// "bunkit"` works on Windows too.
+// "@omarcos/bunkit"` works on Windows too.
 export type { ThemeTokens, ThemeTokenDefinition } from "../../ui/tokens.ts";
 export type { ShadowSpec, ShadowValue, ThemeShadow } from "../../ui/shadow.ts";
 export { isThemeColor, resolveColor, applyAdaptiveColor } from "../../ui/adaptive.ts";

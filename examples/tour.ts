@@ -6,7 +6,7 @@ import {
   Application, Window, VStack, HStack, Spacer,
   Label, Button, TextField, Table, GroupBox,
   beep, confirm, objc,
-} from "bunkit";
+} from "@omarcos/bunkit";
 
 const app = new Application({
   name: "Tour",

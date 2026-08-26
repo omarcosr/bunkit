@@ -16,8 +16,8 @@ if (process.platform !== "darwin") {
   process.exit(1);
 }
 
-import { objc } from "bunkit/objc";
-import { initApp, run, quit, NSApp } from "bunkit/runtime";
+import { objc } from "@omarcos/bunkit/objc";
+import { initApp, run, quit, NSApp } from "@omarcos/bunkit/runtime";
 
 // Compile-time constants: the Obj-C runtime has no idea these names exist, so
 // they are spelled out here rather than looked up.

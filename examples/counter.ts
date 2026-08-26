@@ -5,7 +5,7 @@
 // The count lives in a signal; the label echoes it (one-way binding), and the
 // buttons mutate it. The JSX twin is examples/counter.tsx — same structure,
 // same behaviour.
-import { Application, signal, Window, VStack, HStack, Label, Button } from "bunkit";
+import { Application, signal, Window, VStack, HStack, Label, Button } from "@omarcos/bunkit";
 
 const app = new Application({ name: "Counter", theme: "light" });
 

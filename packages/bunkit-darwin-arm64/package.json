@@ -1,0 +1,28 @@
+{
+  "name": "@omarcos/bunkit-darwin-arm64",
+  "version": "0.1.0",
+  "description": "Native macOS arm64 bridge for @omarcos/bunkit.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/omarcosr/bunkit.git"
+  },
+  "os": ["darwin"],
+  "cpu": ["arm64"],
+  "files": [
+    "bin/libobjcbridge.dylib",
+    "README.md",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "exports": {
+    "./libobjcbridge.dylib": "./bin/libobjcbridge.dylib",
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "prepublishOnly": "bun run ../../tools/check-package.ts --package @omarcos/bunkit-darwin-arm64 --require-binaries"
+  }
+}

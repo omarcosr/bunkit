@@ -3,7 +3,7 @@
 // Every export is a Snippet: interpolate it into an `msl` template and its
 // source lands in the shader, once, with anything it depends on ahead of it.
 //
-//   import { msl, aces, fbm3, kelvin } from "bunkit/metal";
+//   import { msl, aces, fbm3, kelvin } from "@omarcos/bunkit/metal";
 //
 //   const grade = gpu().effect(msl`
 //     ${aces}

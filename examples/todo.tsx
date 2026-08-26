@@ -6,7 +6,7 @@
 // row (checkbox + label in place), so the entrance animation plays on the new
 // element alone instead of every row. Colours are theme-adaptive
 // (`{ light, dark }`), following the system theme on both platforms.
-import type { ThemeColor, ThemeShadow } from "bunkit";
+import type { ThemeColor, ThemeShadow } from "@omarcos/bunkit";
 import {
   Application, Button, Checkbox,
   For,
@@ -15,7 +15,7 @@ import {
   TextField, VStack, Window,
   defineTheme,
   signal
-} from "bunkit";
+} from "@omarcos/bunkit";
 
 interface Todo { id: number; text: string; done: boolean; }
 

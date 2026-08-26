@@ -12,6 +12,7 @@
 
 import { dlopen, FFIType, JSCallback, ptr, suffix, toArrayBuffer, CString } from "bun:ffi";
 import { existsSync } from "node:fs";
+import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -33,12 +34,23 @@ export function asPointer(addr: number | bigint): BunPointer {
 // ---------------------------------------------------------------------------
 
 const here = dirname(fileURLToPath(import.meta.url));
+const packageRequire = createRequire(import.meta.url);
+
+function installedBridge(): string | undefined {
+  try {
+    return packageRequire.resolve("@omarcos/bunkit-darwin-arm64/libobjcbridge.dylib");
+  } catch {
+    return undefined;
+  }
+}
 
 function findLib(): string {
   const candidates = [
     process.env.OBJCBRIDGE_DYLIB,
+    // Local contributor builds take precedence over an installed workspace package.
     resolve(here, "../build/libobjcbridge.dylib"),
     resolve(here, "../../build/libobjcbridge.dylib"),
+    installedBridge(),
     // Inside a packaged .app: Contents/Resources/app/src -> Contents/Frameworks
     resolve(here, "../../Frameworks/libobjcbridge.dylib"),
     resolve(process.cwd(), "build/libobjcbridge.dylib"),
@@ -46,7 +58,9 @@ function findLib(): string {
   ].filter(Boolean) as string[];
   for (const c of candidates) if (existsSync(c)) return c;
   throw new Error(
-    `libobjcbridge.dylib not found. Run ./native/build.sh first.\nLooked in:\n  ${candidates.join("\n  ")}`,
+    `macOS native bridge not found for @omarcos/bunkit.\n` +
+    `Reinstall the package so @omarcos/bunkit-darwin-arm64 can be selected automatically.\n` +
+    `For a contributor checkout, run ./native/build.sh.\nLooked in:\n  ${candidates.join("\n  ")}`,
   );
 }
 
@@ -63,7 +77,7 @@ let _lib: any = null;
 function getLib(): any {
   if (_lib) return _lib;
   if (process.platform !== "darwin" || process.arch !== "arm64") {
-    throw new Error(`BunKit Darwin bridge requested on ${process.platform}/${process.arch}.`);
+    throw new Error(`@omarcos/bunkit supports macOS arm64; received ${process.platform}/${process.arch}.`);
   }
   const p = findLib();
   _lib = dlopen(p, {

@@ -2,7 +2,7 @@
 // real option types. This file never runs; the @ts-expect-error lines fail
 // the typecheck if the typing stops being precise (TS2578: unused directive).
 import { Application, signal, Window, VStack, Label, Button, TextField,
-  Checkbox, Segmented, Slider, ScrollView } from "bunkit";
+  Checkbox, Segmented, Slider, ScrollView } from "@omarcos/bunkit";
 
 const app = new Application({ name: "JSX Types", theme: "light" });
 

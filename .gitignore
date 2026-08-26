@@ -11,3 +11,9 @@ node_modules/
 # macOS
 .DS_Store
 /.commandcode
+
+# Release staging — generated payloads for platform packages
+/packages/*/bin/
+/packages/*/LICENSE
+/packages/*/NOTICE
+/release/
