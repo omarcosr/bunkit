@@ -22,6 +22,7 @@ import {
 } from "./states.ts";
 import { enableMacMouseMovedEvents, registerMacInteractionTarget } from "./macos-interaction.ts";
 import type { CursorValue } from "./cursor.ts";
+import { onFrame } from "../runtime.ts";
 
 // Re-export the adaptive colour helpers for importers that use view.ts as
 // their colour module (controls.ts, the metal scene).
@@ -442,6 +443,19 @@ export class View {
     };
     refresh();
     if (!this._hasShadowTree()) return;
+    // AppKit may attach an NSButton backing layer during the native pump. A
+    // one-shot frame callback runs after that pump and closes the gap between
+    // the synchronous construction pass and the first visible frame.
+    if (!this.#shadowFrameRefreshPending) {
+      this.#shadowFrameRefreshPending = true;
+      let cancel: (() => void) | null = null;
+      cancel = onFrame(() => {
+        cancel?.();
+        cancel = null;
+        this.#shadowFrameRefreshPending = false;
+        refresh();
+      });
+    }
     const schedule = (remaining: number) => {
       const block = createBlock("v@?", () => {
         refresh();
@@ -791,6 +805,7 @@ export class View {
   #shadowRebuild: (() => void) | null = null;
   #shadowFrameObserver: any = null;
   #shadowRefreshPending = false;
+  #shadowFrameRefreshPending = false;
 
   #scheduleShadowRefresh() {
     if (this.#shadowRefreshPending) return;
