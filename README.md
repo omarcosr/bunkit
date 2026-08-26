@@ -38,6 +38,29 @@ optional dependencies, reinstall without that option.
 
 On Windows, install the [Windows App Runtime](https://learn.microsoft.com/windows/apps/windows-app-sdk/downloads) before running an application.
 
+## Build a Windows app
+
+After installing `@omarcos/bunkit`, use the package CLI to compile your app and
+copy the native Windows bridge beside the executable:
+
+```powershell
+bunx @omarcos/bunkit build .\src\main.tsx --outdir dist --name Todo --windows-hide-console
+```
+
+The output directory contains:
+
+```text
+dist/
+  Todo.exe
+  winbridge.dll
+  Microsoft.WindowsAppRuntime.Bootstrap.dll
+```
+
+Keep the DLLs in the same directory as the `.exe`. The target machine must have
+the Windows App Runtime 1.7 or newer installed. The CLI does not compile C++
+or require the BunKit repository; it uses the platform binary package installed
+as an optional dependency of `@omarcos/bunkit`.
+
 ## Quick start
 
 ```ts

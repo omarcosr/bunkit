@@ -14,11 +14,11 @@
     },
     "packages/bunkit-darwin-arm64": {
       "name": "@omarcos/bunkit-darwin-arm64",
-      "version": "0.1.1",
+      "version": "0.1.2",
     },
     "packages/bunkit-win32-x64": {
       "name": "@omarcos/bunkit-win32-x64",
-      "version": "0.1.1",
+      "version": "0.1.2",
     },
   },
   "packages": {
