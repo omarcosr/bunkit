@@ -196,6 +196,7 @@ export class Stack extends View {
   // An arranged subview is added by NSStackView itself, so we only mirror the
   // bookkeeping rather than calling View.add (which would add it twice).
   add(child: any): this {
+    if (child._hasShadowTree()) this.native.setWantsLayer_(true);
     const fillers = this.#fillers.length;
     if (fillers === 1) {
       // "start": the single trailing filler must stay last.
@@ -216,6 +217,7 @@ export class Stack extends View {
   }
 
   insert(child: any, index: number): this {
+    if (child._hasShadowTree()) this.native.setWantsLayer_(true);
     this.#stack.insertArrangedSubview_atIndex_(child.native, index);
     this._children.splice(index, 0, child);
     child._parent = this;
@@ -591,6 +593,7 @@ export class GridView extends View {
   }
 
   add(child: any, placement: GridPlacement = {}): this {
+    if (child._hasShadowTree()) this.native.setWantsLayer_(true);
     const p = {
       row: placement.row ?? child.props?.gridRow ?? 0,
       column: placement.column ?? child.props?.gridColumn ?? 0,

@@ -415,12 +415,18 @@ export class View {
   }
 
   add(child: View): this {
+    if (child._hasShadowTree()) this.native.setWantsLayer_(true);
     this.native.addSubview_(child.native);
     this._children.push(child);
     child._parent = this;
     child._enableInteractionWindow();
     child._refreshShadowTree();
     return this;
+  }
+
+  /** @internal Whether this view or a descendant needs a layer-backed host. */
+  _hasShadowTree(): boolean {
+    return this.#shadowLayer !== null || this._children.some((child) => child._hasShadowTree());
   }
 
   /** @internal Reattach descendant shadow layers after a native hierarchy change. */
