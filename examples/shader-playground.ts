@@ -19,10 +19,21 @@ if (process.platform !== "darwin") {
 }
 
 import {
-  Application, GPUView, HStack, Label, Segmented, Spacer, TextArea, VStack, Window,
-  gpu, gpuAvailable, struct, vec4f,
-} from "@omarcos/bunkit";
-import type { Effect } from "@omarcos/bunkit/metal";
+  Application,
+  GPUView,
+  HStack,
+  Label,
+  Segmented,
+  Spacer,
+  TextArea,
+  VStack,
+  Window,
+  gpu,
+  gpuAvailable,
+  struct,
+  vec4f,
+} from "@omarcosr/bunkit";
+import type { Effect } from "@omarcosr/bunkit/metal";
 
 const app = new Application({ name: "Shader Playground" });
 
@@ -46,15 +57,20 @@ const Play = struct("Play", {
 // ---------------------------------------------------------------------------
 
 const PRESETS: Array<[string, string]> = [
-  ["Plasma", `// uv is 0..1 across the view. u.time.x is seconds.
+  [
+    "Plasma",
+    `// uv is 0..1 across the view. u.time.x is seconds.
 float2 p = (uv - 0.5) * 6.0;
 float v = sin(p.x + u.time.x)
         + sin(p.y + u.time.x * 0.7)
         + sin(length(p) * 1.5 - u.time.x * 2.0);
 float3 c = 0.5 + 0.5 * cos(float3(0.0, 2.1, 4.2) + v * 1.4);
-return float4(c, 1.0);`],
+return float4(c, 1.0);`,
+  ],
 
-  ["Rings", `float aspect = u.resolution.x / u.resolution.y;
+  [
+    "Rings",
+    `float aspect = u.resolution.x / u.resolution.y;
 float2 p = (uv - 0.5) * float2(aspect, 1.0) * 2.0;
 
 // Follow the pointer while a button is down.
@@ -66,9 +82,12 @@ float d = length(p - centre);
 float ring = abs(fract(d * 6.0 - u.time.x * 0.5) - 0.5);
 float line = smoothstep(fwidth(ring) * 1.5, 0.0, ring - 0.06);
 float3 tint = 0.5 + 0.5 * cos(float3(0.0, 1.6, 3.2) + d * 3.0 - u.time.x);
-return float4(tint * line, 1.0);`],
+return float4(tint * line, 1.0);`,
+  ],
 
-  ["Raymarch", `// A bouncing sphere over a plane, marched.
+  [
+    "Raymarch",
+    `// A bouncing sphere over a plane, marched.
 float aspect = u.resolution.x / u.resolution.y;
 float3 ro = float3(0.0, 1.3, 4.0);
 float3 rd = normalize(float3((uv - 0.5) * float2(aspect, -1.0) * 2.0, -1.6));
@@ -105,9 +124,12 @@ if (!onSphere) {
 }
 
 float3 base = onSphere ? float3(0.95, 0.35, 0.2) : float3(0.28, 0.3, 0.38);
-return float4(base * (0.12 + light * shade), 1.0);`],
+return float4(base * (0.12 + light * shade), 1.0);`,
+  ],
 
-  ["Noise", `// Value noise, four octaves, scrolling.
+  [
+    "Noise",
+    `// Value noise, four octaves, scrolling.
 float2 p = uv * 8.0 + float2(u.time.x * 0.3, u.time.x * 0.1);
 float sum = 0.0;
 float amp = 0.5;
@@ -123,7 +145,8 @@ for (int i = 0; i < 4; i++) {
   p *= 2.03;
   amp *= 0.5;
 }
-return float4(float3(0.35, 0.55, 0.95) * sum + sum * sum * 0.5, 1.0);`],
+return float4(float3(0.35, 0.55, 0.95) * sum + sum * sum * 0.5, 1.0);`,
+  ],
 ];
 
 // ---------------------------------------------------------------------------
@@ -137,7 +160,10 @@ let effect: Effect | null = null;
 let compiled = "";
 
 const status = new Label({
-  text: "", font: { monospace: true, size: 11 }, textColor: "secondaryLabel", lines: 5,
+  text: "",
+  font: { monospace: true, size: 11 },
+  textColor: "secondaryLabel",
+  lines: 5,
 });
 
 function compile(body: string): void {
@@ -191,7 +217,11 @@ preview.onFrame((frame) => {
 // Chrome
 // ---------------------------------------------------------------------------
 
-const readout = new Label({ text: "", font: { monospace: true, size: 11 }, textColor: "tertiaryLabel" });
+const readout = new Label({
+  text: "",
+  font: { monospace: true, size: 11 },
+  textColor: "tertiaryLabel",
+});
 let mark = 0;
 preview.onFrame((frame) => {
   if (frame.time - mark < 0.5) return;
@@ -219,10 +249,7 @@ const win = new Window({
       readout,
     ]),
 
-    new HStack({ spacing: 12 }, [
-      new VStack({ spacing: 8, grow: 1 }, [editor, status]),
-      preview,
-    ]),
+    new HStack({ spacing: 12 }, [new VStack({ spacing: 8, grow: 1 }, [editor, status]), preview]),
   ]),
 });
 win.quitOnClose();

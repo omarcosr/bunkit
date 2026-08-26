@@ -1,17 +1,19 @@
 {
-  // Base tsconfig for apps using @omarcos/bunkit's JSX runtime.
+  // Base tsconfig for apps using @omarcosr/bunkit's JSX runtime.
   //
   //   {
-  //     "extends": "@omarcos/bunkit/tsconfig",
+  //     "extends": "@omarcosr/bunkit/tsconfig",
   //     "include": ["src"]
   //   }
   //
-  // Without jsxImportSource: "@omarcos/bunkit", the editor resolves JSX through
+  // Without jsxImportSource: "@omarcosr/bunkit", the editor resolves JSX through
   // React's runtime, which types every element as ReactElement — so
   // `const log = <TextArea …/>` loses its control type.
   "compilerOptions": {
     "target": "ESNext",
-    "lib": ["ESNext"],
+    "lib": [
+      "ESNext"
+    ],
     "module": "preserve",
     "moduleResolution": "bundler",
     "moduleDetection": "force",
@@ -20,7 +22,7 @@
     "isolatedModules": true,
     "noEmit": true,
     "jsx": "react-jsx",
-    "jsxImportSource": "@omarcos/bunkit",
+    "jsxImportSource": "@omarcosr/bunkit",
     "strict": true,
     "skipLibCheck": false
   }

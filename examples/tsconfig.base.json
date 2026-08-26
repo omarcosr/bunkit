@@ -1,5 +1,5 @@
 {
-  "extends": "@omarcos/bunkit/tsconfig",
+  "extends": "@omarcosr/bunkit/tsconfig",
   "include": [
     "src"
   ]

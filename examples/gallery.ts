@@ -4,31 +4,38 @@
 //   bun run examples/gallery.ts
 
 import {
-    Application,
-    BlurView,
-    Button,
-    Checkbox,
-    Container,
-    GroupBox,
-    HStack,
-    ImageView,
-    Label,
-    ScrollView,
-    Segmented,
-    Select,
-    Separator,
-    Spacer,
-    SplitView,
-    Table, TextArea, TextField,
-    VStack,
-    Window,
-    beep,
-    bind,
-    describeViewTree,
-    getClipboardText,
-    input, popUpMenu, saveFile, setClipboardText,
-    setTheme, signal, snapshotView,
-} from "@omarcos/bunkit";
+  Application,
+  BlurView,
+  Button,
+  Checkbox,
+  Container,
+  GroupBox,
+  HStack,
+  ImageView,
+  Label,
+  ScrollView,
+  Segmented,
+  Select,
+  Separator,
+  Spacer,
+  SplitView,
+  Table,
+  TextArea,
+  TextField,
+  VStack,
+  Window,
+  beep,
+  bind,
+  describeViewTree,
+  getClipboardText,
+  input,
+  popUpMenu,
+  saveFile,
+  setClipboardText,
+  setTheme,
+  signal,
+  snapshotView,
+} from "@omarcosr/bunkit";
 import { writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -39,7 +46,7 @@ function crc32(buf: Buffer): number {
   let c = ~0;
   for (const byte of buf) {
     c ^= byte;
-    for (let k = 0; k < 8; k++) c = (c >>> 1) ^ (0xEDB88320 & -(c & 1));
+    for (let k = 0; k < 8; k++) c = (c >>> 1) ^ (0xedb88320 & -(c & 1));
   }
   return ~c >>> 0;
 }
@@ -51,18 +58,25 @@ function chunk(type: string, data: Buffer): Buffer {
   out.writeUInt32BE(crc32(out.subarray(4, 8 + data.length)), 8 + data.length);
   return out;
 }
-function makePng(width: number, height: number, rgb: (x: number, y: number) => [number, number, number]): Buffer {
+function makePng(
+  width: number,
+  height: number,
+  rgb: (x: number, y: number) => [number, number, number],
+): Buffer {
   const ihdr = Buffer.alloc(13);
   ihdr.writeUInt32BE(width, 0);
   ihdr.writeUInt32BE(height, 4);
-  ihdr[8] = 8; ihdr[9] = 2; // 8-bit truecolour
+  ihdr[8] = 8;
+  ihdr[9] = 2; // 8-bit truecolour
   const raw = Buffer.alloc(height * (1 + width * 3));
   let p = 0;
   for (let y = 0; y < height; y++) {
     raw[p++] = 0; // filter: none
     for (let x = 0; x < width; x++) {
       const [r, g, b] = rgb(x, y);
-      raw[p++] = r; raw[p++] = g; raw[p++] = b;
+      raw[p++] = r;
+      raw[p++] = g;
+      raw[p++] = b;
     }
   }
   return Buffer.concat([
@@ -73,7 +87,12 @@ function makePng(width: number, height: number, rgb: (x: number, y: number) => [
   ]);
 }
 
-interface Album { title: string; artist: string; year: number; rating: number; }
+interface Album {
+  title: string;
+  artist: string;
+  year: number;
+  rating: number;
+}
 
 const albums: Album[] = [
   { title: "Blue", artist: "Joni Mitchell", year: 1971, rating: 10 },
@@ -103,10 +122,13 @@ const hue = (i: number, x: number, y: number, w: number, h: number): [number, nu
   const t = (x / w + y / h + i) / 3;
   return [Math.round(40 + 120 * t), Math.round(60 + 90 * (1 - t)), Math.round(90 + 120 * t)];
 };
-const covers = albums.map((a, i) =>
-  join(tmpdir(), `bunkit-cover-${i}.png`));
+const covers = albums.map((a, i) => join(tmpdir(), `bunkit-cover-${i}.png`));
 covers.forEach((path, i) =>
-  writeFileSync(path, makePng(96, 96, (x, y) => hue(i, x, y, 96, 96))));
+  writeFileSync(
+    path,
+    makePng(96, 96, (x, y) => hue(i, x, y, 96, 96)),
+  ),
+);
 
 // --- the collection table: render cells, multi-select, alternating rows -------
 
@@ -117,12 +139,19 @@ const table = new Table<Album>({
     { id: "artist", title: "Artist", flex: true },
     { id: "year", title: "Year", width: 56, textAlign: "right" },
     {
-      id: "rating", title: "", width: 64, textAlign: "center",
+      id: "rating",
+      title: "",
+      width: 64,
+      textAlign: "center",
       // A whole view per cell, not just text: render wins over value.
-      render: (a) => new Button({
-        title: "★".repeat(a.rating),
-        onClick: () => { beep(); say(`${a.title} — ${a.rating}/10`); },
-      }),
+      render: (a) =>
+        new Button({
+          title: "★".repeat(a.rating),
+          onClick: () => {
+            beep();
+            say(`${a.title} — ${a.rating}/10`);
+          },
+        }),
     },
   ],
   rows: albums,
@@ -132,7 +161,8 @@ const table = new Table<Album>({
   onSelect: (row) => {
     if (row) {
       detailIndex = albums.indexOf(row);
-    } },
+    }
+  },
 });
 function selectedTitles(): string {
   const titles = table.selectedIndexes.map((i) => albums[i]!.title);
@@ -156,42 +186,83 @@ const notesBox = new GroupBox({ title: "Notes", padding: 10, spacing: 8 }, [note
 function swatch(label: string, view: any): any {
   return new VStack({ spacing: 4 }, [
     view,
-    new Label({ text: label, font: { size: 11 }, textColor: "secondaryLabel", textAlign: "center" }),
+    new Label({
+      text: label,
+      font: { size: 11 },
+      textColor: "secondaryLabel",
+      textAlign: "center",
+    }),
   ]);
 }
 const styleBox = new GroupBox({ title: "Palette", padding: 10, spacing: 8 }, [
   new HStack({ spacing: 14 }, [
     // background-color + rounded corners, straight from the options.
-    swatch("fill", new Container({
-      backgroundColor: "#2D7DD2", borderRadius: 14, width: 72, height: 56,
-    })),
+    swatch(
+      "fill",
+      new Container({
+        backgroundColor: "#2D7DD2",
+        borderRadius: 14,
+        width: 72,
+        height: 56,
+      }),
+    ),
     // border + border-color + radius + dashed, all as options.
-    swatch("dashed", new Container({
-      border: 2, borderColor: "#F26419", borderRadius: 12,
-      borderStyle: "dashed", width: 72, height: 56,
-    })),
+    swatch(
+      "dashed",
+      new Container({
+        border: 2,
+        borderColor: "#F26419",
+        borderRadius: 12,
+        borderStyle: "dashed",
+        width: 72,
+        height: 56,
+      }),
+    ),
     // dotted, via setBorder's style argument.
-    swatch("dotted", new Container({ width: 72, height: 56 })
-      .setBorder("#1F3B4D", 2, 12, "dotted")),
+    swatch(
+      "dotted",
+      new Container({ width: 72, height: 56 }).setBorder("#1F3B4D", 2, 12, "dotted"),
+    ),
     // everything at once.
-    swatch("both", new Container({
-      backgroundColor: "#97D8B2", borderRadius: 16,
-      border: 2, borderColor: "#1F3B4D", width: 72, height: 56,
-    })),
+    swatch(
+      "both",
+      new Container({
+        backgroundColor: "#97D8B2",
+        borderRadius: 16,
+        border: 2,
+        borderColor: "#1F3B4D",
+        width: 72,
+        height: 56,
+      }),
+    ),
   ]),
   // per-side widths: named sides (CSS border-width vocabulary)…
   new HStack({ spacing: 14 }, [
-    swatch("top + left", new Container({
-      border: { top: 4, left: 2 }, borderColor: "#F26419",
-      borderRadius: 8, width: 72, height: 56,
-    })),
+    swatch(
+      "top + left",
+      new Container({
+        border: { top: 4, left: 2 },
+        borderColor: "#F26419",
+        borderRadius: 8,
+        width: 72,
+        height: 56,
+      }),
+    ),
     // …or a [top, right, bottom, left] tuple, like CSS shorthand.
-    swatch("sides", new Container({
-      border: [1, 4, 1, 4], borderColor: "#1F3B4D", width: 72, height: 56,
-    })),
+    swatch(
+      "sides",
+      new Container({
+        border: [1, 4, 1, 4],
+        borderColor: "#1F3B4D",
+        width: 72,
+        height: 56,
+      }),
+    ),
     // per-side works imperatively too.
-    swatch("bottom", new Container({ width: 72, height: 56 })
-      .setBorder("#F26419", { bottom: 3 }, 8)),
+    swatch(
+      "bottom",
+      new Container({ width: 72, height: 56 }).setBorder("#F26419", { bottom: 3 }, 8),
+    ),
   ]),
 ]);
 
@@ -202,26 +273,41 @@ const styledControls = new GroupBox({ title: "Styled controls", padding: 10, spa
   // clipping its tail off.
   new HStack({ spacing: 10, scroll: true }, [
     new Button({
-      title: "Go", background: "#2D7DD2", borderRadius: 10,
+      title: "Go",
+      background: "#2D7DD2",
+      borderRadius: 10,
     }).setBorder("#1F3B4D", 2),
     new TextField({
-      placeholder: "tinted field", background: "#fdcc05",
-      borderRadius: 8, grow: 1,
-      textColor: "#143C8C", placeholderColor: "#7A2E00",
+      placeholder: "tinted field",
+      background: "#fdcc05",
+      borderRadius: 8,
+      grow: 1,
+      textColor: "#143C8C",
+      placeholderColor: "#7A2E00",
     }),
     new Select({
       selected: 0,
-      items: ["Alpha", "Beta"], background: "#FDE2E2",
-      borderRadius: 8, width: 110,
+      items: ["Alpha", "Beta"],
+      background: "#FDE2E2",
+      borderRadius: 8,
+      width: 110,
     }),
   ]),
   new ScrollView(
     { background: "#E2F3E8", borderRadius: 10, height: 56, border: true },
-    new Label({ text: "a tinted, rounded, bordered scroll view", font: { size: 11 }, textColor: "#1F3B4D", textAlign: "center" }),
+    new Label({
+      text: "a tinted, rounded, bordered scroll view",
+      font: { size: 11 },
+      textColor: "#1F3B4D",
+      textAlign: "center",
+    }),
   ),
   new TextArea({
-    value: "…and a tinted text area.", background: "#E8F0FE",
-    borderRadius: 8, height: 40, editable: false,
+    value: "…and a tinted text area.",
+    background: "#E8F0FE",
+    borderRadius: 8,
+    height: 40,
+    editable: false,
   }),
 ]);
 
@@ -232,18 +318,33 @@ const styledControls = new GroupBox({ title: "Styled controls", padding: 10, spa
 // placeholderColor.
 const adaptiveBox = new GroupBox({ title: "Adaptive colours", padding: 10, spacing: 8 }, [
   new HStack({ spacing: 14 }, [
-    swatch("fill", new Container({
-      backgroundColor: { light: "#DFF3FF", dark: "#143C5C" },
-      borderRadius: 14, width: 72, height: 56,
-    })),
-    swatch("border", new Container({
-      border: 2, borderColor: { light: "#F26419", dark: "#FFB088" },
-      borderRadius: 12, width: 72, height: 56,
-    })),
-    swatch("text", new Label({
-      text: "Aa", font: { style: "title", weight: "semibold" },
-      textColor: { light: "#143C8C", dark: "#9CC8FF" },
-    })),
+    swatch(
+      "fill",
+      new Container({
+        backgroundColor: { light: "#DFF3FF", dark: "#143C5C" },
+        borderRadius: 14,
+        width: 72,
+        height: 56,
+      }),
+    ),
+    swatch(
+      "border",
+      new Container({
+        border: 2,
+        borderColor: { light: "#F26419", dark: "#FFB088" },
+        borderRadius: 12,
+        width: 72,
+        height: 56,
+      }),
+    ),
+    swatch(
+      "text",
+      new Label({
+        text: "Aa",
+        font: { style: "title", weight: "semibold" },
+        textColor: { light: "#143C8C", dark: "#9CC8FF" },
+      }),
+    ),
   ]),
 ]);
 
@@ -262,35 +363,40 @@ const nameField = new TextField({
 });
 const nameEcho = new Label({ text: name.value, textColor: "#7A2E00", font: { size: 11 } });
 bind(nameField, "value", name); // two-way
-bind(nameEcho, "text", name);   // one-way: live echo
+bind(nameEcho, "text", name); // one-way: live echo
 
 const flag = signal(false);
 const flagBox = new Checkbox({ title: "Signal flag", checked: flag.value });
 const flagLabel = new Label({ text: "off", textColor: "#7A2E00", font: { size: 11 } });
 bind(flagBox, "checked", flag);
-flag.subscribe((on) => { flagLabel.text = on ? "on" : "off"; });
+flag.subscribe((on) => {
+  flagLabel.text = on ? "on" : "off";
+});
 
 const signalsBox = new GroupBox({ title: "Signals", padding: 10, spacing: 8 }, [
   new HStack({ spacing: 8, alignItems: "center" }, [nameField, flagBox]),
   new HStack({ spacing: 8, alignItems: "center" }, [nameEcho, flagLabel]),
 ]);
 
-const detail = new ScrollView({ border: false }, new VStack({ spacing: 12, padding: 12 }, [
-  new HStack({ spacing: 12, alignItems: "center" }, [
-    new ImageView({ src: covers[0]!, width: 96, height: 96 }),
-    new VStack({ spacing: 6 }, [
-      new Label({ text: albums[0]!.title, font: { style: "title", weight: "semibold" } }),
-      new Label({ text: albums[0]!.artist, textColor: "#7A2E00" }),
-      new Label({ text: String(albums[0]!.year), textColor: "#7A2E00" }),
+const detail = new ScrollView(
+  { border: false },
+  new VStack({ spacing: 12, padding: 12 }, [
+    new HStack({ spacing: 12, alignItems: "center" }, [
+      new ImageView({ src: covers[0]!, width: 96, height: 96 }),
+      new VStack({ spacing: 6 }, [
+        new Label({ text: albums[0]!.title, font: { style: "title", weight: "semibold" } }),
+        new Label({ text: albums[0]!.artist, textColor: "#7A2E00" }),
+        new Label({ text: String(albums[0]!.year), textColor: "#7A2E00" }),
+      ]),
     ]),
+    new Separator(),
+    notesBox,
+    styleBox,
+    styledControls,
+    adaptiveBox,
+    signalsBox,
   ]),
-  new Separator(),
-  notesBox,
-  styleBox,
-  styledControls,
-  adaptiveBox,
-  signalsBox,
-]));
+);
 
 // --- left pane: a vibrancy sidebar ---------------------------------------------
 
@@ -322,31 +428,34 @@ const darkMode = new Checkbox({
   },
 });
 
-const sidebar = new BlurView({
-  // background: "#2D7DD2",
-  background: "#bf2dd2",
-  border: true,
-  borderColor: "#0000ff",
-  borderRadius: 8,
-}, new VStack({ spacing: 10, padding: 12 }, [
-  new Label({ text: "Gallery", font: { style: "title", weight: "semibold" } }),
-  new Label({ text: "5 albums", textColor: "#7A2E00", font: { size: 11 } }),
-  new Separator(),
-  mode,
-  darkMode,
-  new Spacer(),
-  new Button({
-    title: "Library ▾",
-    onClick: () =>
-      // A context menu at the pointer, exactly like a right-click menu.
-      popUpMenu([
-        { title: "Select All", onClick: () => say("select all") },
-        { title: "Clear", onClick: () => say("clear") },
-        { separator: true, title: "" },
-        { title: "Check Layout", onClick: () => say("layout checked") },
-      ]),
-  }),
-]));
+const sidebar = new BlurView(
+  {
+    // background: "#2D7DD2",
+    background: "#bf2dd2",
+    border: true,
+    borderColor: "#0000ff",
+    borderRadius: 8,
+  },
+  new VStack({ spacing: 10, padding: 12 }, [
+    new Label({ text: "Gallery", font: { style: "title", weight: "semibold" } }),
+    new Label({ text: "5 albums", textColor: "#7A2E00", font: { size: 11 } }),
+    new Separator(),
+    mode,
+    darkMode,
+    new Spacer(),
+    new Button({
+      title: "Library ▾",
+      onClick: () =>
+        // A context menu at the pointer, exactly like a right-click menu.
+        popUpMenu([
+          { title: "Select All", onClick: () => say("select all") },
+          { title: "Clear", onClick: () => say("clear") },
+          { separator: true, title: "" },
+          { title: "Check Layout", onClick: () => say("layout checked") },
+        ]),
+    }),
+  ]),
+);
 // ])).setBackground("#ff00ff").setBorder("#C6C6C8", 1, 4);
 
 // --- footer: input state, snapshot, export --------------------------------------
@@ -362,10 +471,7 @@ const win = new Window({
   content: new VStack({ spacing: 10, padding: 12 }, [
     new SplitView({ vertical: false, position: 190, grow: 1 }, [
       sidebar,
-      new VStack({ spacing: 10, scroll: true }, [
-        table,
-        detail,
-      ]),
+      new VStack({ spacing: 10, scroll: true }, [table, detail]),
     ]),
     new HStack({ spacing: 10, alignItems: "fill" }, [
       clock,
@@ -380,7 +486,11 @@ const win = new Window({
       new Button({
         title: "Export…",
         onClick: async () => {
-          const path = await saveFile({ title: "Export the log", defaultName: "gallery-log.txt", window: win });
+          const path = await saveFile({
+            title: "Export the log",
+            defaultName: "gallery-log.txt",
+            window: win,
+          });
           say(`export -> ${path ?? "cancelled"}`);
         },
       }),

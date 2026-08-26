@@ -1,10 +1,14 @@
 // src/platform/windows/ui.ts — public API over the Windows backend.
-import { windowsBackend } from "./backend.ts";
-import type { NativeHandle } from "./ffi.ts";
-import { winLib } from "./ffi.ts";
-import { bindSignals, extractSignals } from "../../signal.ts";
-import { applyAdaptiveColor, reapplyAdaptiveColors, resolveColor, isThemeColor, trackAdaptive } from "../../ui/adaptive.ts";
 import { resolveAssetPath } from "../../asset.ts";
+import { bindSignals, extractSignals } from "../../signal.ts";
+import {
+  applyAdaptiveColor,
+  isThemeColor,
+  reapplyAdaptiveColors,
+  resolveColor,
+  trackAdaptive,
+} from "../../ui/adaptive.ts";
+import type { CursorValue } from "../../ui/cursor.ts";
 import { colorToHex, isThemeShadow, parseShadow, type ShadowValue } from "../../ui/shadow.ts";
 import {
   composeStateStyle,
@@ -15,15 +19,17 @@ import {
   type ViewStates,
   type ViewStateStyle,
 } from "../../ui/states.ts";
-import type { CursorValue } from "../../ui/cursor.ts";
+import { windowsBackend } from "./backend.ts";
+import type { NativeHandle } from "./ffi.ts";
+import { winLib } from "./ffi.ts";
 export { defineTheme } from "../../ui/tokens.ts";
 
 // Theme-adaptive colour helpers, public on both platforms (macOS re-exports
 // them from view.ts). Re-exported here so `import { resolveColor } from
-// "@omarcos/bunkit"` works on Windows too.
-export type { ThemeTokens, ThemeTokenDefinition } from "../../ui/tokens.ts";
+// "@omarcosr/bunkit"` works on Windows too.
+export { applyAdaptiveColor, isThemeColor, resolveColor } from "../../ui/adaptive.ts";
 export type { ShadowSpec, ShadowValue, ThemeShadow } from "../../ui/shadow.ts";
-export { isThemeColor, resolveColor, applyAdaptiveColor } from "../../ui/adaptive.ts";
+export type { ThemeTokenDefinition, ThemeTokens } from "../../ui/tokens.ts";
 
 // macOS examples reach for raw AppKit through `.native`. WinUI has no Obj-C
 // runtime, so those escape hatches get a tolerant proxy: known names map to
@@ -50,16 +56,14 @@ export type CornerRadiusSpec =
   | [number, number, number, number]
   | { topLeft?: number; topRight?: number; bottomRight?: number; bottomLeft?: number };
 
-export function normalizeCorners(spec: CornerRadiusSpec | undefined, fallback = 0): [number, number, number, number] {
+export function normalizeCorners(
+  spec: CornerRadiusSpec | undefined,
+  fallback = 0,
+): [number, number, number, number] {
   if (spec === undefined) return [fallback, fallback, fallback, fallback];
   if (typeof spec === "number") return [spec, spec, spec, spec];
   if (Array.isArray(spec)) return [spec[0] ?? 0, spec[1] ?? 0, spec[2] ?? 0, spec[3] ?? 0];
-  return [
-    spec.topLeft ?? 0,
-    spec.topRight ?? 0,
-    spec.bottomRight ?? 0,
-    spec.bottomLeft ?? 0,
-  ];
+  return [spec.topLeft ?? 0, spec.topRight ?? 0, spec.bottomRight ?? 0, spec.bottomLeft ?? 0];
 }
 
 /** A per-side border-width spec: one number for all four sides,
@@ -69,7 +73,10 @@ export type BorderSideSpec =
   | [number, number, number, number]
   | { top?: number; right?: number; bottom?: number; left?: number };
 
-export function normalizeSides(spec: BorderSideSpec | boolean | undefined, fallback = 0): [number, number, number, number] {
+export function normalizeSides(
+  spec: BorderSideSpec | boolean | undefined,
+  fallback = 0,
+): [number, number, number, number] {
   if (spec === undefined) return [fallback, fallback, fallback, fallback];
   if (spec === true) return [1, 1, 1, 1];
   if (spec === false) return [0, 0, 0, 0];
@@ -269,8 +276,15 @@ export class View {
     if (keys.has("backgroundColor") && styleChanged("backgroundColor")) {
       this.setBackground("backgroundColor" in next ? next.backgroundColor : undefined);
     }
-    if (["border", "borderColor", "borderRadius", "borderStyle"].some((key) => keys.has(key) && styleChanged(key as keyof ViewStateStyle))) {
-      const hasBorder = next.border !== undefined || next.borderColor !== undefined || next.borderStyle !== undefined;
+    if (
+      ["border", "borderColor", "borderRadius", "borderStyle"].some(
+        (key) => keys.has(key) && styleChanged(key as keyof ViewStateStyle),
+      )
+    ) {
+      const hasBorder =
+        next.border !== undefined ||
+        next.borderColor !== undefined ||
+        next.borderStyle !== undefined;
       this.setBorder(
         next.borderColor ?? "#C6C6C8",
         hasBorder ? (next.border ?? 1) : 0,
@@ -278,29 +292,43 @@ export class View {
         next.borderStyle ?? "solid",
       );
     }
-    if (keys.has("shadow") && styleChanged("shadow")) this.setShadow("shadow" in next ? (next.shadow ?? "none") : "none");
-    if (keys.has("alpha") && styleChanged("alpha")) windowsBackend.setControlAlpha(this.handle, next.alpha ?? 1);
+    if (keys.has("shadow") && styleChanged("shadow"))
+      this.setShadow("shadow" in next ? (next.shadow ?? "none") : "none");
+    if (keys.has("alpha") && styleChanged("alpha"))
+      windowsBackend.setControlAlpha(this.handle, next.alpha ?? 1);
     if (keys.has("cursor") && styleChanged("cursor")) this.cursor = next.cursor;
     if (keys.has("placeholderColor") && styleChanged("placeholderColor")) {
-      (this as any).placeholderColor = "placeholderColor" in next ? next.placeholderColor : undefined;
+      (this as any).placeholderColor =
+        "placeholderColor" in next ? next.placeholderColor : undefined;
     }
-    if (next.textColor !== undefined && "textColor" in next && styleChanged("textColor")) (this as any).textColor = next.textColor;
-    if (next.font !== undefined && "font" in next && styleChanged("font")) (this as any).font = next.font;
-
+    if (next.textColor !== undefined && "textColor" in next && styleChanged("textColor"))
+      (this as any).textColor = next.textColor;
+    if (next.font !== undefined && "font" in next && styleChanged("font"))
+      (this as any).font = next.font;
 
     this.#lastStateStyle = next;
   }
-  get children(): readonly View[] { return this._children; }
-  get parent(): View | null { return this._parent; }
+  get children(): readonly View[] {
+    return this._children;
+  }
+  get parent(): View | null {
+    return this._parent;
+  }
   get frame(): { x: number; y: number; width: number; height: number } {
     const [w, h] = windowsBackend.getControlSize(this.handle);
     return { x: 0, y: 0, width: w, height: h };
   }
-  get hidden(): boolean { return this._hidden; }
-  set hidden(v: boolean) { this._hidden = v; windowsBackend.setControlVisible(this.handle, !v); }
+  get hidden(): boolean {
+    return this._hidden;
+  }
+  set hidden(v: boolean) {
+    this._hidden = v;
+    windowsBackend.setControlVisible(this.handle, !v);
+  }
   /** CSS-like system cursor shown while the pointer is over this view. */
-  set cursor(v: CursorValue | undefined) { windowsBackend.setControlCursor(this.handle, v); }
-
+  set cursor(v: CursorValue | undefined) {
+    windowsBackend.setControlCursor(this.handle, v);
+  }
 
   /** Keep a JS object alive for as long as this view is. */
   retainJS(_v: any): void {}
@@ -325,7 +353,12 @@ export class View {
    *  per-corner — see CornerRadiusSpec) and style. dashed/dotted draw with a
    *  pattern overlay on Border-based views and fall back to solid on plain
    *  Controls. */
-  setBorder(color: any, width: BorderSideSpec | boolean | number = 1, radius: CornerRadiusSpec | number = 0, style: "solid" | "dashed" | "dotted" = "solid"): this {
+  setBorder(
+    color: any,
+    width: BorderSideSpec | boolean | number = 1,
+    radius: CornerRadiusSpec | number = 0,
+    style: "solid" | "dashed" | "dotted" = "solid",
+  ): this {
     applyAdaptiveColor(color, themeIsDark, (c) => {
       if (typeof c !== "string") return;
       const [tl, tr, br, bl] = normalizeCorners(radius as CornerRadiusSpec);
@@ -334,7 +367,19 @@ export class View {
         windowsBackend.setControlBorder(this.handle, c, top, right, bottom, left, tl, tr, br, bl);
       } else {
         const code = style === "dotted" ? 2 : 1;
-        windowsBackend.setControlBorderStyle(this.handle, c, top, right, bottom, left, tl, tr, br, bl, code);
+        windowsBackend.setControlBorderStyle(
+          this.handle,
+          c,
+          top,
+          right,
+          bottom,
+          left,
+          tl,
+          tr,
+          br,
+          bl,
+          code,
+        );
       }
     });
     return this;
@@ -404,7 +449,9 @@ export class View {
   }
 
   /** Raw-object escape hatch: a tolerant proxy (unknown selectors no-op). */
-  get native(): any { return tolerantProxy(this.constructor.name + ".native"); }
+  get native(): any {
+    return tolerantProxy(this.constructor.name + ".native");
+  }
 }
 
 // --- menus ---------------------------------------------------------------------
@@ -480,7 +527,10 @@ export function standardMenu(options: StandardMenuOptions = {}): Menu {
   app.push({
     title: `Quit ${name}`,
     shortcut: "cmd+q",
-    onClick: () => { options.onQuit?.(); windowsBackend.shutdown(); },
+    onClick: () => {
+      options.onQuit?.();
+      windowsBackend.shutdown();
+    },
   });
   bar.addSubmenu(name, app);
 
@@ -499,10 +549,7 @@ export function standardMenu(options: StandardMenuOptions = {}): Menu {
   if (options.view) bar.addSubmenu("View", options.view);
   for (const m of options.menus ?? []) bar.addSubmenu(m.title, m.items);
   if (options.window !== false) {
-    bar.addSubmenu("Window", [
-      { title: "Minimize", shortcut: "cmd+m" },
-      { title: "Zoom" },
-    ]);
+    bar.addSubmenu("Window", [{ title: "Minimize", shortcut: "cmd+m" }, { title: "Zoom" }]);
   }
   if (options.help) bar.addSubmenu("Help", options.help);
   return bar;
@@ -545,7 +592,9 @@ export function popUpMenu(items: MenuItemSpec[], view?: any): void {
   const win = view instanceof Window ? view : lastWindow();
   if (!win) return;
   const handlers = new Map<number, () => void>();
-  windowsBackend.popUpMenu(win.handle, flattenItems(items, 0, handlers), (itemId) => handlers.get(itemId)?.());
+  windowsBackend.popUpMenu(win.handle, flattenItems(items, 0, handlers), (itemId) =>
+    handlers.get(itemId)?.(),
+  );
 }
 
 // --- application -----------------------------------------------------------------
@@ -574,7 +623,11 @@ function themeCode(theme: Theme | null): number {
 function themeIsDark(): boolean {
   if (appTheme === "light") return false;
   if (appTheme === "dark") return true;
-  try { return (winLib.bk_theme_is_dark() as number) !== 0; } catch { return false; }
+  try {
+    return (winLib.bk_theme_is_dark() as number) !== 0;
+  } catch {
+    return false;
+  }
 }
 
 /** Whether the app's effective theme is dark (the app theme, or the OS if
@@ -584,14 +637,16 @@ export function currentThemeIsDark(): boolean {
 }
 
 export class Application {
-  constructor(private opts: {
-    name?: string;
-    theme?: Theme;
-    menu?: false | StandardMenuOptions | Menu;
-    onReady?: (app: Application) => void | Promise<void>;
-    onQuit?: () => void | Promise<void>;
-    exitOnQuit?: boolean;
-  } = {}) {
+  constructor(
+    private opts: {
+      name?: string;
+      theme?: Theme;
+      menu?: false | StandardMenuOptions | Menu;
+      onReady?: (app: Application) => void | Promise<void>;
+      onQuit?: () => void | Promise<void>;
+      exitOnQuit?: boolean;
+    } = {},
+  ) {
     appTheme = opts.theme ?? null;
   }
 
@@ -621,9 +676,10 @@ export class Application {
   private installMenu(): void {
     const menu = this.opts.menu;
     if (!menu) return;
-    const bar = menu instanceof Menu
-      ? menu
-      : standardMenu({ ...menu, appName: menu.appName ?? this.opts.name });
+    const bar =
+      menu instanceof Menu
+        ? menu
+        : standardMenu({ ...menu, appName: menu.appName ?? this.opts.name });
     if (bar.sections.length === 0) return;
 
     const handlers = new Map<number, () => void>();
@@ -639,38 +695,44 @@ export class Application {
     }
   }
 
-  quit(): void { windowsBackend.shutdown(); }
-  get running(): boolean { return windowsBackend.isRunning(); }
+  quit(): void {
+    windowsBackend.shutdown();
+  }
+  get running(): boolean {
+    return windowsBackend.isRunning();
+  }
 }
 
 export class Window {
   readonly handle: NativeHandle;
-  constructor(opts: {
-    title?: string;
-    size?: { width: number; height: number };
-    minSize?: { width: number; height: number };
-    /** Screen position of the bottom-left corner; omitted means centred. */
-    position?: { x: number; y: number };
-    /** Window icon (titlebar + taskbar): .ico/.png path, or { light, dark }. */
-    icon?: any;
-    content?: any;
-    show?: boolean;
-    onClose?: () => void;
-    /** Draw content behind a transparent titlebar (parity with macOS). */
-    fullSizeContent?: boolean;
-    /** Hide the title text (parity with macOS). */
-    titleVisible?: boolean;
-    /** Windows 11 titlebar background — hex or { light, dark }. */
-    titlebarColor?: any;
-    /** Windows 11 titlebar text colour — hex or { light, dark }. */
-    titlebarTextColor?: any;
-    /** Allow resizing (and the maximise button). Default true. */
-    resizable?: boolean;
-    /** Allow closing via the window chrome. Default true. */
-    closable?: boolean;
-    /** Allow minimising. Default true. */
-    minimizable?: boolean;
-  } = {}) {
+  constructor(
+    opts: {
+      title?: string;
+      size?: { width: number; height: number };
+      minSize?: { width: number; height: number };
+      /** Screen position of the bottom-left corner; omitted means centred. */
+      position?: { x: number; y: number };
+      /** Window icon (titlebar + taskbar): .ico/.png path, or { light, dark }. */
+      icon?: any;
+      content?: any;
+      show?: boolean;
+      onClose?: () => void;
+      /** Draw content behind a transparent titlebar (parity with macOS). */
+      fullSizeContent?: boolean;
+      /** Hide the title text (parity with macOS). */
+      titleVisible?: boolean;
+      /** Windows 11 titlebar background — hex or { light, dark }. */
+      titlebarColor?: any;
+      /** Windows 11 titlebar text colour — hex or { light, dark }. */
+      titlebarTextColor?: any;
+      /** Allow resizing (and the maximise button). Default true. */
+      resizable?: boolean;
+      /** Allow closing via the window chrome. Default true. */
+      closable?: boolean;
+      /** Allow minimising. Default true. */
+      minimizable?: boolean;
+    } = {},
+  ) {
     this.handle = windowsBackend.createWindow({ title: opts.title, size: opts.size });
     if (opts.minSize) windowsBackend.setWindowMinSize(this.handle, opts.minSize);
     // Icon resolves per theme and re-applies on setTheme.
@@ -708,17 +770,22 @@ export class Window {
     // Titlebar options must reach the native call together with the first
     // Activate, so the first painted frame already carries the custom colours
     // instead of flashing the default titlebar.
-    const wantsTitlebar = opts.fullSizeContent || opts.titleVisible === false ||
-      opts.titlebarColor !== undefined || opts.titlebarTextColor !== undefined;
+    const wantsTitlebar =
+      opts.fullSizeContent ||
+      opts.titleVisible === false ||
+      opts.titlebarColor !== undefined ||
+      opts.titlebarTextColor !== undefined;
     if (wantsTitlebar) {
       this.#titlebar = {
         fullSizeContent: opts.fullSizeContent,
-        titlebarColor: typeof resolveColor(opts.titlebarColor, themeIsDark()) === "string"
-          ? resolveColor(opts.titlebarColor, themeIsDark()) as string
-          : undefined,
-        titlebarTextColor: typeof resolveColor(opts.titlebarTextColor, themeIsDark()) === "string"
-          ? resolveColor(opts.titlebarTextColor, themeIsDark()) as string
-          : undefined,
+        titlebarColor:
+          typeof resolveColor(opts.titlebarColor, themeIsDark()) === "string"
+            ? (resolveColor(opts.titlebarColor, themeIsDark()) as string)
+            : undefined,
+        titlebarTextColor:
+          typeof resolveColor(opts.titlebarTextColor, themeIsDark()) === "string"
+            ? (resolveColor(opts.titlebarTextColor, themeIsDark()) as string)
+            : undefined,
       };
       // Re-resolve on theme changes (setTheme) — the window is already up then.
       if (isThemeColor(opts.titlebarColor) || isThemeColor(opts.titlebarTextColor)) {
@@ -736,17 +803,34 @@ export class Window {
     }
     if (opts.show !== false) this.show();
   }
-  /** @internal */ #titlebar: { fullSizeContent?: boolean; titlebarColor?: string; titlebarTextColor?: string } | null = null;
+  /** @internal */ #titlebar: {
+    fullSizeContent?: boolean;
+    titlebarColor?: string;
+    titlebarTextColor?: string;
+  } | null = null;
   show(): this {
     if (this.#titlebar) windowsBackend.showWindowWithTitlebar(this.handle, this.#titlebar);
     else windowsBackend.showWindow(this.handle);
     return this;
   }
-  center(): this { windowsBackend.centerWindow(this.handle); return this; }
-  close(): void { windowsBackend.closeWindow(this.handle); }
-  quitOnClose(): this { windowsBackend.setWindowCloseCallback(this.handle, () => windowsBackend.shutdown()); return this; }
-  set content(v: any) { const h: NativeHandle | null = v?.handle ?? v ?? null; if (h) windowsBackend.setWindowContent(this.handle, h); }
-  set title(v: string) { windowsBackend.setWindowTitle(this.handle, v); }
+  center(): this {
+    windowsBackend.centerWindow(this.handle);
+    return this;
+  }
+  close(): void {
+    windowsBackend.closeWindow(this.handle);
+  }
+  quitOnClose(): this {
+    windowsBackend.setWindowCloseCallback(this.handle, () => windowsBackend.shutdown());
+    return this;
+  }
+  set content(v: any) {
+    const h: NativeHandle | null = v?.handle ?? v ?? null;
+    if (h) windowsBackend.setWindowContent(this.handle, h);
+  }
+  set title(v: string) {
+    windowsBackend.setWindowTitle(this.handle, v);
+  }
   /** Bottom-left corner in screen pixels (macOS frame-origin semantics). */
   get position(): { x: number; y: number } {
     return windowsBackend.getWindowPosition(this.handle);
@@ -754,18 +838,35 @@ export class Window {
   set position(p: { x: number; y: number }) {
     windowsBackend.setWindowPosition(this.handle, p.x, p.y);
   }
-  get native(): any { return tolerantProxy("win.native"); }
+  get native(): any {
+    return tolerantProxy("win.native");
+  }
 }
 
 // --- controls ---------------------------------------------------------------------
 
 export class Label extends View {
-  constructor(opts: { text?: string; textColor?: any; font?: any; textAlign?: string; grow?: number ; style?: any } & ViewOptions = {}) {
+  constructor(
+    opts: {
+      text?: string;
+      textColor?: any;
+      font?: any;
+      textAlign?: string;
+      grow?: number;
+      style?: any;
+    } & ViewOptions = {},
+  ) {
     opts = mergeStyle(opts);
     const bound = extractSignals(opts);
     // A { light, dark } colour must not cross into the native create call —
     // it resolves per theme and re-applies on setTheme.
-    super(windowsBackend.createLabel({ ...opts, textColor: typeof opts.textColor === "string" ? opts.textColor : "" } as any), opts);
+    super(
+      windowsBackend.createLabel({
+        ...opts,
+        textColor: typeof opts.textColor === "string" ? opts.textColor : "",
+      } as any),
+      opts,
+    );
     if (opts.textColor !== undefined) {
       applyAdaptiveColor(opts.textColor, themeIsDark, (c) => {
         if (typeof c === "string") windowsBackend.setLabelColor(this.handle, c);
@@ -773,8 +874,12 @@ export class Label extends View {
     }
     bindSignals(this, opts, bound);
   }
-  get text(): string { return windowsBackend.getLabelText(this.handle); }
-  set text(v: string) { windowsBackend.setLabelText(this.handle, v ?? ""); }
+  get text(): string {
+    return windowsBackend.getLabelText(this.handle);
+  }
+  set text(v: string) {
+    windowsBackend.setLabelText(this.handle, v ?? "");
+  }
   set textColor(v: any) {
     applyAdaptiveColor(v, themeIsDark, (c) => {
       if (typeof c === "string") windowsBackend.setLabelColor(this.handle, c);
@@ -783,7 +888,20 @@ export class Label extends View {
 }
 
 export class Button extends View {
-  constructor(opts: { title?: string; primary?: boolean; destructive?: boolean; symbol?: string; textColor?: any; font?: any; enabled?: boolean; disabled?: boolean; onClick?: () => void ; style?: any } & ViewOptions = {}) {
+  constructor(
+    opts: {
+      title?: string;
+      primary?: boolean;
+      destructive?: boolean;
+      symbol?: string;
+      textColor?: any;
+      font?: any;
+      enabled?: boolean;
+      disabled?: boolean;
+      onClick?: () => void;
+      style?: any;
+    } & ViewOptions = {},
+  ) {
     opts = mergeStyle(opts);
     if (opts.cursor === undefined) opts.cursor = "pointer";
     const bound = extractSignals(opts);
@@ -796,7 +914,9 @@ export class Button extends View {
     if (opts.onClick) windowsBackend.setButtonClickCallback(this.handle, opts.onClick);
     bindSignals(this, opts, bound);
   }
-  set title(v: string) { windowsBackend.setButtonText(this.handle, v); }
+  set title(v: string) {
+    windowsBackend.setButtonText(this.handle, v);
+  }
   /** Title colour (hex, semantic name, or { light, dark }); re-resolves on
    *  theme change. */
   set textColor(v: any) {
@@ -808,26 +928,57 @@ export class Button extends View {
   set font(v: any) {
     windowsBackend.setButtonFont(this.handle, v);
   }
-  get enabled(): boolean { return windowsBackend.getControlEnabled(this.handle); }
-  set enabled(v: boolean) { windowsBackend.setControlEnabled(this.handle, v); this._setInteractionState("disabled", !v); }
-  onClick(fn: () => void): this { windowsBackend.setButtonClickCallback(this.handle, fn); return this; }
+  get enabled(): boolean {
+    return windowsBackend.getControlEnabled(this.handle);
+  }
+  set enabled(v: boolean) {
+    windowsBackend.setControlEnabled(this.handle, v);
+    this._setInteractionState("disabled", !v);
+  }
+  onClick(fn: () => void): this {
+    windowsBackend.setButtonClickCallback(this.handle, fn);
+    return this;
+  }
 }
 
 export class TextField extends View {
   secure: boolean;
-  constructor(opts: { value?: string; placeholder?: string; secure?: boolean; textColor?: any; placeholderColor?: any; enabled?: boolean; disabled?: boolean; onChange?: (v: string) => void; onSubmit?: (v: string) => void ; style?: any } & ViewOptions = {}) {
+  constructor(
+    opts: {
+      value?: string;
+      placeholder?: string;
+      secure?: boolean;
+      textColor?: any;
+      placeholderColor?: any;
+      enabled?: boolean;
+      disabled?: boolean;
+      onChange?: (v: string) => void;
+      onSubmit?: (v: string) => void;
+      style?: any;
+    } & ViewOptions = {},
+  ) {
     opts = mergeStyle(opts);
     const bound = extractSignals(opts);
-    super(windowsBackend.createTextField({ value: opts.value, placeholder: opts.placeholder, secure: opts.secure, onChange: opts.onChange }), opts);
+    super(
+      windowsBackend.createTextField({
+        value: opts.value,
+        placeholder: opts.placeholder,
+        secure: opts.secure,
+        onChange: opts.onChange,
+      }),
+      opts,
+    );
     this.startInteractionTracking();
     this.secure = !!opts.secure;
     if (opts.textColor !== undefined || opts.placeholderColor !== undefined) {
       const apply = () => {
         const tc = resolveColor(opts.textColor, themeIsDark());
         const pc = resolveColor(opts.placeholderColor, themeIsDark());
-        windowsBackend.setTextFieldColors(this.handle,
+        windowsBackend.setTextFieldColors(
+          this.handle,
           typeof tc === "string" ? tc : undefined,
-          typeof pc === "string" ? pc : undefined);
+          typeof pc === "string" ? pc : undefined,
+        );
       };
       if (isThemeColor(opts.textColor) || isThemeColor(opts.placeholderColor)) trackAdaptive(apply);
       apply();
@@ -837,8 +988,12 @@ export class TextField extends View {
     if (opts.onSubmit) this.onSubmit(opts.onSubmit);
     bindSignals(this, opts, bound);
   }
-  get value(): string { return windowsBackend.getTextFieldValue(this.handle); }
-  set value(v: string) { windowsBackend.setTextFieldValue(this.handle, v ?? ""); }
+  get value(): string {
+    return windowsBackend.getTextFieldValue(this.handle);
+  }
+  set value(v: string) {
+    windowsBackend.setTextFieldValue(this.handle, v ?? "");
+  }
   /** Text colour (hex, semantic name, or { light, dark }); re-resolves on
    *  theme change. Also what a `textColor={signal}` binding writes to. */
   set textColor(v: any) {
@@ -856,7 +1011,10 @@ export class TextField extends View {
       if (typeof c === "string") windowsBackend.setTextFieldColors(this.handle, undefined, c);
     });
   }
-  onChange(fn: (v: string) => void): this { windowsBackend.setTextFieldChangeCallback(this.handle, fn); return this; }
+  onChange(fn: (v: string) => void): this {
+    windowsBackend.setTextFieldChangeCallback(this.handle, fn);
+    return this;
+  }
   onSubmit(fn: (v: string) => void): this {
     if (this.secure) windowsBackend.setPasswordSubmitCallback(this.handle, fn);
     else windowsBackend.setTextFieldSubmitCallback(this.handle, fn);
@@ -865,76 +1023,157 @@ export class TextField extends View {
 }
 
 export class Checkbox extends View {
-  constructor(opts: { title?: string; checked?: boolean; onChange?: (checked: boolean) => void ; style?: any } & ViewOptions = {}) {
+  constructor(
+    opts: {
+      title?: string;
+      checked?: boolean;
+      onChange?: (checked: boolean) => void;
+      style?: any;
+    } & ViewOptions = {},
+  ) {
     opts = mergeStyle(opts);
     const bound = extractSignals(opts);
     super(windowsBackend.createCheckbox(opts), opts);
     bindSignals(this, opts, bound);
   }
-  get checked(): boolean { return windowsBackend.getCheckboxChecked(this.handle); }
-  set checked(value: boolean) { windowsBackend.setCheckboxChecked(this.handle, value); }
-  onChange(fn: (checked: boolean) => void): this { windowsBackend.setCheckboxCallback(this.handle, fn); return this; }
+  get checked(): boolean {
+    return windowsBackend.getCheckboxChecked(this.handle);
+  }
+  set checked(value: boolean) {
+    windowsBackend.setCheckboxChecked(this.handle, value);
+  }
+  onChange(fn: (checked: boolean) => void): this {
+    windowsBackend.setCheckboxCallback(this.handle, fn);
+    return this;
+  }
 }
 
 export class Switch extends View {
-  constructor(opts: { on?: boolean; onChange?: (on: boolean) => void ; style?: any } & ViewOptions = {}) {
+  constructor(
+    opts: { on?: boolean; onChange?: (on: boolean) => void; style?: any } & ViewOptions = {},
+  ) {
     opts = mergeStyle(opts);
     const bound = extractSignals(opts);
     super(windowsBackend.createSwitch(opts), opts);
     bindSignals(this, opts, bound);
   }
-  get on(): boolean { return windowsBackend.getSwitchOn(this.handle); }
-  set on(value: boolean) { windowsBackend.setSwitchOn(this.handle, value); }
-  onChange(fn: (on: boolean) => void): this { windowsBackend.setSwitchCallback(this.handle, fn); return this; }
+  get on(): boolean {
+    return windowsBackend.getSwitchOn(this.handle);
+  }
+  set on(value: boolean) {
+    windowsBackend.setSwitchOn(this.handle, value);
+  }
+  onChange(fn: (on: boolean) => void): this {
+    windowsBackend.setSwitchCallback(this.handle, fn);
+    return this;
+  }
 }
 
 export class Slider extends View {
-  constructor(opts: { min?: number; max?: number; value?: number; onChange?: (value: number) => void ; style?: any } & ViewOptions = {}) {
+  constructor(
+    opts: {
+      min?: number;
+      max?: number;
+      value?: number;
+      onChange?: (value: number) => void;
+      style?: any;
+    } & ViewOptions = {},
+  ) {
     opts = mergeStyle(opts);
     const bound = extractSignals(opts);
     super(windowsBackend.createSlider(opts), opts);
     bindSignals(this, opts, bound);
   }
-  get value(): number { return windowsBackend.getSliderValue(this.handle); }
-  set value(value: number) { windowsBackend.setSliderValue(this.handle, value); }
-  onChange(fn: (value: number) => void): this { windowsBackend.setSliderCallback(this.handle, fn); return this; }
+  get value(): number {
+    return windowsBackend.getSliderValue(this.handle);
+  }
+  set value(value: number) {
+    windowsBackend.setSliderValue(this.handle, value);
+  }
+  onChange(fn: (value: number) => void): this {
+    windowsBackend.setSliderCallback(this.handle, fn);
+    return this;
+  }
 }
 
 export class Select extends View {
-  constructor(opts: { items?: readonly string[]; selected?: number; onChange?: (index: number, title: string) => void ; style?: any } & ViewOptions = {}) {
+  constructor(
+    opts: {
+      items?: readonly string[];
+      selected?: number;
+      onChange?: (index: number, title: string) => void;
+      style?: any;
+    } & ViewOptions = {},
+  ) {
     opts = mergeStyle(opts);
     const bound = extractSignals(opts);
     super(windowsBackend.createSelect(opts), opts);
     bindSignals(this, opts, bound);
   }
-  set items(value: readonly string[]) { windowsBackend.setSelectItems(this.handle, value, this.selectedIndex); }
-  get selectedIndex(): number { return windowsBackend.getSelectSelected(this.handle); }
-  set selectedIndex(value: number) { windowsBackend.setSelectSelected(this.handle, value); }
-  get selectedTitle(): string { return windowsBackend.getSelectTitle(this.handle); }
-  onChange(fn: (index: number, title: string) => void): this { windowsBackend.setSelectCallback(this.handle, fn); return this; }
+  set items(value: readonly string[]) {
+    windowsBackend.setSelectItems(this.handle, value, this.selectedIndex);
+  }
+  get selectedIndex(): number {
+    return windowsBackend.getSelectSelected(this.handle);
+  }
+  set selectedIndex(value: number) {
+    windowsBackend.setSelectSelected(this.handle, value);
+  }
+  get selectedTitle(): string {
+    return windowsBackend.getSelectTitle(this.handle);
+  }
+  onChange(fn: (index: number, title: string) => void): this {
+    windowsBackend.setSelectCallback(this.handle, fn);
+    return this;
+  }
 }
 
 export class Segmented extends View {
-  constructor(opts: { items?: readonly string[]; selected?: number; onChange?: (index: number) => void ; style?: any } & ViewOptions = {}) {
+  constructor(
+    opts: {
+      items?: readonly string[];
+      selected?: number;
+      onChange?: (index: number) => void;
+      style?: any;
+    } & ViewOptions = {},
+  ) {
     opts = mergeStyle(opts);
     const bound = extractSignals(opts);
     super(windowsBackend.createSegmented(opts), opts);
     if (opts.onChange) windowsBackend.setSegmentedCallback(this.handle, opts.onChange);
     bindSignals(this, opts, bound);
   }
-  get selectedIndex(): number { return windowsBackend.getSegmentedSelected(this.handle); }
-  set selectedIndex(i: number) { windowsBackend.setSegmentedSelected(this.handle, i); }
-  onChange(fn: (index: number) => void): this { windowsBackend.setSegmentedCallback(this.handle, fn); return this; }
+  get selectedIndex(): number {
+    return windowsBackend.getSegmentedSelected(this.handle);
+  }
+  set selectedIndex(i: number) {
+    windowsBackend.setSegmentedSelected(this.handle, i);
+  }
+  onChange(fn: (index: number) => void): this {
+    windowsBackend.setSegmentedCallback(this.handle, fn);
+    return this;
+  }
 }
 
 export class TextArea extends View {
-  constructor(opts: { value?: string; editable?: boolean; richText?: boolean; font?: any; textColor?: any; onChange?: (value: string) => void ; style?: any } & ViewOptions = {}) {
+  constructor(
+    opts: {
+      value?: string;
+      editable?: boolean;
+      richText?: boolean;
+      font?: any;
+      textColor?: any;
+      onChange?: (value: string) => void;
+      style?: any;
+    } & ViewOptions = {},
+  ) {
     opts = mergeStyle(opts);
     const bound = extractSignals(opts);
     super(windowsBackend.createTextAreaEx(!!opts.richText), opts);
     if (opts.value !== undefined) this.value = opts.value;
     if (opts.editable === false) windowsBackend.setTextAreaReadOnly(this.handle, true);
-    if (opts.font) windowsBackend.setTextAreaFont(this.handle, !!opts.font.monospace, opts.font.size ?? 0);
+    if (opts.font)
+      windowsBackend.setTextAreaFont(this.handle, !!opts.font.monospace, opts.font.size ?? 0);
     if (opts.textColor !== undefined) {
       applyAdaptiveColor(opts.textColor, themeIsDark, (c) => {
         if (typeof c === "string") windowsBackend.setTextAreaForeground(this.handle, c);
@@ -943,8 +1182,12 @@ export class TextArea extends View {
     if (opts.onChange) windowsBackend.setTextAreaCallback(this.handle, opts.onChange);
     bindSignals(this, opts, bound);
   }
-  get value(): string { return windowsBackend.getTextAreaValue(this.handle); }
-  set value(value: string) { windowsBackend.setTextAreaValue(this.handle, value); }
+  get value(): string {
+    return windowsBackend.getTextAreaValue(this.handle);
+  }
+  set value(value: string) {
+    windowsBackend.setTextAreaValue(this.handle, value);
+  }
   /** Text colour (hex, semantic name, or { light, dark }); re-resolves on
    *  theme change. */
   set textColor(v: any) {
@@ -952,23 +1195,42 @@ export class TextArea extends View {
       if (typeof c === "string") windowsBackend.setTextAreaForeground(this.handle, c);
     });
   }
-  onChange(fn: (value: string) => void): this { windowsBackend.setTextAreaCallback(this.handle, fn); return this; }
-  get textView(): any { return tolerantProxy("TextArea.textView"); }
+  onChange(fn: (value: string) => void): this {
+    windowsBackend.setTextAreaCallback(this.handle, fn);
+    return this;
+  }
+  get textView(): any {
+    return tolerantProxy("TextArea.textView");
+  }
 }
 
 export class Progress extends View {
-  constructor(opts: { max?: number; value?: number; indeterminate?: boolean; spinner?: boolean ; style?: any } & ViewOptions = {}) {
+  constructor(
+    opts: {
+      max?: number;
+      value?: number;
+      indeterminate?: boolean;
+      spinner?: boolean;
+      style?: any;
+    } & ViewOptions = {},
+  ) {
     opts = mergeStyle(opts);
     const bound = extractSignals(opts);
     super(windowsBackend.createProgress(opts.spinner ? { indeterminate: true } : opts), opts);
     bindSignals(this, opts, bound);
   }
-  get value(): number { return windowsBackend.getProgressValue(this.handle); }
-  set value(value: number) { windowsBackend.setProgressValue(this.handle, value); }
+  get value(): number {
+    return windowsBackend.getProgressValue(this.handle);
+  }
+  set value(value: number) {
+    windowsBackend.setProgressValue(this.handle, value);
+  }
 }
 
 export class Separator extends View {
-  constructor(orientation = 0) { super(windowsBackend.createSeparator(orientation === 0)); }
+  constructor(orientation = 0) {
+    super(windowsBackend.createSeparator(orientation === 0));
+  }
 }
 
 export class Spacer extends View {
@@ -980,7 +1242,10 @@ export class Spacer extends View {
 
 export class GroupBox extends View {
   readonly contentStack: VStack;
-  constructor(opts: { title?: string; padding?: number; spacing?: number ; style?: any } & ViewOptions = {}, children: any[] = []) {
+  constructor(
+    opts: { title?: string; padding?: number; spacing?: number; style?: any } & ViewOptions = {},
+    children: any[] = [],
+  ) {
     opts = mergeStyle(opts);
     super(windowsBackend.createGroupBox(opts), opts);
     this.contentStack = new VStack({ spacing: opts.spacing ?? 8 }, children);
@@ -1028,7 +1293,10 @@ export class Stack extends View {
     const horizontal = orientation === 1;
     const align = opts.alignItems ?? (horizontal ? "center" : "fill");
     const pack = opts.justifyContent ?? (horizontal ? "fill" : "start");
-    windowsBackend.stackSetAlign(this.handle, { leading: 0, center: 1, trailing: 2, fill: 3 }[align] ?? 3);
+    windowsBackend.stackSetAlign(
+      this.handle,
+      { leading: 0, center: 1, trailing: 2, fill: 3 }[align] ?? 3,
+    );
     windowsBackend.stackSetPack(this.handle, { start: 0, center: 1, fill: 2 }[pack] ?? 0);
     for (const c of children) this.add(c);
   }
@@ -1060,7 +1328,9 @@ export class Stack extends View {
     for (const c of [...this._children]) this.remove(c);
     return this;
   }
-  set spacing(_v: number) { /* spacing is fixed at creation on Windows */ }
+  set spacing(_v: number) {
+    /* spacing is fixed at creation on Windows */
+  }
 }
 
 export class VStack extends Stack {
@@ -1091,13 +1361,19 @@ export class ScrollView extends View {
     super(windowsBackend.createScrollView(opts), { ...opts, minHeight: opts.minHeight ?? 80 });
     if (content) this.content = content;
   }
-  get content(): any { return this.#content; }
+  get content(): any {
+    return this.#content;
+  }
   set content(v: any) {
     this.#content = v;
     if (v) windowsBackend.setScrollViewContent(this.handle, v.handle ?? v);
   }
-  scrollToTop(): void { windowsBackend.scrollScrollViewTo(this.handle, 0); }
-  scrollToBottom(): void { windowsBackend.scrollScrollViewTo(this.handle, 1); }
+  scrollToTop(): void {
+    windowsBackend.scrollScrollViewTo(this.handle, 0);
+  }
+  scrollToBottom(): void {
+    windowsBackend.scrollScrollViewTo(this.handle, 1);
+  }
 }
 
 /** A plain container. Children stack vertically — absolute positioning has no
@@ -1164,7 +1440,10 @@ export class GridView extends View {
       (tracks ?? []).map((t) => (typeof t === "number" ? String(t) : t)).join(",");
     const rowSpacing = opts.rowSpacing ?? opts.spacing ?? 0;
     const colSpacing = opts.columnSpacing ?? opts.spacing ?? 0;
-    super(windowsBackend.createGridView(enc(opts.columns), enc(opts.rows), rowSpacing, colSpacing), opts);
+    super(
+      windowsBackend.createGridView(enc(opts.columns), enc(opts.rows), rowSpacing, colSpacing),
+      opts,
+    );
     for (const c of children) this.add(c);
   }
   add(child: any, placement: GridPlacement = {}): this {
@@ -1174,7 +1453,14 @@ export class GridView extends View {
       rowSpan: placement.rowSpan ?? child.props?.gridRowSpan ?? 1,
       columnSpan: placement.columnSpan ?? child.props?.gridColumnSpan ?? 1,
     };
-    windowsBackend.gridViewAdd(this.handle, child.handle ?? child, p.row, p.column, p.rowSpan, p.columnSpan);
+    windowsBackend.gridViewAdd(
+      this.handle,
+      child.handle ?? child,
+      p.row,
+      p.column,
+      p.rowSpan,
+      p.columnSpan,
+    );
     this._children.push(child);
     child._parent = this;
     return this;
@@ -1194,7 +1480,8 @@ export class SplitView extends View {
   constructor(opts: SplitOptions = {}, panes: any[] = []) {
     opts = mergeStyle(opts);
     super(windowsBackend.createSplitView(), opts);
-    if (panes[0] !== undefined) windowsBackend.setSplitViewPane(this.handle, panes[0].handle ?? panes[0]);
+    if (panes[0] !== undefined)
+      windowsBackend.setSplitViewPane(this.handle, panes[0].handle ?? panes[0]);
     if (panes[1] !== undefined) this.setContent(panes[1]);
     for (const extra of panes.slice(2)) this.addPane(extra);
     if (opts.position !== undefined) this.setPosition(opts.position);
@@ -1210,13 +1497,18 @@ export class SplitView extends View {
   }
   addPane(v: any): this {
     // SplitView holds one pane + one content area; extra panes join content.
-    if (!this.#content) { this.setContent(v); return this; }
+    if (!this.#content) {
+      this.setContent(v);
+      return this;
+    }
     windowsBackend.addSplitViewPane(this.handle, v.handle ?? v);
     this._children.push(v);
     v._parent = this;
     return this;
   }
-  setPosition(points: number): void { windowsBackend.setSplitViewPosition(this.handle, points); }
+  setPosition(points: number): void {
+    windowsBackend.setSplitViewPosition(this.handle, points);
+  }
 }
 
 export interface ImageOptions extends ViewOptions {
@@ -1238,13 +1530,17 @@ export class ImageView extends View {
     this.#src = opts.src ?? "";
     if (opts.tint !== undefined) this.tint = opts.tint;
   }
-  get src(): string { return this.#src; }
+  get src(): string {
+    return this.#src;
+  }
   set src(v: string) {
     this.#src = v;
     if (v) windowsBackend.setImageSource(this.handle, resolveAssetPath(v), this.#tint);
   }
   /** Recolour an SVG's fill/stroke; ignored for bitmaps. */
-  get tint(): string | undefined { return this.#tint; }
+  get tint(): string | undefined {
+    return this.#tint;
+  }
   set tint(v: string | undefined) {
     this.#tint = v;
     if (this.#src) windowsBackend.setImageSource(this.handle, resolveAssetPath(this.#src), v);
@@ -1340,21 +1636,39 @@ export class Table<Row = any> extends View {
     );
   }
 
-  get rows(): Row[] { return this.#rows; }
-  set rows(v: Row[]) { this.#rows = v ?? []; this.reload(); }
+  get rows(): Row[] {
+    return this.#rows;
+  }
+  set rows(v: Row[]) {
+    this.#rows = v ?? [];
+    this.reload();
+  }
 
   reload(): void {
     this.#cellViews.clear();
     windowsBackend.setTableRows(this.handle, this.#cells(), this.selectedIndex);
   }
 
-  reloadRow(_index: number): void { this.reload(); }
+  reloadRow(_index: number): void {
+    this.reload();
+  }
 
-  append(row: Row): void { this.#rows.push(row); this.reload(); }
-  removeAt(index: number): void { this.#rows.splice(index, 1); this.reload(); }
+  append(row: Row): void {
+    this.#rows.push(row);
+    this.reload();
+  }
+  removeAt(index: number): void {
+    this.#rows.splice(index, 1);
+    this.reload();
+  }
 
-  get selectedIndex(): number { return windowsBackend.getTableSelected(this.handle); }
-  get selected(): Row | null { const i = this.selectedIndex; return i >= 0 ? (this.#rows[i] ?? null) : null; }
+  get selectedIndex(): number {
+    return windowsBackend.getTableSelected(this.handle);
+  }
+  get selected(): Row | null {
+    const i = this.selectedIndex;
+    return i >= 0 ? (this.#rows[i] ?? null) : null;
+  }
 
   get selectedIndexes(): number[] {
     const count = windowsBackend.tableSelectedCount(this.handle);
@@ -1372,7 +1686,10 @@ export class Table<Row = any> extends View {
     windowsBackend.selectTableRow(this.handle, index);
   }
 
-  onSelect(fn: (row: Row | null, index: number) => void): this { this.#onSelect = fn; return this; }
+  onSelect(fn: (row: Row | null, index: number) => void): this {
+    this.#onSelect = fn;
+    return this;
+  }
 }
 
 // --- dialogs -----------------------------------------------------------------------------
@@ -1398,7 +1715,12 @@ export function alert(opts: AlertOptions): Promise<AlertResult> {
 export async function confirm(
   title: string,
   message?: string,
-  opts: { confirmLabel?: string; cancelLabel?: string; window?: Window; destructive?: boolean } = {},
+  opts: {
+    confirmLabel?: string;
+    cancelLabel?: string;
+    window?: Window;
+    destructive?: boolean;
+  } = {},
 ): Promise<boolean> {
   const r = await windowsBackend.alert({
     title,
@@ -1409,11 +1731,22 @@ export async function confirm(
   return r.button === 0;
 }
 
-export function prompt(title: string, opts: { message?: string; value?: string; placeholder?: string; window?: Window } = {}): Promise<string | null> {
+export function prompt(
+  title: string,
+  opts: { message?: string; value?: string; placeholder?: string; window?: Window } = {},
+): Promise<string | null> {
   return windowsBackend.prompt({ title, ...opts, window: opts.window?.handle });
 }
 
-export function openFile(opts: { title?: string; multiple?: boolean; types?: string[]; chooseDirectories?: boolean; window?: Window } = {}): Promise<string[]> {
+export function openFile(
+  opts: {
+    title?: string;
+    multiple?: boolean;
+    types?: string[];
+    chooseDirectories?: boolean;
+    window?: Window;
+  } = {},
+): Promise<string[]> {
   return windowsBackend.openFile({ ...opts, window: opts.window?.handle });
 }
 
@@ -1445,7 +1778,9 @@ export function getClipboardText(): string {
   return windowsBackend.getClipboardText();
 }
 
-export function saveFile(opts: { title?: string; defaultName?: string; window?: Window } = {}): Promise<string | null> {
+export function saveFile(
+  opts: { title?: string; defaultName?: string; window?: Window } = {},
+): Promise<string | null> {
   return windowsBackend.saveFile({ defaultName: opts.defaultName, window: opts.window?.handle });
 }
 
@@ -1455,7 +1790,9 @@ export function notify(_title: string, _body?: string): boolean {
   return false;
 }
 
-export function beep(): void { windowsBackend.beep(); }
+export function beep(): void {
+  windowsBackend.beep();
+}
 
 // --- input ---------------------------------------------------------------------------------
 
@@ -1473,17 +1810,49 @@ export interface MouseState {
 // Virtual-key codes to position-based names, matching the macOS KEY_NAMES
 // contract (W stays "w" on AZERTY, numpad/arrows named by position).
 const VK_NAMES: Record<number, string> = {
-  0x08: "delete", 0x09: "tab", 0x0d: "return", 0x10: "shift", 0x11: "control",
-  0x12: "option", 0x14: "capslock", 0x1b: "escape", 0x20: "space",
-  0x25: "left", 0x26: "up", 0x27: "right", 0x28: "down", 0x2e: "forwarddelete",
-  0x5b: "command", 0x5c: "command",
-  0x60: "numpad0", 0x61: "numpad1", 0x62: "numpad2", 0x63: "numpad3",
-  0x64: "numpad4", 0x65: "numpad5", 0x66: "numpad6", 0x67: "numpad7",
-  0x68: "numpad8", 0x69: "numpad9",
-  0x6a: "numpad*", 0x6b: "numpad+", 0x6d: "numpad-", 0x6e: "numpad.",
+  0x08: "delete",
+  0x09: "tab",
+  0x0d: "return",
+  0x10: "shift",
+  0x11: "control",
+  0x12: "option",
+  0x14: "capslock",
+  0x1b: "escape",
+  0x20: "space",
+  0x25: "left",
+  0x26: "up",
+  0x27: "right",
+  0x28: "down",
+  0x2e: "forwarddelete",
+  0x5b: "command",
+  0x5c: "command",
+  0x60: "numpad0",
+  0x61: "numpad1",
+  0x62: "numpad2",
+  0x63: "numpad3",
+  0x64: "numpad4",
+  0x65: "numpad5",
+  0x66: "numpad6",
+  0x67: "numpad7",
+  0x68: "numpad8",
+  0x69: "numpad9",
+  0x6a: "numpad*",
+  0x6b: "numpad+",
+  0x6d: "numpad-",
+  0x6e: "numpad.",
   0x6f: "numpad/",
-  0x70: "f1", 0x71: "f2", 0x72: "f3", 0x73: "f4", 0x74: "f5", 0x75: "f6",
-  0x76: "f7", 0x77: "f8", 0x78: "f9", 0x79: "f10", 0x7a: "f11", 0x7b: "f12",
+  0x70: "f1",
+  0x71: "f2",
+  0x72: "f3",
+  0x73: "f4",
+  0x74: "f5",
+  0x75: "f6",
+  0x76: "f7",
+  0x77: "f8",
+  0x78: "f9",
+  0x79: "f10",
+  0x7a: "f11",
+  0x7b: "f12",
 };
 for (let c = 0x41; c <= 0x5a; c++) VK_NAMES[c] = String.fromCharCode(c).toLowerCase();
 for (let d = 0x30; d <= 0x39; d++) VK_NAMES[d] = String.fromCharCode(d);
@@ -1541,15 +1910,21 @@ export class Input {
     return out;
   }
 
-  get shift(): boolean { return this.held("shift"); }
-  get control(): boolean { return this.held("control"); }
-  get option(): boolean { return this.held("option"); }
-  get command(): boolean { return this.held("command"); }
+  get shift(): boolean {
+    return this.held("shift");
+  }
+  get control(): boolean {
+    return this.held("control");
+  }
+  get option(): boolean {
+    return this.held("option");
+  }
+  get command(): boolean {
+    return this.held("command");
+  }
 
   get mouse(): MouseState {
-    const local = this.#tracked
-      ? windowsBackend.readMouseLocal(this.#tracked.handle)
-      : null;
+    const local = this.#tracked ? windowsBackend.readMouseLocal(this.#tracked.handle) : null;
     const global = windowsBackend.readMouse();
     const x = local ? local.x : global.x;
     const y = local ? local.y : global.y;
@@ -1568,7 +1943,8 @@ export class Input {
     const raw = global.buttons;
     this.#buttons = new Set([0, 1, 2, 3, 4].filter((b) => (raw & (1 << b)) !== 0));
     return {
-      x, y,
+      x,
+      y,
       dx: this.#dx,
       dy: this.#dy,
       wheelX: 0, // would need a message hook; see WINDOWS.md
@@ -1584,9 +1960,17 @@ export class Input {
     return (raw & (1 << index)) !== 0;
   }
 
-  onKeyDown(fn: KeyHandler): this { this.#keyDown.push(fn); return this; }
-  onKeyUp(fn: KeyHandler): this { this.#keyUp.push(fn); return this; }
-  onScroll(_fn: (dx: number, dy: number, event?: any) => void): this { return this; }
+  onKeyDown(fn: KeyHandler): this {
+    this.#keyDown.push(fn);
+    return this;
+  }
+  onKeyUp(fn: KeyHandler): this {
+    this.#keyUp.push(fn);
+    return this;
+  }
+  onScroll(_fn: (dx: number, dy: number, event?: any) => void): this {
+    return this;
+  }
 
   /** @internal Attach to the newest window. Called once, by input(). */
   start(): this {
@@ -1596,7 +1980,10 @@ export class Input {
     return this;
   }
 
-  stop(): this { this.#started = false; return this; }
+  stop(): this {
+    this.#started = false;
+    return this;
+  }
 
   #ensureHooked(): void {
     if (!this.#started) this.start();
@@ -1657,10 +2044,13 @@ export interface LayoutViolation {
 export function checkLayout(root: any, _options: { tolerance?: number } = {}): LayoutViolation[] {
   const raw = windowsBackend.checkLayoutRaw(root.handle ?? root);
   if (!raw) return [];
-  return raw.split("\n").filter(Boolean).map((line) => {
-    const [view, parent, detail] = line.split("\x1f");
-    return { view: view ?? "", parent: parent ?? "", detail: detail ?? "" };
-  });
+  return raw
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => {
+      const [view, parent, detail] = line.split("\x1f");
+      return { view: view ?? "", parent: parent ?? "", detail: detail ?? "" };
+    });
 }
 
 // --- layer-2 helpers -----------------------------------------------------------------------------

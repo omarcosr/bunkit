@@ -24,12 +24,30 @@ if (process.platform !== "darwin") {
 }
 
 import {
-  Application, Checkbox, HStack, Label, Segmented, Slider, Spacer, VStack, Window,
-} from "@omarcos/bunkit";
+  Application,
+  Checkbox,
+  HStack,
+  Label,
+  Segmented,
+  Slider,
+  Spacer,
+  VStack,
+  Window,
+} from "@omarcosr/bunkit";
 import {
-  Scene3D, box, cone, cylinder, plane, sphere, material, emissive,
-  gpuAvailable, kelvin, noise2, type Node,
-} from "@omarcos/bunkit/metal";
+  Scene3D,
+  box,
+  cone,
+  cylinder,
+  emissive,
+  gpuAvailable,
+  kelvin,
+  material,
+  noise2,
+  plane,
+  sphere,
+  type Node,
+} from "@omarcosr/bunkit/metal";
 
 const app = new Application({ name: "Lighting Rig" });
 
@@ -140,30 +158,47 @@ scene.add(plane({ size: 60, color: "#0a0a10" }));
 const TRUSS_Y = 8.4;
 for (const z of [-3.4, 3.4]) {
   for (let i = -7; i <= 7; i++) {
-    scene.add(cylinder({
-      radius: 0.09, height: 1.9, segments: 8,
-      position: [i * 1.9, TRUSS_Y, z], rotation: [0, 0, Math.PI / 2],
-      color: "#3a3f4a", material: bodyMaterial,
-    }));
+    scene.add(
+      cylinder({
+        radius: 0.09,
+        height: 1.9,
+        segments: 8,
+        position: [i * 1.9, TRUSS_Y, z],
+        rotation: [0, 0, Math.PI / 2],
+        color: "#3a3f4a",
+        material: bodyMaterial,
+      }),
+    );
   }
   for (const y of [TRUSS_Y - 0.42, TRUSS_Y + 0.42]) {
     for (let i = -7; i <= 7; i++) {
-      scene.add(cylinder({
-        radius: 0.05, height: 1.9, segments: 6,
-        position: [i * 1.9, y, z], rotation: [0, 0, Math.PI / 2],
-        color: "#2e323c", material: bodyMaterial,
-      }));
+      scene.add(
+        cylinder({
+          radius: 0.05,
+          height: 1.9,
+          segments: 6,
+          position: [i * 1.9, y, z],
+          rotation: [0, 0, Math.PI / 2],
+          color: "#2e323c",
+          material: bodyMaterial,
+        }),
+      );
     }
   }
 }
 
 // Warm practicals on the back wall.
 const practicals = Array.from({ length: 9 }, (_, i) =>
-  scene.add(sphere({
-    radius: 0.16, segments: 10, rings: 6,
-    position: [(i - 4) * 3.0, 1.2, -9.6],
-    color: "#ffffff", material: practicalMaterial,
-  })),
+  scene.add(
+    sphere({
+      radius: 0.16,
+      segments: 10,
+      rings: 6,
+      position: [(i - 4) * 3.0, 1.2, -9.6],
+      color: "#ffffff",
+      material: practicalMaterial,
+    }),
+  ),
 );
 
 // ---------------------------------------------------------------------------
@@ -193,30 +228,67 @@ for (const z of [-3.4, 3.4]) {
     const x = (i - 5.5) * 2.28;
     const home = { x, y: TRUSS_Y - 0.55, z };
 
-    const yoke = scene.add(box({
-      size: [0.42, 0.34, 0.42], position: [home.x, home.y + 0.28, home.z],
-      color: "#414652", material: bodyMaterial,
-    }));
-    const head = scene.add(cylinder({
-      radius: 0.23, top: 0.19, height: 0.62, segments: 14,
-      position: [home.x, home.y, home.z], color: "#4a505d", material: bodyMaterial,
-    }));
-    const lens = scene.add(cylinder({
-      radius: 0.19, height: 0.06, segments: 14,
-      position: [home.x, home.y - 0.3, home.z], color: "#ffffff", material: lensMaterial,
-    }));
+    const yoke = scene.add(
+      box({
+        size: [0.42, 0.34, 0.42],
+        position: [home.x, home.y + 0.28, home.z],
+        color: "#414652",
+        material: bodyMaterial,
+      }),
+    );
+    const head = scene.add(
+      cylinder({
+        radius: 0.23,
+        top: 0.19,
+        height: 0.62,
+        segments: 14,
+        position: [home.x, home.y, home.z],
+        color: "#4a505d",
+        material: bodyMaterial,
+      }),
+    );
+    const lens = scene.add(
+      cylinder({
+        radius: 0.19,
+        height: 0.06,
+        segments: 14,
+        position: [home.x, home.y - 0.3, home.z],
+        color: "#ffffff",
+        material: lensMaterial,
+      }),
+    );
     // The cone's apex is at the node's position, which is the lens.
-    const beam = scene.add(cone({
-      radius: 1.15, height: BEAM_LENGTH, segments: 22, caps: false,
-      position: [home.x, home.y - 0.32, home.z], color: "#ffffff", material: beamMaterial,
-    }));
-    const pool = scene.add(plane({
-      size: 2.6, position: [x, 0.02, 0], color: "#ffffff", material: poolMaterial,
-    }));
+    const beam = scene.add(
+      cone({
+        radius: 1.15,
+        height: BEAM_LENGTH,
+        segments: 22,
+        caps: false,
+        position: [home.x, home.y - 0.32, home.z],
+        color: "#ffffff",
+        material: beamMaterial,
+      }),
+    );
+    const pool = scene.add(
+      plane({
+        size: 2.6,
+        position: [x, 0.02, 0],
+        color: "#ffffff",
+        material: poolMaterial,
+      }),
+    );
 
     fixtures.push({
-      index: index++, home, yoke, head, lens, beam, pool,
-      aim: { x, y: 0, z: 0 }, hue: 0, dimmer: 0,
+      index: index++,
+      home,
+      yoke,
+      head,
+      lens,
+      beam,
+      pool,
+      aim: { x, y: 0, z: 0 },
+      hue: 0,
+      dimmer: 0,
     });
   }
 }
@@ -280,7 +352,11 @@ function fly(dt: number): void {
   }
 
   const speed = (keys.shift ? 24 : 9) * dt;
-  const forward = { x: Math.sin(yaw) * Math.cos(pitch), y: Math.sin(pitch), z: Math.cos(yaw) * Math.cos(pitch) };
+  const forward = {
+    x: Math.sin(yaw) * Math.cos(pitch),
+    y: Math.sin(pitch),
+    z: Math.cos(yaw) * Math.cos(pitch),
+  };
   const right = { x: Math.cos(yaw), y: 0, z: -Math.sin(yaw) };
 
   let moved = false;
@@ -308,7 +384,7 @@ function fly(dt: number): void {
 // The frame
 // ---------------------------------------------------------------------------
 
-const hue = (i: number, beat: number) => ((i * 0.055 + beat * 0.06) % 1 + 1) % 1;
+const hue = (i: number, beat: number) => (((i * 0.055 + beat * 0.06) % 1) + 1) % 1;
 
 // Hue to RGB, matching the shader's, so the pool and the beam agree.
 function hsv(h: number, s: number, v: number): [number, number, number] {
@@ -395,7 +471,9 @@ scene.onFrame(({ time, dt }) => {
 // ---------------------------------------------------------------------------
 
 const readout = new Label({
-  text: "…", font: { monospace: true, size: 11 }, textColor: "secondaryLabel",
+  text: "…",
+  font: { monospace: true, size: 11 },
+  textColor: "secondaryLabel",
 });
 let mark = 0;
 scene.onFrame(({ time }) => {
@@ -433,12 +511,42 @@ const win = new Window({
         },
       }),
       new Label({ text: "BPM", width: 34 }),
-      new Slider({ min: 60, max: 190, value: bpm, width: 140, onChange: (v) => { bpm = v; } }),
+      new Slider({
+        min: 60,
+        max: 190,
+        value: bpm,
+        width: 140,
+        onChange: (v) => {
+          bpm = v;
+        },
+      }),
       new Label({ text: "Haze", width: 38 }),
-      new Slider({ min: 0, max: 1.6, value: hazeLevel, width: 110, onChange: (v) => { hazeLevel = v; } }),
+      new Slider({
+        min: 0,
+        max: 1.6,
+        value: hazeLevel,
+        width: 110,
+        onChange: (v) => {
+          hazeLevel = v;
+        },
+      }),
       new Label({ text: "Master", width: 52 }),
-      new Slider({ min: 0, max: 1, value: master, grow: 1, onChange: (v) => { master = v; } }),
-      new Checkbox({ title: "Strobe", checked: false, onChange: (on) => { strobe = on; } }),
+      new Slider({
+        min: 0,
+        max: 1,
+        value: master,
+        grow: 1,
+        onChange: (v) => {
+          master = v;
+        },
+      }),
+      new Checkbox({
+        title: "Strobe",
+        checked: false,
+        onChange: (on) => {
+          strobe = on;
+        },
+      }),
     ]),
   ]),
 });

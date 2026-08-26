@@ -3,7 +3,7 @@
 // Every export is a Snippet: interpolate it into an `msl` template and its
 // source lands in the shader, once, with anything it depends on ahead of it.
 //
-//   import { msl, aces, fbm3, kelvin } from "@omarcos/bunkit/metal";
+//   import { msl, aces, fbm3, kelvin } from "@omarcosr/bunkit/metal";
 //
 //   const grade = gpu().effect(msl`
 //     ${aces}
@@ -21,28 +21,40 @@ import { snippet, type Snippet } from "./gpu.ts";
 // Colour
 // ---------------------------------------------------------------------------
 
-export const hsv2rgb: Snippet = snippet("hsv2rgb", `
+export const hsv2rgb: Snippet = snippet(
+  "hsv2rgb",
+  `
 float3 hsv2rgb(float3 c) {
   float3 p = abs(fract(c.xxx + float3(1.0, 2.0 / 3.0, 1.0 / 3.0)) * 6.0 - 3.0);
   return c.z * mix(float3(1.0), saturate(p - 1.0), c.y);
-}`);
+}`,
+);
 
-export const rgb2hsv: Snippet = snippet("rgb2hsv", `
+export const rgb2hsv: Snippet = snippet(
+  "rgb2hsv",
+  `
 float3 rgb2hsv(float3 c) {
   float4 K = float4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
   float4 p = mix(float4(c.bg, K.wz), float4(c.gb, K.xy), step(c.b, c.g));
   float4 q = mix(float4(p.xyw, c.r), float4(c.r, p.yzx), step(p.x, c.r));
   float d = q.x - min(q.w, q.y);
   return float3(abs(q.z + (q.w - q.y) / (6.0 * d + 1e-10)), d / (q.x + 1e-10), q.x);
-}`);
+}`,
+);
 
-export const luminance: Snippet = snippet("luminance", `
+export const luminance: Snippet = snippet(
+  "luminance",
+  `
 // Rec. 709 weights: what the eye actually reads as brightness.
-float luminance(float3 c) { return dot(c, float3(0.2126, 0.7152, 0.0722)); }`);
+float luminance(float3 c) { return dot(c, float3(0.2126, 0.7152, 0.0722)); }`,
+);
 
-export const srgb: Snippet = snippet("srgb", `
+export const srgb: Snippet = snippet(
+  "srgb",
+  `
 float3 toSRGB(float3 c) { return pow(max(c, 0.0), float3(1.0 / 2.2)); }
-float3 toLinear(float3 c) { return pow(max(c, 0.0), float3(2.2)); }`);
+float3 toLinear(float3 c) { return pow(max(c, 0.0), float3(2.2)); }`,
+);
 
 /**
  * ACES filmic tone mapping.
@@ -51,11 +63,14 @@ float3 toLinear(float3 c) { return pow(max(c, 0.0), float3(2.2)); }`);
  * back into range somehow, and clamping flattens every highlight to the same
  * flat white. This rolls them off instead.
  */
-export const aces: Snippet = snippet("aces", `
+export const aces: Snippet = snippet(
+  "aces",
+  `
 float3 aces(float3 x) {
   const float a = 2.51, b = 0.03, c = 2.43, d = 0.59, e = 0.14;
   return saturate((x * (a * x + b)) / (x * (c * x + d) + e));
-}`);
+}`,
+);
 
 /**
  * Colour temperature in kelvin as linear RGB, normalised to 1.0 at the peak.
@@ -63,7 +78,9 @@ float3 aces(float3 x) {
  * Stage fixtures are specified this way — a 3200 K tungsten wash against a
  * 6500 K white — and mixing the gels by hand never quite looks right.
  */
-export const kelvin: Snippet = snippet("kelvin", `
+export const kelvin: Snippet = snippet(
+  "kelvin",
+  `
 float3 kelvin(float t) {
   t = clamp(t, 1000.0, 40000.0) / 100.0;
   float r = t <= 66.0 ? 255.0 : 329.698727446 * pow(t - 60.0, -0.1332047592);
@@ -71,7 +88,8 @@ float3 kelvin(float t) {
                       : 288.1221695283 * pow(t - 60.0, -0.0755148492);
   float b = t >= 66.0 ? 255.0 : (t <= 19.0 ? 0.0 : 138.5177312231 * log(t - 10.0) - 305.0447927307);
   return saturate(float3(r, g, b) / 255.0);
-}`);
+}`,
+);
 
 /**
  * Ordered dither, ±1/255 of noise on an 8-bit output.
@@ -79,7 +97,9 @@ float3 kelvin(float t) {
  * A dark gradient across a large area bands visibly on any 8-bit display. This
  * costs nothing and removes it; apply just before writing the final colour.
  */
-export const dither: Snippet = snippet("dither", `
+export const dither: Snippet = snippet(
+  "dither",
+  `
 float bayer4(float2 pixel) {
   const float m[16] = { 0.0,  8.0,  2.0, 10.0,
                        12.0,  4.0, 14.0,  6.0,
@@ -88,13 +108,16 @@ float bayer4(float2 pixel) {
   uint2 p = uint2(pixel) & 3;
   return m[p.y * 4 + p.x] / 16.0 - 0.5;
 }
-float3 dither(float3 c, float2 pixel) { return c + bayer4(pixel) / 255.0; }`);
+float3 dither(float3 c, float2 pixel) { return c + bayer4(pixel) / 255.0; }`,
+);
 
 // ---------------------------------------------------------------------------
 // Hashing and noise
 // ---------------------------------------------------------------------------
 
-export const hash: Snippet = snippet("hash", `
+export const hash: Snippet = snippet(
+  "hash",
+  `
 float hash11(float p) {
   p = fract(p * 0.1031);
   p *= p + 33.33;
@@ -109,18 +132,25 @@ float hash31(float3 p) {
   p = fract(p * 0.1031);
   p += dot(p, p.zyx + 31.32);
   return fract((p.x + p.y) * p.z);
-}`);
+}`,
+);
 
-export const noise2: Snippet = snippet("noise2", `
+export const noise2: Snippet = snippet(
+  "noise2",
+  `
 float noise2(float2 p) {
   float2 i = floor(p), f = fract(p);
   // Smoothstep the interpolant, or the lattice shows through as a grid.
   float2 u = f * f * (3.0 - 2.0 * f);
   return mix(mix(hash21(i), hash21(i + float2(1, 0)), u.x),
              mix(hash21(i + float2(0, 1)), hash21(i + float2(1, 1)), u.x), u.y);
-}`, [hash]);
+}`,
+  [hash],
+);
 
-export const noise3: Snippet = snippet("noise3", `
+export const noise3: Snippet = snippet(
+  "noise3",
+  `
 float noise3(float3 p) {
   float3 i = floor(p), f = fract(p);
   float3 u = f * f * (3.0 - 2.0 * f);
@@ -130,29 +160,41 @@ float noise3(float3 p) {
   float n011 = hash31(i + float3(0, 1, 1)), n111 = hash31(i + float3(1, 1, 1));
   return mix(mix(mix(n000, n100, u.x), mix(n010, n110, u.x), u.y),
              mix(mix(n001, n101, u.x), mix(n011, n111, u.x), u.y), u.z);
-}`, [hash]);
+}`,
+  [hash],
+);
 
 /** Fractal noise: octaves at doubling frequency and halving amplitude. */
-export const fbm2: Snippet = snippet("fbm2", `
+export const fbm2: Snippet = snippet(
+  "fbm2",
+  `
 float fbm2(float2 p, int octaves) {
   float sum = 0.0, amp = 0.5;
   for (int i = 0; i < octaves; i++) { sum += amp * noise2(p); p *= 2.02; amp *= 0.5; }
   return sum;
-}`, [noise2]);
+}`,
+  [noise2],
+);
 
-export const fbm3: Snippet = snippet("fbm3", `
+export const fbm3: Snippet = snippet(
+  "fbm3",
+  `
 float fbm3(float3 p, int octaves) {
   float sum = 0.0, amp = 0.5;
   for (int i = 0; i < octaves; i++) { sum += amp * noise3(p); p *= 2.02; amp *= 0.5; }
   return sum;
-}`, [noise3]);
+}`,
+  [noise3],
+);
 
 // ---------------------------------------------------------------------------
 // Shapes and space
 // ---------------------------------------------------------------------------
 
 /** Signed distance functions, for raymarching and for soft masks in 2D. */
-export const sdf: Snippet = snippet("sdf", `
+export const sdf: Snippet = snippet(
+  "sdf",
+  `
 float sdSphere(float3 p, float r) { return length(p) - r; }
 float sdBox(float3 p, float3 b) {
   float3 q = abs(p) - b;
@@ -170,27 +212,36 @@ float opIntersect(float a, float b) { return max(a, b); }
 float opSmoothUnion(float a, float b, float k) {
   float h = saturate(0.5 + 0.5 * (b - a) / k);
   return mix(b, a, h) - k * h * (1.0 - h);
-}`);
+}`,
+);
 
-export const rotate: Snippet = snippet("rotate", `
+export const rotate: Snippet = snippet(
+  "rotate",
+  `
 float2x2 rot2(float a) { float s = sin(a), c = cos(a); return float2x2(c, s, -s, c); }
 // Rodrigues: rotate v about a unit axis by an angle, without building a matrix.
 float3 rotateAxis(float3 v, float3 axis, float angle) {
   float s = sin(angle), c = cos(angle);
   return v * c + cross(axis, v) * s + axis * dot(axis, v) * (1.0 - c);
-}`);
+}`,
+);
 
-export const remap: Snippet = snippet("remap", `
+export const remap: Snippet = snippet(
+  "remap",
+  `
 float remap(float x, float a, float b, float c, float d) {
   return c + (saturate((x - a) / (b - a))) * (d - c);
 }
-float3 saturate3(float3 c) { return clamp(c, 0.0, 1.0); }`);
+float3 saturate3(float3 c) { return clamp(c, 0.0, 1.0); }`,
+);
 
 // ---------------------------------------------------------------------------
 // Lighting
 // ---------------------------------------------------------------------------
 
-export const lighting: Snippet = snippet("lighting", `
+export const lighting: Snippet = snippet(
+  "lighting",
+  `
 float lambert(float3 n, float3 l) { return max(dot(n, l), 0.0); }
 float blinnPhong(float3 n, float3 l, float3 v, float shininess) {
   float3 h = normalize(l + v);
@@ -204,7 +255,8 @@ float fresnel(float3 n, float3 v, float power) {
 float attenuate(float distance, float radius) {
   float d = distance / max(radius, 1e-4);
   return 1.0 / (1.0 + d * d);
-}`);
+}`,
+);
 
 /**
  * How much a spotlight cone contributes along a view ray.
@@ -213,7 +265,9 @@ float attenuate(float distance, float radius) {
  * close to the edge — and `beam` is the volumetric one: how much haze the ray
  * lit on its way past. Together they are a stage light with a visible shaft.
  */
-export const beam: Snippet = snippet("beam", `
+export const beam: Snippet = snippet(
+  "beam",
+  `
 float coneMask(float3 p, float3 apex, float3 dir, float cosAngle, float softness) {
   float3 toPoint = p - apex;
   float d = length(toPoint);
@@ -237,7 +291,9 @@ float beamScatter(float3 origin, float3 ray, float maxDistance,
     sum += coneMask(p, apex, dir, cosAngle, softness) * attenuate(length(p - apex), radius);
   }
   return sum * dt;
-}`, [lighting]);
+}`,
+  [lighting],
+);
 
 // ---------------------------------------------------------------------------
 // Ready-made effects
@@ -250,8 +306,23 @@ float beamScatter(float3 origin, float3 ray, float maxDistance,
  * throws away unused, which costs compile time once and nothing per frame.
  */
 export const stdlib: Snippet = snippet("stdlib", "// bunkit stdlib", [
-  hsv2rgb, rgb2hsv, luminance, srgb, aces, kelvin, dither,
-  hash, noise2, noise3, fbm2, fbm3, sdf, rotate, remap, lighting, beam,
+  hsv2rgb,
+  rgb2hsv,
+  luminance,
+  srgb,
+  aces,
+  kelvin,
+  dither,
+  hash,
+  noise2,
+  noise3,
+  fbm2,
+  fbm3,
+  sdf,
+  rotate,
+  remap,
+  lighting,
+  beam,
 ]);
 
 /** A separable Gaussian blur in one axis. Run it twice, once per axis. */

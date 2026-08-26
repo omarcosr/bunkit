@@ -19,9 +19,24 @@ if (process.platform !== "darwin") {
 }
 
 import {
-  Application, Checkbox, HStack, Label, Segmented, Slider, Spacer, VStack, Window,
-  GPUView, gpu, gpuAvailable, msl, struct, f32, u32, vec4f,
-} from "@omarcos/bunkit";
+  Application,
+  Checkbox,
+  GPUView,
+  HStack,
+  Label,
+  Segmented,
+  Slider,
+  Spacer,
+  VStack,
+  Window,
+  f32,
+  gpu,
+  gpuAvailable,
+  msl,
+  struct,
+  u32,
+  vec4f,
+} from "@omarcosr/bunkit";
 
 const app = new Application({ name: "Particles" });
 
@@ -163,7 +178,10 @@ kernel void simulate(
 // A mat4x4f schema would do the same thing; four float4s keeps this example's
 // uniform block readable next to the shader that reads it.
 const View = struct("View", {
-  c0: vec4f, c1: vec4f, c2: vec4f, c3: vec4f,
+  c0: vec4f,
+  c1: vec4f,
+  c2: vec4f,
+  c3: vec4f,
   /** x point size in pixels, y brightness. */
   style: vec4f,
 });
@@ -282,7 +300,7 @@ surface.onFrame((frame) => {
   const dragging = keys.button(0) && inside;
   const attractor = dragging
     ? [
-        ((x / Math.max(1, surface.frame.width)) - 0.5) * 16,
+        (x / Math.max(1, surface.frame.width) - 0.5) * 16,
         (0.5 - y / Math.max(1, surface.frame.height)) * 10,
         0,
       ]
@@ -299,7 +317,10 @@ surface.onFrame((frame) => {
 
   const columns = viewProjection(frame.width / Math.max(1, frame.height), frame.time);
   view.write({
-    c0: columns[0]!, c1: columns[1]!, c2: columns[2]!, c3: columns[3]!,
+    c0: columns[0]!,
+    c1: columns[1]!,
+    c2: columns[2]!,
+    c3: columns[3]!,
     style: [pointSize, brightness, 0, 0],
   });
 
@@ -308,9 +329,12 @@ surface.onFrame((frame) => {
   // Both in one command buffer: the draw reads what the compute pass wrote, and
   // the GPU orders them. No fence, no readback, no wait on the CPU.
   frame.dispatch(simulate, COUNT, { particles, sim });
-  frame.render({ target: bloom.scene, clear: [0.01, 0.01, 0.03, 1], label: "particles" }, (pass) => {
-    pass.pipeline(pipeline).bind({ particles, view }).draw(COUNT, { primitive: "point" });
-  });
+  frame.render(
+    { target: bloom.scene, clear: [0.01, 0.01, 0.03, 1], label: "particles" },
+    (pass) => {
+      pass.pipeline(pipeline).bind({ particles, view }).draw(COUNT, { primitive: "point" });
+    },
+  );
   bloom.apply(frame);
 });
 
@@ -318,7 +342,11 @@ surface.onFrame((frame) => {
 // Chrome
 // ---------------------------------------------------------------------------
 
-const readout = new Label({ text: "", font: { monospace: true, size: 11 }, textColor: "secondaryLabel" });
+const readout = new Label({
+  text: "",
+  font: { monospace: true, size: 11 },
+  textColor: "secondaryLabel",
+});
 let mark = 0;
 surface.onFrame((frame) => {
   if (frame.time - mark < 0.5) return;
@@ -345,17 +373,49 @@ const win = new Window({
 
     new HStack({ spacing: 14, alignItems: "center" }, [
       new Label({ text: "Pull", width: 32 }),
-      new Slider({ min: -40, max: 90, value: strength, width: 130, onChange: (v) => { strength = v; } }),
+      new Slider({
+        min: -40,
+        max: 90,
+        value: strength,
+        width: 130,
+        onChange: (v) => {
+          strength = v;
+        },
+      }),
       new Label({ text: "Swirl", width: 40 }),
-      new Slider({ min: 0, max: 8, value: turbulence, width: 110, onChange: (v) => { turbulence = v; } }),
+      new Slider({
+        min: 0,
+        max: 8,
+        value: turbulence,
+        width: 110,
+        onChange: (v) => {
+          turbulence = v;
+        },
+      }),
       new Label({ text: "Glow", width: 38 }),
-      new Slider({ min: 0.05, max: 1.6, value: brightness, grow: 1, onChange: (v) => { brightness = v; } }),
+      new Slider({
+        min: 0.05,
+        max: 1.6,
+        value: brightness,
+        grow: 1,
+        onChange: (v) => {
+          brightness = v;
+        },
+      }),
       new Segmented({
         items: ["Float", "Fall"],
         selected: 0,
-        onChange: (i) => { gravity = i === 0 ? 0 : 6; },
+        onChange: (i) => {
+          gravity = i === 0 ? 0 : 6;
+        },
       }),
-      new Checkbox({ title: "Orbit", checked: true, onChange: (on) => { orbiting = on; } }),
+      new Checkbox({
+        title: "Orbit",
+        checked: true,
+        onChange: (on) => {
+          orbiting = on;
+        },
+      }),
     ]),
   ]),
 });

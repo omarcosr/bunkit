@@ -58,35 +58,41 @@ function packPreview(cwd: string): string[] {
 
 function assertContents(label: string, files: string[], allowed: (file: string) => boolean): void {
   const unexpected = files.filter((file) => !allowed(file.replace(/\\/g, "/")));
-  assert(unexpected.length === 0, `${label} would publish unexpected files: ${unexpected.join(", ")}`);
+  assert(
+    unexpected.length === 0,
+    `${label} would publish unexpected files: ${unexpected.join(", ")}`,
+  );
 }
 
 const rootManifest = manifest(resolve(root, "package.json"));
 const binaryPackages: BinaryPackage[] = [
   {
-    name: "@omarcos/bunkit-darwin-arm64",
+    name: "@omarcosr/bunkit-darwin-arm64",
     directory: "packages/bunkit-darwin-arm64",
     os: "darwin",
     cpu: "arm64",
     artifacts: ["bin/libobjcbridge.dylib"],
   },
   {
-    name: "@omarcos/bunkit-win32-x64",
+    name: "@omarcosr/bunkit-win32-x64",
     directory: "packages/bunkit-win32-x64",
     os: "win32",
     cpu: "x64",
-    artifacts: [
-      "bin/winbridge.dll",
-      "bin/Microsoft.WindowsAppRuntime.Bootstrap.dll",
-    ],
+    artifacts: ["bin/winbridge.dll", "bin/Microsoft.WindowsAppRuntime.Bootstrap.dll"],
   },
 ];
 
-assert(rootManifest.name === "@omarcos/bunkit", "root package name must be @omarcos/bunkit");
+assert(rootManifest.name === "@omarcosr/bunkit", "root package name must be @omarcosr/bunkit");
 assert(rootManifest.private !== true, "root package must not be private");
 assert(rootManifest.publishConfig?.access === "public", "root package must publish publicly");
-assert(rootManifest.os?.join(",") === "darwin,win32", "root package must support only macOS and Windows");
-assert(rootManifest.cpu === undefined, "root package must not claim unsupported architecture pairs");
+assert(
+  rootManifest.os?.join(",") === "darwin,win32",
+  "root package must support only macOS and Windows",
+);
+assert(
+  rootManifest.cpu === undefined,
+  "root package must not claim unsupported architecture pairs",
+);
 for (const file of ["src", "tsconfig.base.json", "README.md", "LICENSE", "NOTICE"]) {
   assert(rootManifest.files?.includes(file), `root files must include ${file}`);
 }
@@ -100,7 +106,10 @@ for (const binary of binaryPackages) {
   const packageRoot = resolve(root, binary.directory);
   const binaryManifest = manifest(resolve(packageRoot, "package.json"));
   assert(binaryManifest.name === binary.name, `${binary.directory} has the wrong package name`);
-  assert(binaryManifest.version === rootManifest.version, `${binary.name} must match the root version`);
+  assert(
+    binaryManifest.version === rootManifest.version,
+    `${binary.name} must match the root version`,
+  );
   assert(binaryManifest.os?.join(",") === binary.os, `${binary.name} must target ${binary.os}`);
   assert(binaryManifest.cpu?.join(",") === binary.cpu, `${binary.name} must target ${binary.cpu}`);
   assert(binaryManifest.publishConfig?.access === "public", `${binary.name} must publish publicly`);
@@ -118,11 +127,16 @@ for (const binary of binaryPackages) {
 
 const rootFiles = packPreview(root);
 assertContents(
-  "@omarcos/bunkit",
+  "@omarcosr/bunkit",
   rootFiles,
-  (file) => ["package.json", "README.md", "LICENSE", "NOTICE", "tsconfig.base.json"].includes(file) || file.startsWith("src/"),
+  (file) =>
+    ["package.json", "README.md", "LICENSE", "NOTICE", "tsconfig.base.json"].includes(file) ||
+    file.startsWith("src/"),
 );
-assert(rootFiles.some((file) => file.startsWith("src/")), "root package must contain source files");
+assert(
+  rootFiles.some((file) => file.startsWith("src/")),
+  "root package must contain source files",
+);
 
 const selected = selectedName
   ? binaryPackages.filter((binary) => binary.name === selectedName)
@@ -138,10 +152,8 @@ if (requireBinaries) {
       assert(statSync(path).size > 0, `${binary.name} has an empty ${file}`);
     }
     const binaryFiles = packPreview(packageRoot);
-    assertContents(
-      binary.name,
-      binaryFiles,
-      (file) => ["package.json", "README.md", "LICENSE", "NOTICE", ...binary.artifacts].includes(file),
+    assertContents(binary.name, binaryFiles, (file) =>
+      ["package.json", "README.md", "LICENSE", "NOTICE", ...binary.artifacts].includes(file),
     );
   }
 }

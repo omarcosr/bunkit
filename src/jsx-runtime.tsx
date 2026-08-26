@@ -1,6 +1,6 @@
 // JSX runtime — a thin declarative skin over the imperative API.
 //
-//   tsconfig:  "jsx": "react-jsx", "jsxImportSource": "@omarcos/bunkit"
+//   tsconfig:  "jsx": "react-jsx", "jsxImportSource": "@omarcosr/bunkit"
 //   example:   <VStack spacing={12}><Label text="hi" /><Button title="Go" onClick={…}/></VStack>
 //
 // Elements are the imported constructors themselves — <Window>, <VStack>,
@@ -11,10 +11,30 @@
 // `placeholder` props. Plain functions are custom components. The runtime is
 // platform-agnostic and works on macOS and Windows.
 import {
-  Application, Window, VStack, HStack, Stack, Label, Button, TextField,
-  Checkbox, Switch, Slider, Select, Segmented, TextArea, Progress,
-  GroupBox, ScrollView, SplitView, Container, GridView, ImageView, BlurView,
-  Spacer, Separator, Table, View,
+  BlurView,
+  Button,
+  Checkbox,
+  Container, GridView,
+  GroupBox,
+  HStack,
+  ImageView,
+  Label,
+  Progress,
+  ScrollView,
+  Segmented,
+  Select,
+  Separator,
+  Slider,
+  Spacer,
+  SplitView,
+  Stack,
+  Switch,
+  Table,
+  TextArea,
+  TextField,
+  View,
+  VStack,
+  Window
 } from "./index.ts";
 
 export const Fragment = Symbol.for("bunkit.Fragment");
@@ -74,7 +94,7 @@ export class For<T> {
     while (i < newKeys.length && i < oldKeys.length && newKeys[i] === oldKeys[i]) i++;
     let j = 0;
     while (j < newKeys.length - i && j < oldKeys.length - i &&
-           newKeys[newKeys.length - 1 - j] === oldKeys[oldKeys.length - 1 - j]) j++;
+      newKeys[newKeys.length - 1 - j] === oldKeys[oldKeys.length - 1 - j]) j++;
     // Drop rows that are gone or whose item reference changed (re-create).
     for (const key of oldKeys.slice(i, oldKeys.length - j)) {
       const row = this.#rows.get(key);
@@ -127,7 +147,7 @@ function create(type: any, props: any, children: any[]): any {
     return type({ ...p, children });
   }
   if (typeof type !== "function") {
-    throw new Error(`@omarcos/bunkit/jsx-runtime: <${String(type)}> is not a control`);
+    throw new Error(`@omarcosr/bunkit/jsx-runtime: <${String(type)}> is not a control`);
   }
 
   // Signals in props (value={name}) are bound by the control constructors
@@ -220,7 +240,7 @@ function create(type: any, props: any, children: any[]): any {
       if (isControl(type)) {
         control = new type(p, children);
       } else {
-        throw new Error(`@omarcos/bunkit/jsx-runtime: <${String(type?.name ?? type)}> is not a control`);
+        throw new Error(`@omarcosr/bunkit/jsx-runtime: <${String(type?.name ?? type)}> is not a control`);
       }
   }
 

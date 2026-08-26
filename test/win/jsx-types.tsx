@@ -1,8 +1,19 @@
 // Compile-time check that JSX props are typed against the imported elements'
 // real option types. This file never runs; the @ts-expect-error lines fail
 // the typecheck if the typing stops being precise (TS2578: unused directive).
-import { Application, signal, Window, VStack, Label, Button, TextField,
-  Checkbox, Segmented, Slider, ScrollView } from "@omarcos/bunkit";
+import {
+  Application,
+  Button,
+  Checkbox,
+  Label,
+  ScrollView,
+  Segmented,
+  signal,
+  Slider,
+  TextField,
+  VStack,
+  Window
+} from "@omarcosr/bunkit";
 
 const app = new Application({ name: "JSX Types", theme: "light" });
 

@@ -25,7 +25,7 @@ import {
   TextField,
   VStack,
   Window,
-} from "@omarcos/bunkit";
+} from "@omarcosr/bunkit";
 
 interface Person {
   name: string;
@@ -82,8 +82,14 @@ scoreSlider.onChange((v) => {
 });
 
 const detail = new GroupBox({ title: "Details", padding: 12 }, [
-  new HStack({ spacing: 8, alignItems: "center" }, [new Label({ text: "Name", width: 52 }), nameField]),
-  new HStack({ spacing: 8, alignItems: "center" }, [new Label({ text: "Role", width: 52 }), roleField]),
+  new HStack({ spacing: 8, alignItems: "center" }, [
+    new Label({ text: "Name", width: 52 }),
+    nameField,
+  ]),
+  new HStack({ spacing: 8, alignItems: "center" }, [
+    new Label({ text: "Role", width: 52 }),
+    roleField,
+  ]),
   new HStack({ spacing: 8, alignItems: "center" }, [
     new Label({ text: "Score", width: 52 }),
     scoreSlider,

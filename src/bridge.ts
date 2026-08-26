@@ -10,7 +10,7 @@
 // puts the value far beyond 2^53. Our own buffers (argbuf, layout scratch) are
 // ordinary heap addresses and stay plain numbers.
 
-import { dlopen, FFIType, JSCallback, ptr, suffix, toArrayBuffer, CString } from "bun:ffi";
+import { CString, dlopen, FFIType, JSCallback, ptr, suffix, toArrayBuffer } from "bun:ffi";
 import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
@@ -38,7 +38,7 @@ const packageRequire = createRequire(import.meta.url);
 
 function installedBridge(): string | undefined {
   try {
-    return packageRequire.resolve("@omarcos/bunkit-darwin-arm64/libobjcbridge.dylib");
+    return packageRequire.resolve("@omarcosr/bunkit-darwin-arm64/libobjcbridge.dylib");
   } catch {
     return undefined;
   }
@@ -58,9 +58,9 @@ function findLib(): string {
   ].filter(Boolean) as string[];
   for (const c of candidates) if (existsSync(c)) return c;
   throw new Error(
-    `macOS native bridge not found for @omarcos/bunkit.\n` +
-    `Reinstall the package so @omarcos/bunkit-darwin-arm64 can be selected automatically.\n` +
-    `For a contributor checkout, run ./native/build.sh.\nLooked in:\n  ${candidates.join("\n  ")}`,
+    `macOS native bridge not found for @omarcosr/bunkit.\n` +
+      `Reinstall the package so @omarcosr/bunkit-darwin-arm64 can be selected automatically.\n` +
+      `For a contributor checkout, run ./native/build.sh.\nLooked in:\n  ${candidates.join("\n  ")}`,
   );
 }
 
@@ -77,77 +77,81 @@ let _lib: any = null;
 function getLib(): any {
   if (_lib) return _lib;
   if (process.platform !== "darwin" || process.arch !== "arm64") {
-    throw new Error(`@omarcos/bunkit supports macOS arm64; received ${process.platform}/${process.arch}.`);
+    throw new Error(
+      `@omarcosr/bunkit supports macOS arm64; received ${process.platform}/${process.arch}.`,
+    );
   }
   const p = findLib();
   _lib = dlopen(p, {
-  br_version: { args: [], returns: CSTR },
+    br_version: { args: [], returns: CSTR },
 
-  br_class: { args: [CSTR], returns: OBJ },
-  br_metaclass: { args: [CSTR], returns: OBJ },
-  br_selector: { args: [CSTR], returns: OBJ },
-  br_selector_name: { args: [OBJ], returns: CSTR },
-  br_method_signature: { args: [OBJ, OBJ, I32], returns: CSTR },
-  br_protocol_method_signature: { args: [CSTR, OBJ, I32, I32], returns: CSTR },
-  br_object_class_name: { args: [OBJ], returns: CSTR },
-  br_object_class: { args: [OBJ], returns: OBJ },
-  br_responds: { args: [OBJ, OBJ], returns: I32 },
-  br_class_responds: { args: [OBJ, OBJ, I32], returns: I32 },
-  br_is_kind_of: { args: [OBJ, OBJ], returns: I32 },
-  br_class_super_name: { args: [OBJ], returns: CSTR },
-  br_copy_method_list: { args: [OBJ, I32, BUF, I32], returns: I32 },
-  br_copy_class_list: { args: [BUF, I32], returns: I32 },
-  br_copy_protocol_method_list: { args: [CSTR, BUF, I32], returns: I32 },
+    br_class: { args: [CSTR], returns: OBJ },
+    br_metaclass: { args: [CSTR], returns: OBJ },
+    br_selector: { args: [CSTR], returns: OBJ },
+    br_selector_name: { args: [OBJ], returns: CSTR },
+    br_method_signature: { args: [OBJ, OBJ, I32], returns: CSTR },
+    br_protocol_method_signature: { args: [CSTR, OBJ, I32, I32], returns: CSTR },
+    br_object_class_name: { args: [OBJ], returns: CSTR },
+    br_object_class: { args: [OBJ], returns: OBJ },
+    br_responds: { args: [OBJ, OBJ], returns: I32 },
+    br_class_responds: { args: [OBJ, OBJ, I32], returns: I32 },
+    br_is_kind_of: { args: [OBJ, OBJ], returns: I32 },
+    br_class_super_name: { args: [OBJ], returns: CSTR },
+    br_copy_method_list: { args: [OBJ, I32, BUF, I32], returns: I32 },
+    br_copy_class_list: { args: [BUF, I32], returns: I32 },
+    br_copy_protocol_method_list: { args: [CSTR, BUF, I32], returns: I32 },
 
-  br_signature_layout: { args: [CSTR, BUF, I32], returns: I32 },
-  br_type_layout: { args: [CSTR, BUF, I32], returns: I32 },
+    br_signature_layout: { args: [CSTR, BUF, I32], returns: I32 },
+    br_type_layout: { args: [CSTR, BUF, I32], returns: I32 },
 
-  br_call_function: { args: [OBJ, CSTR, BUF, BUF, BUF], returns: I32 },
-  br_msgsend: { args: [OBJ, OBJ, CSTR, BUF, BUF, BUF], returns: I32 },
-  br_msgsend_super: { args: [OBJ, OBJ, OBJ, CSTR, BUF, BUF, BUF], returns: I32 },
+    br_call_function: { args: [OBJ, CSTR, BUF, BUF, BUF], returns: I32 },
+    br_msgsend: { args: [OBJ, OBJ, CSTR, BUF, BUF, BUF], returns: I32 },
+    br_msgsend_super: { args: [OBJ, OBJ, OBJ, CSTR, BUF, BUF, BUF], returns: I32 },
 
-  br_class_create: { args: [CSTR, CSTR], returns: OBJ },
-  br_class_add_method: { args: [OBJ, OBJ, CSTR, BUF, U32, I32], returns: I32 },
-  br_class_add_protocol: { args: [OBJ, CSTR], returns: I32 },
-  br_class_register: { args: [OBJ], returns: V },
-  br_object_set_token: { args: [OBJ, U32], returns: V },
-  br_object_get_token: { args: [OBJ], returns: U32 },
+    br_class_create: { args: [CSTR, CSTR], returns: OBJ },
+    br_class_add_method: { args: [OBJ, OBJ, CSTR, BUF, U32, I32], returns: I32 },
+    br_class_add_protocol: { args: [OBJ, CSTR], returns: I32 },
+    br_class_register: { args: [OBJ], returns: V },
+    br_object_set_token: { args: [OBJ, U32], returns: V },
+    br_object_get_token: { args: [OBJ], returns: U32 },
 
-  br_block_create: { args: [CSTR, BUF, U32], returns: OBJ },
-  br_block_release: { args: [OBJ], returns: V },
+    br_block_create: { args: [CSTR, BUF, U32], returns: OBJ },
+    br_block_release: { args: [OBJ], returns: V },
 
-  br_retain: { args: [OBJ], returns: OBJ },
-  br_release: { args: [OBJ], returns: V },
-  br_autorelease: { args: [OBJ], returns: V },
-  br_retain_count: { args: [OBJ], returns: I64 },
-  br_autorelease_pool_push: { args: [], returns: V },
-  br_autorelease_pool_pop: { args: [], returns: V },
-  br_autorelease_pool_recycle: { args: [], returns: I32 },
-  br_autorelease_pool_depth: { args: [], returns: I32 },
-  br_free: { args: [BUF], returns: V },
+    br_retain: { args: [OBJ], returns: OBJ },
+    br_release: { args: [OBJ], returns: V },
+    br_autorelease: { args: [OBJ], returns: V },
+    br_retain_count: { args: [OBJ], returns: I64 },
+    br_autorelease_pool_push: { args: [], returns: V },
+    br_autorelease_pool_pop: { args: [], returns: V },
+    br_autorelease_pool_recycle: { args: [], returns: I32 },
+    br_autorelease_pool_depth: { args: [], returns: I32 },
+    br_free: { args: [BUF], returns: V },
 
-  br_nsstring: { args: [BUF, I32], returns: OBJ },
-  br_nsstring_utf8: { args: [OBJ], returns: CSTR },
-  br_nsstring_len: { args: [OBJ], returns: I32 },
+    br_nsstring: { args: [BUF, I32], returns: OBJ },
+    br_nsstring_utf8: { args: [OBJ], returns: CSTR },
+    br_nsstring_len: { args: [OBJ], returns: I32 },
 
-  br_dlsym: { args: [CSTR], returns: OBJ },
+    br_dlsym: { args: [CSTR], returns: OBJ },
 
-  br_app_init: { args: [I32], returns: V },
-  br_set_terminate_after_last_window: { args: [I32], returns: V },
-  br_set_stop_callback: { args: [BUF], returns: V },
-  br_pump: { args: [F64], returns: I32 },
-  br_stop: { args: [], returns: V },
-  br_should_stop: { args: [], returns: I32 },
-  br_post_empty_event: { args: [], returns: V },
-  br_now: { args: [], returns: F64 },
-  br_bundle_path: { args: [], returns: CSTR },
+    br_app_init: { args: [I32], returns: V },
+    br_set_terminate_after_last_window: { args: [I32], returns: V },
+    br_set_stop_callback: { args: [BUF], returns: V },
+    br_pump: { args: [F64], returns: I32 },
+    br_stop: { args: [], returns: V },
+    br_should_stop: { args: [], returns: I32 },
+    br_post_empty_event: { args: [], returns: V },
+    br_now: { args: [], returns: F64 },
+    br_bundle_path: { args: [], returns: CSTR },
   }).symbols;
   return _lib;
 }
 
 export let LIB_PATH: string = "";
 if (process.platform === "darwin" && process.arch === "arm64") {
-  try { LIB_PATH = findLib(); } catch {}
+  try {
+    LIB_PATH = findLib();
+  } catch {}
 }
 
 export const lib: any = new Proxy({} as any, {
@@ -217,9 +221,28 @@ export const K = {
 } as const;
 
 export const KIND_NAMES: string[] = [
-  "void", "int8", "uint8", "int16", "uint16", "int32", "uint32", "int64",
-  "uint64", "float", "double", "bool", "object", "Class", "SEL", "char*",
-  "pointer", "struct", "union", "array", "block", "unknown",
+  "void",
+  "int8",
+  "uint8",
+  "int16",
+  "uint16",
+  "int32",
+  "uint32",
+  "int64",
+  "uint64",
+  "float",
+  "double",
+  "bool",
+  "object",
+  "Class",
+  "SEL",
+  "char*",
+  "pointer",
+  "struct",
+  "union",
+  "array",
+  "block",
+  "unknown",
 ];
 
 export const BR_OK = 0;
@@ -403,4 +426,4 @@ export function protocolMethodSignature(
   return s === null || s === undefined ? null : String(s);
 }
 
-export { ptr, toArrayBuffer, JSCallback, FFIType, CString };
+export { CString, FFIType, JSCallback, ptr, toArrayBuffer };

@@ -54,7 +54,7 @@ runtime (`process.platform === "win32"` → WinUI, otherwise AppKit).
 
 ```ts
 // same file on macOS and Windows
-import { Application, Window, VStack, Label, Button, TextField } from "@omarcos/bunkit";
+import { Application, Window, VStack, Label, Button, TextField } from "@omarcosr/bunkit";
 
 const app = new Application({ name: "Hello" });
 const name = new TextField({ placeholder: "Your name", grow: 1 });
@@ -64,9 +64,15 @@ new Window({
   title: "Hello",
   size: { width: 360, height: 180 },
   content: new VStack({ spacing: 12, padding: 20 }, [
-    new HStack({ spacing: 8 }, [name, new Button({ title: "Greet", onClick: () => {
-      greeting.text = `Hello, ${name.value}!`;
-    }})]),
+    new HStack({ spacing: 8 }, [
+      name,
+      new Button({
+        title: "Greet",
+        onClick: () => {
+          greeting.text = `Hello, ${name.value}!`;
+        },
+      }),
+    ]),
     greeting,
   ]),
 }).quitOnClose();
@@ -94,7 +100,7 @@ compiles `.tsx` directly). Configure it once in `tsconfig.json`:
 ```jsonc
 "compilerOptions": {
   "jsx": "react-jsx",
-  "jsxImportSource": "@omarcos/bunkit"
+  "jsxImportSource": "@omarcosr/bunkit"
 }
 ```
 
@@ -113,16 +119,16 @@ option names (`onClick`, `onChange`, `onSubmit`…). Bare text between tags is
 dropped — put text in `text`/`title`/`placeholder` props. Plain functions
 are custom components (functions returning more JSX). The only imports you
 need are the controls, `Application`, and helpers like `setTheme` from
-`"@omarcos/bunkit"`. `src/jsx-runtime.tsx` is the reference. The same file runs on
+`"@omarcosr/bunkit"`. `src/jsx-runtime.tsx` is the reference. The same file runs on
 macOS and Windows.
 
 ### Reactive bindings (signals)
 
-`signal()` (from `"@omarcos/bunkit"`) is a tiny reactive cell in the SolidJS style,
+`signal()` (from `"@omarcosr/bunkit"`) is a tiny reactive cell in the SolidJS style,
 and the JSX runtime binds it to a control when you pass it as a prop:
 
 ```tsx
-import { Application, signal, TextField, Label, Checkbox } from "@omarcos/bunkit";
+import { Application, signal, TextField, Label, Checkbox } from "@omarcosr/bunkit";
 
 const name = signal("");
 const dark = signal(false);
@@ -148,9 +154,9 @@ imperatively too, no separate call:
 
 ```ts
 const name = signal("");
-const field = new TextField({ value: name });  // two-way: typing updates
-                                               // name, name.set() the field
-const echo = new Label({ text: name });        // one-way live echo
+const field = new TextField({ value: name }); // two-way: typing updates
+// name, name.set() the field
+const echo = new Label({ text: name }); // one-way live echo
 ```
 
 (`bind(control, prop, signal)` still exists for wiring a signal onto a
@@ -164,7 +170,7 @@ Two ways to style without repeating yourself:
 
 **The `style` prop** — every control accepts a nested styling object, merged at
 construction (inline props win over the style). The style accepts the
-control's *own* options too, not just the shared view options:
+control's _own_ options too, not just the shared view options:
 `<TextField style={{ textColor: "#C33", font: { size: 14 } }} />` is valid on
 both platforms.
 
@@ -180,7 +186,7 @@ both platforms.
 into the options:
 
 ```ts
-import type { ViewStyle } from "@omarcos/bunkit";
+import type { ViewStyle } from "@omarcosr/bunkit";
 
 const tinted = { backgroundColor: "#2D7DD2", borderRadius: 14 } satisfies ViewStyle;
 
@@ -319,7 +325,7 @@ Bun thread drains via bk_event_pop() → callback registry → JS
 - TextBox was previously stowed (`0xC000027B`) → fixed by `IXamlMetadataProvider` (`XamlControlsXamlMetaDataProvider`) + `XamlControlsResources` in `Application::OnLaunched`
 - Instant `0xC0000409` exit when creating a symbol button → a lone PUA glyph as
   the entire `TextBlock.Text` fail-fasts XAML text analysis on some builds;
-  the button renders "glyph  title" as a single string in Segoe MDL2 Assets
+  the button renders "glyph title" as a single string in Segoe MDL2 Assets
 
 ## Tests
 
@@ -340,7 +346,7 @@ bun test/win/parity2.ts       # views, advanced table, input, snapshot, debug
   `borderRadius` accepts one number, `[tl, tr, br, bl]`, or per-corner names
   (`{ topLeft, topRight, bottomRight, bottomLeft }` — CSS border-radius
   vocabulary). `border` accepts one number, `true`, `[top, right, bottom,
-  left]`, or per-side names (`{ top, right, bottom, left }` — CSS
+left]`, or per-side names (`{ top, right, bottom, left }` — CSS
   border-width vocabulary) and maps straight onto XAML's per-side
   `Thickness`. CSS-style options (`backgroundColor`, `border`, `borderWidth`,
   `borderColor`, `borderRadius`, `borderStyle`) mirror the macOS layer API;

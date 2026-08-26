@@ -16,8 +16,8 @@ if (process.platform !== "darwin") {
   process.exit(1);
 }
 
-import { objc } from "@omarcos/bunkit/objc";
-import { initApp, run, quit, NSApp } from "@omarcos/bunkit/runtime";
+import { objc } from "@omarcosr/bunkit/objc";
+import { initApp, NSApp, quit, run } from "@omarcosr/bunkit/runtime";
 
 // Compile-time constants: the Obj-C runtime has no idea these names exist, so
 // they are spelled out here rather than looked up.
@@ -86,7 +86,10 @@ const seconds = Number(process.env.HELLO_SECONDS ?? 3);
 setTimeout(() => {
   const frame = win.frame();
   console.log("bundlePath     ", String(bundle.bundlePath()));
-  console.log("bundleId       ", bundle.bundleIdentifier() ? String(bundle.bundleIdentifier()) : "(none)");
+  console.log(
+    "bundleId       ",
+    bundle.bundleIdentifier() ? String(bundle.bundleIdentifier()) : "(none)",
+  );
   console.log("CFBundleName   ", bundleName ? String(bundleName) : "(none)");
   console.log("processName    ", String(objc.NSProcessInfo.processInfo().processName()));
   console.log("dylib          ", process.env.OBJCBRIDGE_DYLIB ?? "(resolved by bridge.ts)");

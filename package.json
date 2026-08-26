@@ -1,6 +1,6 @@
 {
-  "name": "@omarcos/bunkit",
-  "version": "0.1.0",
+  "name": "@omarcosr/bunkit",
+  "version": "0.1.1",
   "description": "Native desktop applications for Bun on macOS and Windows. No WebView.",
   "license": "Apache-2.0",
   "type": "module",
@@ -47,8 +47,8 @@
     "NOTICE"
   ],
   "optionalDependencies": {
-    "@omarcos/bunkit-darwin-arm64": "workspace:*",
-    "@omarcos/bunkit-win32-x64": "workspace:*"
+    "@omarcosr/bunkit-darwin-arm64": "workspace:*",
+    "@omarcosr/bunkit-win32-x64": "workspace:*"
   },
   "publishConfig": {
     "access": "public"

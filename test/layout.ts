@@ -65,18 +65,6 @@ const H = 500;
   const shadowWindow = new Window({ title: "shadow", size: { width: 220, height: 120 }, content: shadowStack, show: false });
   show("00-shadow", shadowWindow, shadowStack);
   const buttonLayer = shadowButton.native.layer();
-  const stackLayer = shadowStack.native.layer();
-  console.log("shadow debug", {
-    buttonWantsLayer: shadowButton.native.wantsLayer(),
-    stackWantsLayer: shadowStack.native.wantsLayer(),
-    buttonSuperlayer: buttonLayer.superlayer()?.className ?? null,
-    stackSublayers: stackLayer?.sublayers()?.count?.() ?? null,
-    hasShadowTree: shadowButton._hasShadowTree(),
-  });
-  shadowButton._refreshShadowTree();
-  console.log("shadow debug after refresh", {
-    stackSublayers: stackLayer?.sublayers()?.count?.() ?? null,
-  });
   check("shadow stays off the button content layer", buttonLayer.shadowOpacity() === 0, buttonLayer.shadowOpacity());
   const parentLayer = buttonLayer.superlayer();
   const layers = parentLayer ? parentLayer.sublayers() : null;

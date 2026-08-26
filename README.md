@@ -1,8 +1,8 @@
-# @omarcos/bunkit
+# @omarcosr/bunkit
 
 Native desktop applications for Bun, built with real platform controls instead of a WebView.
 
-`@omarcos/bunkit` lets TypeScript create native windows, layouts, controls,
+`@omarcosr/bunkit` lets TypeScript create native windows, layouts, controls,
 menus, dialogs and input on macOS and Windows. The same application source can
 run on both supported platforms while keeping a direct escape hatch to the
 native layer when it is needed.
@@ -17,10 +17,10 @@ native layer when it is needed.
 
 ## Supported platforms
 
-| Platform | Architecture | Backend | Notes |
-| --- | --- | --- | --- |
-| macOS | Apple silicon (`arm64`) | AppKit | Includes the Metal API. |
-| Windows 10 21H2+ / Windows 11 | `x64` | WinUI 3 | Requires Windows App Runtime 1.7 or newer. |
+| Platform                      | Architecture            | Backend | Notes                                      |
+| ----------------------------- | ----------------------- | ------- | ------------------------------------------ |
+| macOS                         | Apple silicon (`arm64`) | AppKit  | Includes the Metal API.                    |
+| Windows 10 21H2+ / Windows 11 | `x64`                   | WinUI 3 | Requires Windows App Runtime 1.7 or newer. |
 
 Linux, Intel macOS and Windows ARM64 are not supported at this time.
 
@@ -29,7 +29,7 @@ Linux, Intel macOS and Windows ARM64 are not supported at this time.
 Bun 1.4 or newer is required.
 
 ```sh
-bun add @omarcos/bunkit
+bun add @omarcosr/bunkit
 ```
 
 The matching native bridge is installed automatically as an optional dependency.
@@ -41,15 +41,7 @@ On Windows, install the [Windows App Runtime](https://learn.microsoft.com/window
 ## Quick start
 
 ```ts
-import {
-  Application,
-  Button,
-  HStack,
-  Label,
-  TextField,
-  VStack,
-  Window,
-} from "@omarcos/bunkit";
+import { Application, Button, HStack, Label, TextField, VStack, Window } from "@omarcosr/bunkit";
 
 const app = new Application({ name: "Greeting" });
 const name = new TextField({ placeholder: "Your name", grow: 1 });
@@ -64,7 +56,9 @@ new Window({
       new Button({
         title: "Greet",
         primary: true,
-        onClick: () => { greeting.text = `Hello, ${name.value || "there"}!`; },
+        onClick: () => {
+          greeting.text = `Hello, ${name.value || "there"}!`;
+        },
       }),
     ]),
     greeting,
@@ -80,13 +74,13 @@ Extend the packaged tsconfig to use the bundled JSX runtime:
 
 ```jsonc
 {
-  "extends": "@omarcos/bunkit/tsconfig",
-  "include": ["src"]
+  "extends": "@omarcosr/bunkit/tsconfig",
+  "include": ["src"],
 }
 ```
 
 ```tsx
-import { Application, Button, Label, VStack, Window } from "@omarcos/bunkit";
+import { Application, Button, Label, VStack, Window } from "@omarcosr/bunkit";
 
 const app = new Application({ name: "Counter" });
 let count = 0;
@@ -100,7 +94,9 @@ const window = (
         title="Add"
         borderRadius={14}
         shadow="0 4px 14px #00000040"
-        onClick={() => { label.text = String(++count); }}
+        onClick={() => {
+          label.text = String(++count);
+        }}
       />
     </VStack>
   </Window>
@@ -116,7 +112,7 @@ Controls accept their visual options directly or through a reusable `style`
 object. The same styles work across the supported backends.
 
 ```ts
-import type { ViewStyle } from "@omarcos/bunkit";
+import type { ViewStyle } from "@omarcosr/bunkit";
 
 const card = {
   backgroundColor: "#24262E",
@@ -158,14 +154,6 @@ bun run typecheck
 Before a release, run `bun run check:package`. Release automation builds the
 native bridges, stages the platform packages and checks the final tarballs
 before publishing.
-
-### Publishing
-
-Set the repository secret `NPM_TOKEN` to an npm automation token with publish
-access to the `@omarcos` scope. Then update the package and native bridge
-versions, commit the change and push a matching `v<version>` tag. GitHub
-Actions builds both bridges, verifies the tarballs and publishes the two
-platform packages before `@omarcos/bunkit`.
 
 ## License
 

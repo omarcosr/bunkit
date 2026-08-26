@@ -59,6 +59,14 @@ jobs:
         with:
           bun-version: "1.4.0"
       - run: bun install --frozen-lockfile
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.x"
+          registry-url: "https://registry.npmjs.org"
+      - name: Verify npm credentials
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm whoami --registry https://registry.npmjs.org
       - name: Verify release tag matches package version
         if: github.event_name == 'push'
         shell: bash
@@ -84,8 +92,8 @@ jobs:
         run: bun pm pack --destination ../../release
       - name: Publish platform packages and main package
         env:
-          NPM_CONFIG_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          bun publish release/*bunkit-darwin-arm64-*.tgz --access public --tolerate-republish
-          bun publish release/*bunkit-win32-x64-*.tgz --access public --tolerate-republish
-          bun publish release/*bunkit-[0-9]*.tgz --access public --tolerate-republish
+          npm publish release/*bunkit-darwin-arm64-*.tgz --access public
+          npm publish release/*bunkit-win32-x64-*.tgz --access public
+          npm publish release/*bunkit-[0-9]*.tgz --access public

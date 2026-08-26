@@ -1,20 +1,24 @@
 {
-  "name": "@omarcos/bunkit-win32-x64",
-  "version": "0.1.0",
-  "description": "Native Windows x64 bridge for @omarcos/bunkit.",
+  "name": "@omarcosr/bunkit-win32-x64",
+  "version": "0.1.1",
+  "description": "Native Windows x64 bridge for @omarcosr/bunkit.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/omarcosr/bunkit.git"
   },
-  "os": ["win32"],
-  "cpu": ["x64"],
   "files": [
     "bin/winbridge.dll",
     "bin/Microsoft.WindowsAppRuntime.Bootstrap.dll",
     "README.md",
     "LICENSE",
     "NOTICE"
+  ],
+  "os": [
+    "win32"
+  ],
+  "cpu": [
+    "x64"
   ],
   "exports": {
     "./winbridge.dll": "./bin/winbridge.dll",
@@ -25,6 +29,6 @@
     "access": "public"
   },
   "scripts": {
-    "prepublishOnly": "bun run ../../tools/check-package.ts --package @omarcos/bunkit-win32-x64 --require-binaries"
+    "prepublishOnly": "bun run ../../tools/check-package.ts --package @omarcosr/bunkit-win32-x64 --require-binaries"
   }
 }

@@ -3,9 +3,12 @@
   // checker only, by the editor and by `bunx tsc -p .`.
   "compilerOptions": {
     "target": "ESNext",
-    "lib": ["ESNext"],
-    "types": ["bun"],
-
+    "lib": [
+      "ESNext"
+    ],
+    "types": [
+      "bun"
+    ],
     // Bun's own resolution: real ESM, imports that keep their .ts extension,
     // and no transformation of the module syntax.
     "module": "preserve",
@@ -15,17 +18,19 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
-
-    // JSX (.tsx) compiles against @omarcos/bunkit's own runtime: <Button> etc.
+    // JSX (.tsx) compiles against @omarcosr/bunkit's own runtime: <Button> etc.
     "jsx": "react-jsx",
-    "jsxImportSource": "@omarcos/bunkit",
-
+    "jsxImportSource": "@omarcosr/bunkit",
     "strict": true,
     "noFallthroughCasesInSwitch": true,
-
     // src/generated/appkit.d.ts is a source file here, not a dependency, so it
     // is checked like everything else.
     "skipLibCheck": false
   },
-  "include": ["src", "test", "tools", "examples"]
+  "include": [
+    "src",
+    "test",
+    "tools",
+    "examples"
+  ]
 }

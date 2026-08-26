@@ -32,7 +32,7 @@ import {
   TextField,
   VStack,
   Window
-} from "@omarcos/bunkit";
+} from "@omarcosr/bunkit";
 import { writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";

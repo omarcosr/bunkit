@@ -2,15 +2,7 @@
 //
 //   bun run examples/hello.ts
 
-import {
-    Application,
-    Button,
-    HStack,
-    Label,
-    TextField,
-    VStack,
-    Window,
-} from "@omarcos/bunkit";
+import { Application, Button, HStack, Label, TextField, VStack, Window } from "@omarcosr/bunkit";
 
 const app = new Application({ name: "Hello" });
 
@@ -28,12 +20,20 @@ new Window({
     new Label({ text: "Greeter", font: { style: "title", weight: "semibold" } }),
     new HStack({ spacing: 8 }, [
       name,
-      new Button({ title: "Greet", onClick: greet, background: "#2D7DD2", borderRadius: 4, border: {
-        top: 2,
-        bottom: 2,
-        left: 2,
-        right: 2
-      }, borderColor: "#4d1f1f", borderWidth: 2 }),
+      new Button({
+        title: "Greet",
+        onClick: greet,
+        background: "#2D7DD2",
+        borderRadius: 4,
+        border: {
+          top: 2,
+          bottom: 2,
+          left: 2,
+          right: 2,
+        },
+        borderColor: "#4d1f1f",
+        borderWidth: 2,
+      }),
     ]),
     greeting,
   ]),

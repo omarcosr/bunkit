@@ -16,17 +16,17 @@ import {
   Checkbox,
   HStack,
   Label,
+  Scene3D,
   Segmented,
   Slider,
   Spacer,
   VStack,
   Window,
   box,
+  gpuAvailable,
   plane,
   sphere,
-  Scene3D,
-  gpuAvailable,
-} from "@omarcos/bunkit";
+} from "@omarcosr/bunkit";
 
 const app = new Application({ name: "Scene3D" });
 
@@ -93,7 +93,11 @@ scene.onFrame(({ time, dt }) => {
 
 // --- chrome -----------------------------------------------------------------
 
-const fps = new Label({ text: "…", font: { monospace: true, size: 11 }, textColor: "secondaryLabel" });
+const fps = new Label({
+  text: "…",
+  font: { monospace: true, size: 11 },
+  textColor: "secondaryLabel",
+});
 let frames = 0;
 let mark = 0;
 scene.onFrame(({ time }) => {
@@ -121,13 +125,20 @@ const win = new Window({
     new HStack({ spacing: 14, alignItems: "center" }, [
       new Label({ text: "Spin", width: 34 }),
       new Slider({
-        min: 0, max: 4, value: spin, grow: 1,
-        onChange: (v) => { spin = v; },
+        min: 0,
+        max: 4,
+        value: spin,
+        grow: 1,
+        onChange: (v) => {
+          spin = v;
+        },
       }),
       new Checkbox({
         title: "Orbit camera",
         checked: true,
-        onChange: (on) => { orbiting = on; },
+        onChange: (on) => {
+          orbiting = on;
+        },
       }),
       new Segmented({
         items: ["Dark", "Slate", "Ink"],
@@ -135,7 +146,7 @@ const win = new Window({
         onChange: (i) => {
           scene.background = [
             [0.04, 0.04, 0.07, 1],
-            [0.10, 0.11, 0.14, 1],
+            [0.1, 0.11, 0.14, 1],
             [0.02, 0.02, 0.03, 1],
           ][i] as [number, number, number, number];
         },

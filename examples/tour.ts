@@ -3,10 +3,20 @@
 //   bun run examples/tour.ts
 
 import {
-  Application, Window, VStack, HStack, Spacer,
-  Label, Button, TextField, Table, GroupBox,
-  beep, confirm, objc,
-} from "@omarcos/bunkit";
+  Application,
+  Button,
+  GroupBox,
+  HStack,
+  Label,
+  Spacer,
+  Table,
+  TextField,
+  VStack,
+  Window,
+  beep,
+  confirm,
+  objc,
+} from "@omarcosr/bunkit";
 
 const app = new Application({
   name: "Tour",
@@ -23,13 +33,21 @@ const input = new TextField({ placeholder: "New task…", grow: 1, onSubmit: add
 const table = new Table<Task>({
   columns: [
     { id: "title", title: "Task", flex: true },
-    { id: "done", title: "Done", width: 60, textAlign: "center",
-      value: (t) => (t.done ? "✓" : "") },
+    {
+      id: "done",
+      title: "Done",
+      width: 60,
+      textAlign: "center",
+      value: (t) => (t.done ? "✓" : ""),
+    },
   ],
   rows: tasks,
   grow: 1,
   onSelect: (t) => (status.text = t ? t.title : "nothing selected"),
-  onDoubleClick: (t, i) => { t.done = !t.done; table.reloadRow(i); },
+  onDoubleClick: (t, i) => {
+    t.done = !t.done;
+    table.reloadRow(i);
+  },
 });
 
 const status = new Label({ text: "1 task", textColor: "secondaryLabel" });
@@ -54,12 +72,16 @@ const win = new Window({
         status,
         new Spacer(),
         // Dialogs are sheets and return promises, so JS never freezes.
-        new Button({ title: "Clear…", destructive: true, onClick: async () => {
-          if (await confirm("Delete all tasks?", undefined, { destructive: true, window: win })) {
-            table.rows = [];
-            status.text = "0 tasks";
-          }
-        }}),
+        new Button({
+          title: "Clear…",
+          destructive: true,
+          onClick: async () => {
+            if (await confirm("Delete all tasks?", undefined, { destructive: true, window: win })) {
+              table.rows = [];
+              status.text = "0 tasks";
+            }
+          },
+        }),
       ]),
     ]),
   ]),
@@ -68,8 +90,8 @@ win.quitOnClose();
 
 // --- the escape hatch: anything Layer 3 does not wrap ------------------------
 
-win.native.setTitlebarAppearsTransparent_(true);   // raw AppKit on any wrapper
-objc.NSProcessInfo.processInfo().processName();    // any class, any selector
+win.native.setTitlebarAppearsTransparent_(true); // raw AppKit on any wrapper
+objc.NSProcessInfo.processInfo().processName(); // any class, any selector
 beep();
 
 await app.run();
