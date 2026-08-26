@@ -60,6 +60,37 @@ function show(name: string, w: Window, root: View) {
 const W = 800;
 const H = 500;
 {
+  const initialLabel = new Label({ text: "0" });
+  const initialShadowButton = new Button({
+    title: "Add",
+    borderRadius: 14,
+    shadow: "0 0 14px #f10000",
+    onClick: () => { initialLabel.text = "1"; },
+  });
+  const initialStack = new VStack({ padding: 20 }, [initialLabel, initialShadowButton]);
+  const initialWindow = new Window({
+    title: "shadow-initial",
+    size: { width: 220, height: 140 },
+    content: initialStack,
+    show: false,
+  });
+  initialWindow.show();
+  const initialButtonLayer = initialShadowButton.native.layer();
+  const initialParentLayer = initialButtonLayer.superlayer();
+  let initialShadowLayer: any = null;
+  if (initialParentLayer) {
+    const count = initialParentLayer.sublayers()?.count() ?? 0;
+    for (let i = 0; i < count; i++) {
+      const candidate = initialParentLayer.sublayers().objectAtIndex_(i);
+      if (candidate !== initialButtonLayer && candidate.shadowOpacity() > 0) initialShadowLayer = candidate;
+    }
+  }
+  check(
+    "shadow is visible immediately after showing the window",
+    !!initialShadowLayer?.shadowPath(),
+    initialShadowLayer ? initialShadowLayer.shadowOpacity() : "not attached",
+  );
+  initialWindow.close();
   const shadowButton = new Button({ title: "Add", borderRadius: 14, shadow: "2px 2px 2px #ff00ff" });
   const shadowStack = new VStack({}, [shadowButton]);
   const shadowWindow = new Window({ title: "shadow", size: { width: 220, height: 120 }, content: shadowStack, show: false });
