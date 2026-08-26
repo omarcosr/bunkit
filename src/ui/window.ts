@@ -173,7 +173,9 @@ export class Window {
 
   /** Refresh layout before rebuilding descendant shadow layers. */
   #refreshContentLayout(): void {
-    this.native.contentView().layoutSubtreeIfNeeded();
+    const contentView = this.native.contentView();
+    contentView.layoutSubtreeIfNeeded();
+    contentView.displayIfNeeded();
     this.#root._refreshShadowTreeLater();
   }
 
