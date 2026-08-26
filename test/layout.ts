@@ -91,6 +91,22 @@ const H = 500;
     stackSublayers: initialStackLayer?.sublayers()?.count?.() ?? null,
   });
   const initialParentLayer = initialButtonLayer.superlayer();
+  const initialLayerInfo: any[] = [];
+  if (initialParentLayer) {
+    const count = initialParentLayer.sublayers()?.count() ?? 0;
+    for (let i = 0; i < count; i++) {
+      const candidate = initialParentLayer.sublayers().objectAtIndex_(i);
+      initialLayerInfo.push({
+        index: i,
+        className: candidate.className,
+        opacity: candidate.shadowOpacity(),
+        hasPath: !!candidate.shadowPath(),
+        frame: candidate.frame?.() ?? null,
+        isButton: candidate === initialButtonLayer,
+      });
+    }
+  }
+  console.log('initial shadow layers', initialLayerInfo);
   let initialShadowLayer: any = null;
   if (initialParentLayer) {
     const count = initialParentLayer.sublayers()?.count() ?? 0;
