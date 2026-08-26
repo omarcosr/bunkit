@@ -431,19 +431,27 @@ export class View {
 
   /** @internal Refresh now and across the first AppKit layout passes. */
   _refreshShadowTreeLater(): void {
-    this._refreshShadowTree();
+    const refresh = () => {
+      const window = this.native.window();
+      if (window) {
+        const contentView = window.contentView();
+        contentView.layoutSubtreeIfNeeded();
+        contentView.displayIfNeeded();
+      }
+      this._refreshShadowTree();
+    };
+    refresh();
     if (!this._hasShadowTree()) return;
     const schedule = (remaining: number) => {
       const block = createBlock("v@?", () => {
-        this._refreshShadowTree();
-        if (remaining > 1) schedule(remaining - 1);
+        refresh();
+        if (remaining > 1 && this._hasShadowTree()) schedule(remaining - 1);
       });
       this.retainJS(block);
       objc.NSRunLoop.mainRunLoop().performBlock_(block);
     };
-    schedule(3);
+    schedule(8);
   }
-
   /** @internal Reattach descendant shadow layers after a native hierarchy change. */
   _refreshShadowTree(): void {
     this.#shadowRebuild?.();
@@ -685,11 +693,20 @@ export class View {
 
     const [tl, tr, br, bl] = normalizeCorners(this.props.borderRadius);
     this.#shadowRebuild = () => {
-      const frame = hostLayer.frame();
-      const parent = hostLayer.superlayer();
-      if (parent && shadowLayer.superlayer() !== parent) {
+      // AppKit controls may swap their backing layer while they are attached
+      // to a window. Resolve it for every rebuild instead of keeping the
+      // pre-layout layer captured during construction.
+      const currentHostLayer = this.native.layer();
+      if (!currentHostLayer) return;
+      currentHostLayer.setMasksToBounds_(false);
+      const frame = currentHostLayer.frame();
+      const parent = currentHostLayer.superlayer();
+      const layers = parent?.sublayers();
+      const hostIndex = layers ? Number(layers.indexOfObject_(currentHostLayer)) : -1;
+      const shadowIndex = layers ? Number(layers.indexOfObject_(shadowLayer)) : -1;
+      if (parent && (shadowLayer.superlayer() !== parent || shadowIndex < 0 || shadowIndex >= hostIndex)) {
         try { shadowLayer.removeFromSuperlayer(); } catch { /* already gone */ }
-        parent.insertSublayer_below_(shadowLayer, hostLayer);
+        parent.insertSublayer_below_(shadowLayer, currentHostLayer);
       }
       if (!parent || shadowLayer.superlayer() !== parent) return;
 
@@ -702,6 +719,7 @@ export class View {
         width,
         height,
       });
+      shadowLayer.setContentsScale_(currentHostLayer.contentsScale());
       shadowLayer.setShadowPath_(roundedBezier(
         {
           x: 0,
@@ -715,7 +733,6 @@ export class View {
         Math.max(0, bl + spread),
       ).CGPath());
     };
-    this.#shadowRebuild();
     this.#installShadowFrameObserver();
 
     const applyShadow = () => {
@@ -734,6 +751,7 @@ export class View {
       shadowLayer.setShadowOpacity_(activeShadow.opacity);
       shadowLayer.setShadowOffset_({ width: activeShadow.offsetX, height: -activeShadow.offsetY });
       shadowLayer.setShadowRadius_(activeShadow.blur);
+      shadowLayer.setNeedsDisplay();
     };
     applyShadow();
     if (isThemeShadow(value) || isThemeColor(activeShadow.color)) trackAdaptive(applyShadow);

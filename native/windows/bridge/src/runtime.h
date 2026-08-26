@@ -26,6 +26,11 @@ public:
   int32_t shutdown();
   bool running() const { return initialized_; }
 
+  // The UI dispatcher is available even before a window has loaded content.
+  winrt::Microsoft::UI::Dispatching::DispatcherQueue dispatcher() const {
+    return dispatcher_;
+  }
+
   // Bun thread -> WinUI thread. Errors inside fn never propagate; they land in
   // report_native_exception().
   void dispatch_async(std::function<void()>&& fn);

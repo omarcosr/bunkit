@@ -25,6 +25,13 @@ int32_t ObjectRegistry::destroy(bk_handle handle) {
 
 void ObjectRegistry::clear() { map_.clear(); }
 
+void ObjectRegistry::refresh_shadows() {
+  for (auto& [handle, object] : map_) {
+    (void)handle;
+    if (object.shadow_sync) object.shadow_sync();
+  }
+}
+
 ObjectRegistry& registry() {
   static auto* r = new ObjectRegistry();
   return *r;

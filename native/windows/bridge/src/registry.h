@@ -9,6 +9,7 @@
 
 #include "common.h"
 #include <atomic>
+#include <functional>
 #include <unordered_map>
 #include <winrt/Windows.Foundation.h>
 
@@ -73,6 +74,7 @@ struct NativeObject {
   winrt::Windows::Foundation::IInspectable shadow_mask_surface{nullptr};
   winrt::Windows::Foundation::IInspectable shadow_mask_brush{nullptr};
   winrt::Windows::Foundation::IInspectable shadow_mask_shape{nullptr};
+  std::function<void()> shadow_sync;
   int32_t aux{0};                   // Stack: bk_stack_orientation
   int32_t suppress{0};              // >0 while a programmatic set is in flight
   int32_t align{0};                 // Stack: 0 leading, 1 center, 2 trailing, 3 fill
@@ -93,6 +95,7 @@ public:
 
   int32_t destroy(bk_handle handle);
   void clear();
+  void refresh_shadows();
 
 private:
   std::unordered_map<bk_handle, NativeObject> map_;

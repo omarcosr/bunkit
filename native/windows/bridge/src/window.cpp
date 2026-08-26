@@ -14,7 +14,9 @@
 #include <unknwn.h>
 #include <algorithm>
 #include <fstream>
+#include <memory>
 #include <winrt/Microsoft.UI.Xaml.h>
+#include <winrt/Microsoft.UI.Dispatching.h>
 #include <winrt/Microsoft.UI.Xaml.Media.h>
 #include <winrt/Microsoft.UI.Composition.h>
 #include <winrt/Microsoft.UI.Composition.SystemBackdrops.h>
@@ -45,11 +47,50 @@ inline int32_t combine(int32_t dispatch_rc, int32_t body_status) {
   return dispatch_rc == BK_OK ? body_status : dispatch_rc;
 }
 
+// Refresh composition shadows after content is attached. Activate/Content can
+// return before XAML has attached the visual tree, so repaint across a few
+// dispatcher frames instead of waiting for a user interaction or unrelated
+// layout mutation.
+void refresh_shadows_after_window_change(Window const& win) {
+  try {
+    if (auto content = win.Content()) {
+      content.as<FrameworkElement>().UpdateLayout();
+    }
+  } catch (...) {
+  }
+  try {
+    auto queue = bk::Runtime::instance().dispatcher();
+    if (queue) {
+      auto timer = queue.CreateTimer();
+      timer.Interval(winrt::Windows::Foundation::TimeSpan{160000});
+      timer.IsRepeating(true);
+      auto remaining = std::make_shared<uint32_t>(8);
+      auto token = std::make_shared<winrt::event_token>();
+      *token = timer.Tick([timer, remaining, token](auto const&, auto const&) {
+        try {
+          bk::registry().refresh_shadows();
+        } catch (...) {
+        }
+        if (--*remaining == 0) {
+          timer.Stop();
+          try {
+            timer.Tick(*token);
+          } catch (...) {
+          }
+        }
+      });
+      timer.Start();
+    }
+  } catch (...) {
+  }
+  bk::registry().refresh_shadows();
+}
+
 // Apply the AppWindowTitleBar customisation. `full_size` extends the content
 // under the titlebar; bg/fg are optional "#RRGGBB" colours for the Windows 11
 // titlebar (empty = leave set). Runs on the UI thread, so it is safe to call
 // right after Activate() in the same dispatch — the first painted frame then
-// already carries the custom colours (no default-colour flash).
+// already carries the custom titlebar colours (no default-colour flash).
 bool apply_titlebar(Window const& win, int32_t full_size, const char* bg,
                     uint32_t bg_len, const char* fg, uint32_t fg_len) {
   try {
@@ -343,6 +384,7 @@ BK_EXPORT int32_t bk_window_show_titlebar(bk_handle w, int32_t full_size,
     win.Activate();
     st = apply_titlebar(win, full_size, bg, bg_len, fg, fg_len) ? BK_OK
                                                                 : BK_ERROR;
+    refresh_shadows_after_window_change(win);
   });
   return combine(rc, st);
 }
@@ -465,7 +507,9 @@ BK_EXPORT int32_t bk_window_show(bk_handle w) {
       st = BK_INVALID_HANDLE;
       return;
     }
-    entry->object.as<Window>().Activate();
+    auto window = entry->object.as<Window>();
+    window.Activate();
+    refresh_shadows_after_window_change(window);
     st = BK_OK;
   });
   return combine(rc, st);
@@ -505,8 +549,10 @@ BK_EXPORT int32_t bk_window_set_content(bk_handle w, bk_handle content) {
       return;
     }
     try {
-      win->object.as<Window>().Content(
+      auto nativeWindow = win->object.as<Window>();
+      nativeWindow.Content(
           child->object.as<winrt::Microsoft::UI::Xaml::UIElement>());
+      refresh_shadows_after_window_change(nativeWindow);
       st = BK_OK;
     } catch (...) {
       st = BK_WRONG_TYPE;

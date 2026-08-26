@@ -152,15 +152,15 @@ const win = (
           grow={1}
           borderRadius={4}
           textColor={textColor}
-          // borderColor={{ light: "#DADCE0", dark: "#3939fd" }}
+          borderColor={{ light: "#DADCE0", dark: "#3939fd" }}
           backgroundColor={{ light: "#FFFFFF", dark: "#0000ff" }}
           placeholderColor="#ffffff"
           onSubmit={addTodo}
 
-          // shadow={{
-          //   light: "0px 0px 10px #FFFFFF",
-          //   dark: "0px 0px 10px #0000ff",
-          // }}
+          shadow={{
+            light: "0px 0px 10px #000000",
+            dark: "0px 0px 10px #0000ff",
+          }}
 
           states={{
             hover: {
@@ -185,6 +185,7 @@ const win = (
         <Button title="Add" onClick={addTodo} style={{
           border: 1,
           borderColor: "#ffffff",
+          backgroundColor: "#ffffff",
           textColor: {
             light: "#1900ff",
             dark: "#011213",

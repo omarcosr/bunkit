@@ -25,6 +25,7 @@ import {
   describeViewTree,
   snapshotWindow,
 } from "../src/ui/index.ts";
+import { jsx } from "../src/jsx-runtime.tsx";
 import { pumpOnce } from "../src/runtime.ts";
 
 const SHOTS = process.env.BUNKIT_SHOTS;
@@ -57,9 +58,51 @@ function show(name: string, w: Window, root: View) {
   if (process.env.BUNKIT_TREE) console.log(describeViewTree(root));
 }
 
+function shadowLayerFor(view: View): any {
+  const buttonLayer = view.native.layer();
+  const parent = buttonLayer?.superlayer();
+  if (!parent) return null;
+  const layers = parent.sublayers();
+  const count = layers ? Number(layers.count()) : 0;
+  for (let i = 0; i < count; i++) {
+    const layer = layers.objectAtIndex_(i);
+    if (layer !== buttonLayer && Number(layer.shadowOpacity()) > 0) return layer;
+  }
+  return null;
+}
+
 const W = 800;
 const H = 500;
 {
+  // Exercise the exact JSX path used by examples/test.tsx. The application
+  // enters its first AppKit pump immediately after this construction, so one
+  // pump is the useful boundary here; waiting for twelve passes masked the
+  // first-frame regression where the shadow appeared only after a click.
+  const jsxLabel = jsx(Label, { text: "0" }) as Label;
+  const jsxButton = jsx(Button, {
+    title: "Add",
+    borderRadius: 14,
+    shadow: "0 0 14px #ff00ff",
+    onClick: () => { jsxLabel.text = "1" },
+  }) as Button;
+  const jsxStack = jsx(VStack, {
+    spacing: 12,
+    padding: 20,
+    children: [jsxLabel, jsxButton],
+  }) as VStack;
+  const jsxWindow = jsx(Window, {
+    title: "Counter",
+    size: { width: 280, height: 160 },
+    children: jsxStack,
+  }) as Window;
+  pumpOnce(0);
+  check(
+    "JSX example shadow is visible on the first app pump",
+    !!shadowLayerFor(jsxButton)?.shadowPath(),
+    jsxButton.native.layer()?.superlayer() ? "path missing" : "button layer unattached",
+  );
+  jsxWindow.close();
+
   const initialLabel = new Label({ text: "0" });
   const initialShadowButton = new Button({
     title: "Add",

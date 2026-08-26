@@ -1035,6 +1035,7 @@ BK_EXPORT int32_t bk_control_set_shadow(bk_handle c, const char* hex,
         entry->shadow_mask_surface = nullptr;
         entry->shadow_mask_brush = nullptr;
         entry->shadow_mask_shape = nullptr;
+        entry->shadow_sync = {};
       };
       if (s.empty()) {
         hosting::ElementCompositionPreview::SetElementChildVisual(ui, nullptr);
@@ -1124,7 +1125,7 @@ BK_EXPORT int32_t bk_control_set_shadow(bk_handle c, const char* hex,
       dropShadow.Mask(maskBrush);
       const auto sync_visual =
           [shadowVisual, ui, maskVisual, maskGeometry, maskSurface,
-           framework, entry, shadow_generation] {
+           framework, entry, maskBrush, dropShadow, shadow_generation] {
         if (entry->shadow_generation != shadow_generation) return;
         const auto current_element_visual =
             hosting::ElementCompositionPreview::GetElementVisual(ui);
@@ -1171,6 +1172,11 @@ BK_EXPORT int32_t bk_control_set_shadow(bk_handle c, const char* hex,
         } else {
           shadowVisual.Offset(current_element_visual.Offset());
         }
+        // A visual can be created before its XAML element is attached. Reset
+        // the mask and set Shadow again after attachment and final geometry so
+        // the compositor paints the first visible frame.
+        dropShadow.Mask(maskBrush.as<comp::CompositionBrush>());
+        shadowVisual.Shadow(dropShadow);
       };
       sync_visual();
       entry->shadow_size_token = framework.SizeChanged(
@@ -1187,6 +1193,7 @@ BK_EXPORT int32_t bk_control_set_shadow(bk_handle c, const char* hex,
       entry->shadow_mask_surface = maskSurface;
       entry->shadow_mask_brush = maskBrush;
       entry->shadow_mask_shape = maskGeometry;
+      entry->shadow_sync = sync_visual;
       sync_visual();
       st = BK_OK;
     } catch (...) {
