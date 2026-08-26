@@ -764,7 +764,7 @@ fragment float4 fs(V in [[stage_in]]) {
   // The examples suite only proves the app starts; these are the shaders, and a
   // shader that fails to compile there is a silent red status line nobody sees.
   const source = await Bun.file("examples/shader-playground.ts").text();
-  const presets = [...source.matchAll(/\[\s*"(\w+)",\s*`([\s\S]*?)`\s*\],/g)];
+  const presets = [...source.matchAll(/\[\s*"(\w+)",\s*`([\s\S]*?)`\s*,?\s*\],/g)];
   check("the presets were found in the example", presets.length >= 4, presets.length);
 
   const Play = struct("Play", { time: vec4f, resolution: vec4f, mouse: vec4f });
