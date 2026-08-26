@@ -64,6 +64,7 @@ const H = 500;
   const shadowStack = new VStack({}, [shadowButton]);
   const shadowWindow = new Window({ title: "shadow", size: { width: 220, height: 120 }, content: shadowStack, show: false });
   show("00-shadow", shadowWindow, shadowStack);
+  shadowButton._refreshShadowTree();
   const buttonLayer = shadowButton.native.layer();
   check("shadow stays off the button content layer", buttonLayer.shadowOpacity() === 0, buttonLayer.shadowOpacity());
   const parentLayer = buttonLayer.superlayer();
