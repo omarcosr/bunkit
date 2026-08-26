@@ -8,7 +8,7 @@
 #include <alloca.h>
 #include "bridge.h"
 
-const char* br_version(void) { return "objcbridge 0.1.1"; }
+const char* br_version(void) { return "objcbridge 0.1.2"; }
 
 // ---------------------------------------------------------------------------
 // Introspection
