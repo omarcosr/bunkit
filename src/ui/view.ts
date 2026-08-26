@@ -429,13 +429,19 @@ export class View {
     return this.#shadowLayer !== null || this._children.some((child) => child._hasShadowTree());
   }
 
-  /** @internal Refresh now and once after AppKit finishes the current run loop. */
+  /** @internal Refresh now and across the first AppKit layout passes. */
   _refreshShadowTreeLater(): void {
     this._refreshShadowTree();
     if (!this._hasShadowTree()) return;
-    const block = createBlock("v@?", () => this._refreshShadowTree());
-    this.retainJS(block);
-    objc.NSRunLoop.mainRunLoop().performBlock_(block);
+    const schedule = (remaining: number) => {
+      const block = createBlock("v@?", () => {
+        this._refreshShadowTree();
+        if (remaining > 1) schedule(remaining - 1);
+      });
+      this.retainJS(block);
+      objc.NSRunLoop.mainRunLoop().performBlock_(block);
+    };
+    schedule(3);
   }
 
   /** @internal Reattach descendant shadow layers after a native hierarchy change. */
