@@ -165,7 +165,11 @@ export class Window {
   set content(v: View | null) {
     if (this.#content) this.#content.removeFromParent();
     this.#content = v;
-    if (v) this.#root.fill(v);
+    if (v) {
+      this.#root.fill(v);
+      this.native.contentView().layoutSubtreeIfNeeded();
+      this.#root._refreshShadowTree();
+    }
   }
 
   /** The always-present root container; use it for absolute positioning. */
