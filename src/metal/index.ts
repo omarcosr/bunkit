@@ -1,6 +1,6 @@
 // Metal: typed GPU programming, and a 3D scene built on it.
 //
-//   import { gpu, struct, vec4f, mat4x4f, msl, GPUView } from "@omarcosr/bunkit/metal";
+//   import { gpu, struct, vec4f, mat4x4f, msl, GPUView } from "@omarcos/bunkit/metal";
 //
 // Three layers, same as the rest of BunKit. `Scene3D` is the easy one: nodes,
 // a camera, a light. `GPUView` is the surface plus a frame loop, and you write

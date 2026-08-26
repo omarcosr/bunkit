@@ -2,7 +2,7 @@
 //
 //   bun run examples/hello.ts
 
-import { Application, Button, HStack, Label, TextField, VStack, Window } from "@omarcosr/bunkit";
+import { Application, Button, HStack, Label, TextField, VStack, Window } from "@omarcos/bunkit";
 
 const app = new Application({ name: "Hello" });
 

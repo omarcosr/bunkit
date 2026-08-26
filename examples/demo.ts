@@ -25,7 +25,7 @@ import {
   TextField,
   VStack,
   Window,
-} from "@omarcosr/bunkit";
+} from "@omarcos/bunkit";
 
 interface Person {
   name: string;

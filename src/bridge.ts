@@ -38,7 +38,7 @@ const packageRequire = createRequire(import.meta.url);
 
 function installedBridge(): string | undefined {
   try {
-    return packageRequire.resolve("@omarcosr/bunkit-darwin-arm64/libobjcbridge.dylib");
+    return packageRequire.resolve("@omarcos/bunkit-darwin-arm64/libobjcbridge.dylib");
   } catch {
     return undefined;
   }
@@ -58,8 +58,8 @@ function findLib(): string {
   ].filter(Boolean) as string[];
   for (const c of candidates) if (existsSync(c)) return c;
   throw new Error(
-    `macOS native bridge not found for @omarcosr/bunkit.\n` +
-      `Reinstall the package so @omarcosr/bunkit-darwin-arm64 can be selected automatically.\n` +
+    `macOS native bridge not found for @omarcos/bunkit.\n` +
+      `Reinstall the package so @omarcos/bunkit-darwin-arm64 can be selected automatically.\n` +
       `For a contributor checkout, run ./native/build.sh.\nLooked in:\n  ${candidates.join("\n  ")}`,
   );
 }
@@ -78,7 +78,7 @@ function getLib(): any {
   if (_lib) return _lib;
   if (process.platform !== "darwin" || process.arch !== "arm64") {
     throw new Error(
-      `@omarcosr/bunkit supports macOS arm64; received ${process.platform}/${process.arch}.`,
+      `@omarcos/bunkit supports macOS arm64; received ${process.platform}/${process.arch}.`,
     );
   }
   const p = findLib();

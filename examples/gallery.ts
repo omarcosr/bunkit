@@ -35,7 +35,7 @@ import {
   setTheme,
   signal,
   snapshotView,
-} from "@omarcosr/bunkit";
+} from "@omarcos/bunkit";
 import { writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";

@@ -16,7 +16,7 @@ import {
   beep,
   confirm,
   objc,
-} from "@omarcosr/bunkit";
+} from "@omarcos/bunkit";
 
 const app = new Application({
   name: "Tour",

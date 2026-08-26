@@ -1,8 +1,8 @@
-# @omarcosr/bunkit
+# @omarcos/bunkit
 
 Native desktop applications for Bun, built with real platform controls instead of a WebView.
 
-`@omarcosr/bunkit` lets TypeScript create native windows, layouts, controls,
+`@omarcos/bunkit` lets TypeScript create native windows, layouts, controls,
 menus, dialogs and input on macOS and Windows. The same application source can
 run on both supported platforms while keeping a direct escape hatch to the
 native layer when it is needed.
@@ -29,7 +29,7 @@ Linux, Intel macOS and Windows ARM64 are not supported at this time.
 Bun 1.4 or newer is required.
 
 ```sh
-bun add @omarcosr/bunkit
+bun add @omarcos/bunkit
 ```
 
 The matching native bridge is installed automatically as an optional dependency.
@@ -41,7 +41,7 @@ On Windows, install the [Windows App Runtime](https://learn.microsoft.com/window
 ## Quick start
 
 ```ts
-import { Application, Button, HStack, Label, TextField, VStack, Window } from "@omarcosr/bunkit";
+import { Application, Button, HStack, Label, TextField, VStack, Window } from "@omarcos/bunkit";
 
 const app = new Application({ name: "Greeting" });
 const name = new TextField({ placeholder: "Your name", grow: 1 });
@@ -74,13 +74,13 @@ Extend the packaged tsconfig to use the bundled JSX runtime:
 
 ```jsonc
 {
-  "extends": "@omarcosr/bunkit/tsconfig",
+  "extends": "@omarcos/bunkit/tsconfig",
   "include": ["src"],
 }
 ```
 
 ```tsx
-import { Application, Button, Label, VStack, Window } from "@omarcosr/bunkit";
+import { Application, Button, Label, VStack, Window } from "@omarcos/bunkit";
 
 const app = new Application({ name: "Counter" });
 let count = 0;
@@ -112,7 +112,7 @@ Controls accept their visual options directly or through a reusable `style`
 object. The same styles work across the supported backends.
 
 ```ts
-import type { ViewStyle } from "@omarcosr/bunkit";
+import type { ViewStyle } from "@omarcos/bunkit";
 
 const card = {
   backgroundColor: "#24262E",

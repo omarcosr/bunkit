@@ -4,7 +4,7 @@
 //
 // The count lives in a signal; the label echoes it (one-way binding), and the
 // buttons mutate it. The imperative twin is examples/counter.ts.
-import { Application, Button, HStack, Label, signal, VStack, Window } from "@omarcosr/bunkit";
+import { Application, Button, HStack, Label, signal, VStack, Window } from "@omarcos/bunkit";
 
 const app = new Application({ name: "Counter", theme: "light" });
 

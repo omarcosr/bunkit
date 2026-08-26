@@ -32,8 +32,8 @@ import {
   gpuAvailable,
   struct,
   vec4f,
-} from "@omarcosr/bunkit";
-import type { Effect } from "@omarcosr/bunkit/metal";
+} from "@omarcos/bunkit";
+import type { Effect } from "@omarcos/bunkit/metal";
 
 const app = new Application({ name: "Shader Playground" });
 

@@ -1,6 +1,6 @@
 // JSX runtime — a thin declarative skin over the imperative API.
 //
-//   tsconfig:  "jsx": "react-jsx", "jsxImportSource": "@omarcosr/bunkit"
+//   tsconfig:  "jsx": "react-jsx", "jsxImportSource": "@omarcos/bunkit"
 //   example:   <VStack spacing={12}><Label text="hi" /><Button title="Go" onClick={…}/></VStack>
 //
 // Elements are the imported constructors themselves — <Window>, <VStack>,
@@ -147,7 +147,7 @@ function create(type: any, props: any, children: any[]): any {
     return type({ ...p, children });
   }
   if (typeof type !== "function") {
-    throw new Error(`@omarcosr/bunkit/jsx-runtime: <${String(type)}> is not a control`);
+    throw new Error(`@omarcos/bunkit/jsx-runtime: <${String(type)}> is not a control`);
   }
 
   // Signals in props (value={name}) are bound by the control constructors
@@ -240,7 +240,7 @@ function create(type: any, props: any, children: any[]): any {
       if (isControl(type)) {
         control = new type(p, children);
       } else {
-        throw new Error(`@omarcosr/bunkit/jsx-runtime: <${String(type?.name ?? type)}> is not a control`);
+        throw new Error(`@omarcos/bunkit/jsx-runtime: <${String(type?.name ?? type)}> is not a control`);
       }
   }
 

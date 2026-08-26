@@ -26,7 +26,7 @@ import {
   gpuAvailable,
   plane,
   sphere,
-} from "@omarcosr/bunkit";
+} from "@omarcos/bunkit";
 
 const app = new Application({ name: "Scene3D" });
 

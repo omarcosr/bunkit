@@ -36,7 +36,7 @@ import {
   struct,
   u32,
   vec4f,
-} from "@omarcosr/bunkit";
+} from "@omarcos/bunkit";
 
 const app = new Application({ name: "Particles" });
 

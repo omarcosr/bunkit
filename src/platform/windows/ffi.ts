@@ -12,7 +12,7 @@ const packageRequire = createRequire(import.meta.url);
 
 function installedBridge(): string | undefined {
   try {
-    return packageRequire.resolve("@omarcosr/bunkit-win32-x64/winbridge.dll");
+    return packageRequire.resolve("@omarcos/bunkit-win32-x64/winbridge.dll");
   } catch {
     return undefined;
   }
@@ -31,8 +31,8 @@ function findWinBridge(): string {
   ].filter(Boolean) as string[];
   for (const c of candidates) if (existsSync(c)) return c;
   throw new Error(
-    `Windows native bridge not found for @omarcosr/bunkit.\n` +
-      `Reinstall the package so @omarcosr/bunkit-win32-x64 can be selected automatically.\n` +
+    `Windows native bridge not found for @omarcos/bunkit.\n` +
+      `Reinstall the package so @omarcos/bunkit-win32-x64 can be selected automatically.\n` +
       `For a contributor checkout, run bun run build:windows.\nLooked in:\n  ${candidates.join("\n  ")}`,
   );
 }
@@ -42,7 +42,7 @@ function getPath(): string {
   if (_path) return _path;
   if (process.platform !== "win32") throw new Error("winbridge requested on non-Windows");
   if (process.arch !== "x64") {
-    throw new Error(`@omarcosr/bunkit supports Windows x64; received win32/${process.arch}.`);
+    throw new Error(`@omarcos/bunkit supports Windows x64; received win32/${process.arch}.`);
   }
   _path = findWinBridge();
   return _path;

@@ -18,9 +18,9 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
-    // JSX (.tsx) compiles against @omarcosr/bunkit's own runtime: <Button> etc.
+    // JSX (.tsx) compiles against @omarcos/bunkit's own runtime: <Button> etc.
     "jsx": "react-jsx",
-    "jsxImportSource": "@omarcosr/bunkit",
+    "jsxImportSource": "@omarcos/bunkit",
     "strict": true,
     "noFallthroughCasesInSwitch": true,
     // src/generated/appkit.d.ts is a source file here, not a dependency, so it

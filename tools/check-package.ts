@@ -67,14 +67,14 @@ function assertContents(label: string, files: string[], allowed: (file: string) 
 const rootManifest = manifest(resolve(root, "package.json"));
 const binaryPackages: BinaryPackage[] = [
   {
-    name: "@omarcosr/bunkit-darwin-arm64",
+    name: "@omarcos/bunkit-darwin-arm64",
     directory: "packages/bunkit-darwin-arm64",
     os: "darwin",
     cpu: "arm64",
     artifacts: ["bin/libobjcbridge.dylib"],
   },
   {
-    name: "@omarcosr/bunkit-win32-x64",
+    name: "@omarcos/bunkit-win32-x64",
     directory: "packages/bunkit-win32-x64",
     os: "win32",
     cpu: "x64",
@@ -82,7 +82,7 @@ const binaryPackages: BinaryPackage[] = [
   },
 ];
 
-assert(rootManifest.name === "@omarcosr/bunkit", "root package name must be @omarcosr/bunkit");
+assert(rootManifest.name === "@omarcos/bunkit", "root package name must be @omarcos/bunkit");
 assert(rootManifest.private !== true, "root package must not be private");
 assert(rootManifest.publishConfig?.access === "public", "root package must publish publicly");
 assert(
@@ -127,7 +127,7 @@ for (const binary of binaryPackages) {
 
 const rootFiles = packPreview(root);
 assertContents(
-  "@omarcosr/bunkit",
+  "@omarcos/bunkit",
   rootFiles,
   (file) =>
     ["package.json", "README.md", "LICENSE", "NOTICE", "tsconfig.base.json"].includes(file) ||

@@ -33,7 +33,7 @@ import {
   Spacer,
   VStack,
   Window,
-} from "@omarcosr/bunkit";
+} from "@omarcos/bunkit";
 import {
   Scene3D,
   box,
@@ -47,7 +47,7 @@ import {
   plane,
   sphere,
   type Node,
-} from "@omarcosr/bunkit/metal";
+} from "@omarcos/bunkit/metal";
 
 const app = new Application({ name: "Lighting Rig" });
 
