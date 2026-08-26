@@ -167,9 +167,14 @@ export class Window {
     this.#content = v;
     if (v) {
       this.#root.fill(v);
-      this.native.contentView().layoutSubtreeIfNeeded();
-      this.#root._refreshShadowTree();
+      this.#refreshContentLayout();
     }
+  }
+
+  /** Refresh layout before rebuilding descendant shadow layers. */
+  #refreshContentLayout(): void {
+    this.native.contentView().layoutSubtreeIfNeeded();
+    this.#root._refreshShadowTreeLater();
   }
 
   /** The always-present root container; use it for absolute positioning. */
@@ -222,6 +227,7 @@ export class Window {
   show(): this {
     this.native.makeKeyAndOrderFront_(null);
     objc.NSApplication.sharedApplication().activateIgnoringOtherApps_(true);
+    this.#refreshContentLayout();
     return this;
   }
 

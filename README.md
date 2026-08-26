@@ -75,7 +75,11 @@ Extend the packaged tsconfig to use the bundled JSX runtime:
 ```jsonc
 {
   "extends": "@omarcos/bunkit/tsconfig",
-  "include": ["src"],
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "jsxImportSource": "@omarcos/bunkit"
+  },
+  "include": ["src"]
 }
 ```
 
