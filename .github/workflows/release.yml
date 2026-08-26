@@ -94,6 +94,6 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          npm publish release/*bunkit-darwin-arm64-*.tgz --access public
-          npm publish release/*bunkit-win32-x64-*.tgz --access public
-          npm publish release/*bunkit-[0-9]*.tgz --access public
+          npm publish ./release/*bunkit-darwin-arm64-*.tgz --access public
+          npm publish ./release/*bunkit-win32-x64-*.tgz --access public
+          npm publish ./release/*bunkit-[0-9]*.tgz --access public
