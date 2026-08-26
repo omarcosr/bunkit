@@ -671,7 +671,7 @@ export class View {
         try { shadowLayer.removeFromSuperlayer(); } catch { /* already gone */ }
         parent.insertSublayer_below_(shadowLayer, hostLayer);
       }
-      if (shadowLayer.superlayer() !== parent) return;
+      if (!parent || shadowLayer.superlayer() !== parent) return;
 
       const spread = activeShadow.spread;
       const width = Math.max(0, frame.width) + spread * 2;
