@@ -623,7 +623,7 @@ export class View {
       rebuild();
       for (const s of shapes) if (s) layer.addSublayer_(s);
       this.#borderShapes = shapes.filter((s) => s);
-      this.native.setPostsFrameChangedNotification_(true);
+      this.native.setPostsFrameChangedNotifications_(true);
       const block = createBlock("v@?@@", () => rebuild());
       this.retainJS(block);
       this.retainJS(objc.NSNotificationCenter.defaultCenter()
@@ -723,7 +723,7 @@ export class View {
       layer.setCornerRadius_(0);
     };
     rebuild();
-    this.native.setPostsFrameChangedNotification_(true);
+    this.native.setPostsFrameChangedNotifications_(true);
     const block = createBlock("v@?@@", () => rebuild());
     this.retainJS(block);
     this.retainJS(objc.NSNotificationCenter.defaultCenter()
@@ -740,7 +740,7 @@ export class View {
 
   #installShadowFrameObserver() {
     if (this.#shadowFrameObserver) return;
-    this.native.setPostsFrameChangedNotification_(true);
+    this.native.setPostsFrameChangedNotifications_(true);
     const block = createBlock("v@?@@", () => this.#shadowRebuild?.());
     this.retainJS(block);
     this.#shadowFrameObserver = objc.NSNotificationCenter.defaultCenter()
