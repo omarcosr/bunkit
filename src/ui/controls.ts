@@ -214,6 +214,10 @@ export class Button extends View {
     if (options.textColor !== undefined) this.textColor = unwrap(options.textColor);
     if (options.font !== undefined) this.font = options.font;
     if (options.onClick) this.onClick(options.onClick);
+    // NSButton can replace its backing layer while custom chrome is applied
+    // above. Reinstall the sibling shadow after the native configuration is
+    // complete so the first frame does not depend on a later click.
+    if (options.shadow !== undefined) this.setShadow(options.shadow);
     bindSignals(this, options);
   }
 
