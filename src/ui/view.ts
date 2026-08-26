@@ -432,14 +432,16 @@ export class View {
   /** @internal Refresh now and once after AppKit finishes the current run loop. */
   _refreshShadowTreeLater(): void {
     this._refreshShadowTree();
-    setTimeout(() => this._refreshShadowTree(), 0);
+    if (!this._hasShadowTree()) return;
+    const block = createBlock("v@?", () => this._refreshShadowTree());
+    this.retainJS(block);
+    objc.NSRunLoop.mainRunLoop().performBlock_(block);
   }
 
   /** @internal Reattach descendant shadow layers after a native hierarchy change. */
   _refreshShadowTree(): void {
     this.#shadowRebuild?.();
     for (const child of this._children) child._refreshShadowTree();
-    queueMicrotask(() => this.#shadowRebuild?.());
   }
 
   removeFromParent(): void {
@@ -764,13 +766,25 @@ export class View {
   #shadowLayer: any = null;
   #shadowRebuild: (() => void) | null = null;
   #shadowFrameObserver: any = null;
+  #shadowRefreshPending = false;
+
+  #scheduleShadowRefresh() {
+    if (this.#shadowRefreshPending) return;
+    this.#shadowRefreshPending = true;
+    const block = createBlock("v@?", () => {
+      this.#shadowRefreshPending = false;
+      this.#shadowRebuild?.();
+    });
+    this.retainJS(block);
+    objc.NSRunLoop.mainRunLoop().performBlock_(block);
+  }
 
   #installShadowFrameObserver() {
     if (this.#shadowFrameObserver) return;
     this.native.setPostsFrameChangedNotifications_(true);
     const block = createBlock("v@?@@", () => {
       this.#shadowRebuild?.();
-      setTimeout(() => this.#shadowRebuild?.(), 0);
+      this.#scheduleShadowRefresh();
     });
     this.retainJS(block);
     this.#shadowFrameObserver = objc.NSNotificationCenter.defaultCenter()
