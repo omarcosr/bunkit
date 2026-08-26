@@ -79,6 +79,17 @@ const H = 500;
   // inspecting the layer hierarchy, just as app.run() does.
   for (let i = 0; i < 12; i++) pumpOnce(0.004);
   const initialButtonLayer = initialShadowButton.native.layer();
+  const initialStackLayer = initialStack.native.layer();
+  console.log('initial shadow debug', {
+    buttonWantsLayer: initialShadowButton.native.wantsLayer(),
+    stackWantsLayer: initialStack.native.wantsLayer(),
+    rootWantsLayer: initialWindow.root.native.wantsLayer(),
+    buttonSuperview: initialShadowButton.native.superview()?.className ?? null,
+    buttonWindow: initialShadowButton.native.window()?.className ?? null,
+    buttonSuperlayer: initialButtonLayer.superlayer()?.className ?? null,
+    stackSuperlayer: initialStackLayer?.superlayer()?.className ?? null,
+    stackSublayers: initialStackLayer?.sublayers()?.count?.() ?? null,
+  });
   const initialParentLayer = initialButtonLayer.superlayer();
   let initialShadowLayer: any = null;
   if (initialParentLayer) {
