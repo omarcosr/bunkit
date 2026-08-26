@@ -73,6 +73,10 @@ const H = 500;
     stackSublayers: stackLayer?.sublayers()?.count?.() ?? null,
     hasShadowTree: shadowButton._hasShadowTree(),
   });
+  shadowButton._refreshShadowTree();
+  console.log("shadow debug after refresh", {
+    stackSublayers: stackLayer?.sublayers()?.count?.() ?? null,
+  });
   check("shadow stays off the button content layer", buttonLayer.shadowOpacity() === 0, buttonLayer.shadowOpacity());
   const parentLayer = buttonLayer.superlayer();
   const layers = parentLayer ? parentLayer.sublayers() : null;
