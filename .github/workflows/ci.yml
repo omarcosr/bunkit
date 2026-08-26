@@ -30,7 +30,7 @@ jobs:
       - name: Stage native npm package
         run: bun run stage:binaries -- darwin-arm64
       - name: Check native npm package
-        run: bun run tools/check-package.ts --package @omarcosr/bunkit-darwin-arm64 --require-binaries
+        run: bun run tools/check-package.ts --package @omarcos/bunkit-darwin-arm64 --require-binaries
 
       - name: Type-check
         run: bun run typecheck
@@ -68,7 +68,7 @@ jobs:
       - name: Stage native npm package
         run: bun run stage:binaries -- win32-x64
       - name: Check native npm package
-        run: bun run tools/check-package.ts --package @omarcosr/bunkit-win32-x64 --require-binaries
+        run: bun run tools/check-package.ts --package @omarcos/bunkit-win32-x64 --require-binaries
 
       - name: Type-check
         run: bun run typecheck
