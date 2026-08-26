@@ -77,7 +77,7 @@ const H = 500;
   initialWindow.show();
   // Showing schedules the first AppKit layout pass; process it before
   // inspecting the layer hierarchy, just as app.run() does.
-  pumpOnce(0.004);
+  for (let i = 0; i < 12; i++) pumpOnce(0.004);
   const initialButtonLayer = initialShadowButton.native.layer();
   const initialParentLayer = initialButtonLayer.superlayer();
   let initialShadowLayer: any = null;
