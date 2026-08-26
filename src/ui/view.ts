@@ -181,19 +181,19 @@ function roundedBezier(bounds: any, tl: number, tr: number, br: number, bl: numb
   path.moveToPoint_({ x: x + tl, y: y + h });
   if (tr > 0) {
     path.appendBezierPathWithArcWithCenter_radius_startAngle_endAngle_({ x: x + w - tr, y: y + h - tr }, tr, 90, 0);
-    path.lineTo_({ x: x + w, y: y + h - tr });
+    path.lineToPoint_({ x: x + w, y: y + h - tr });
   } else {
-    path.lineTo_({ x: x + w, y: y + h });
+    path.lineToPoint_({ x: x + w, y: y + h });
   }
-  path.lineTo_({ x: x + w, y: y + br });
+  path.lineToPoint_({ x: x + w, y: y + br });
   if (br > 0) {
     path.appendBezierPathWithArcWithCenter_radius_startAngle_endAngle_({ x: x + w - br, y: y + br }, br, 0, -90);
   }
-  path.lineTo_({ x: x + bl, y: y });
+  path.lineToPoint_({ x: x + bl, y: y });
   if (bl > 0) {
     path.appendBezierPathWithArcWithCenter_radius_startAngle_endAngle_({ x: x + bl, y: y + bl }, bl, -90, -180);
   }
-  path.lineTo_({ x: x, y: y + h - tl });
+  path.lineToPoint_({ x: x, y: y + h - tl });
   if (tl > 0) {
     path.appendBezierPathWithArcWithCenter_radius_startAngle_endAngle_({ x: x + tl, y: y + h - tl }, tl, 180, 90);
   }
@@ -213,22 +213,22 @@ function sideBeziers(bounds: any, tl: number, tr: number, br: number, bl: number
   const top = objc.NSBezierPath.bezierPath();
   top.moveToPoint_({ x, y: y + h - tl });
   if (tl > 0) arc(top, x + tl, y + h - tl, tl, 180, 90);
-  top.lineTo_({ x: x + w - tr, y: y + h });
+  top.lineToPoint_({ x: x + w - tr, y: y + h });
   if (tr > 0) arc(top, x + w - tr, y + h - tr, tr, 90, 0);
   const right = objc.NSBezierPath.bezierPath();
   right.moveToPoint_({ x: x + w - tr, y: y + h });
   if (tr > 0) arc(right, x + w - tr, y + h - tr, tr, 90, 0);
-  right.lineTo_({ x: x + w, y: y + br });
+  right.lineToPoint_({ x: x + w, y: y + br });
   if (br > 0) arc(right, x + w - br, y + br, br, 0, -90);
   const bottom = objc.NSBezierPath.bezierPath();
   bottom.moveToPoint_({ x: x + w, y: y + br });
   if (br > 0) arc(bottom, x + w - br, y + br, br, 0, -90);
-  bottom.lineTo_({ x: x + bl, y });
+  bottom.lineToPoint_({ x: x + bl, y });
   if (bl > 0) arc(bottom, x + bl, y + bl, bl, -90, -180);
   const left = objc.NSBezierPath.bezierPath();
   left.moveToPoint_({ x: x + bl, y });
   if (bl > 0) arc(left, x + bl, y + bl, bl, -90, -180);
-  left.lineTo_({ x, y: y + h - tl });
+  left.lineToPoint_({ x, y: y + h - tl });
   if (tl > 0) arc(left, x + tl, y + h - tl, tl, 180, 90);
   return [top, right, bottom, left];
 }
