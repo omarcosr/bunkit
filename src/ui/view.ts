@@ -419,7 +419,15 @@ export class View {
     this._children.push(child);
     child._parent = this;
     child._enableInteractionWindow();
+    child._refreshShadowTree();
     return this;
+  }
+
+  /** @internal Reattach descendant shadow layers after a native hierarchy change. */
+  _refreshShadowTree(): void {
+    this.#shadowRebuild?.();
+    for (const child of this._children) child._refreshShadowTree();
+    queueMicrotask(() => this.#shadowRebuild?.());
   }
 
   removeFromParent(): void {
@@ -663,16 +671,23 @@ export class View {
         try { shadowLayer.removeFromSuperlayer(); } catch { /* already gone */ }
         parent.insertSublayer_below_(shadowLayer, hostLayer);
       }
-      if (!shadowLayer.superlayer()) return;
+      if (shadowLayer.superlayer() !== parent) return;
 
       const spread = activeShadow.spread;
-      shadowLayer.setFrame_(frame);
+      const width = Math.max(0, frame.width) + spread * 2;
+      const height = Math.max(0, frame.height) + spread * 2;
+      shadowLayer.setFrame_({
+        x: frame.x - spread,
+        y: frame.y - spread,
+        width,
+        height,
+      });
       shadowLayer.setShadowPath_(roundedBezier(
         {
-          x: -spread,
-          y: -spread,
-          width: frame.width + spread * 2,
-          height: frame.height + spread * 2,
+          x: 0,
+          y: 0,
+          width,
+          height,
         },
         Math.max(0, tl + spread),
         Math.max(0, tr + spread),
@@ -741,7 +756,10 @@ export class View {
   #installShadowFrameObserver() {
     if (this.#shadowFrameObserver) return;
     this.native.setPostsFrameChangedNotifications_(true);
-    const block = createBlock("v@?@@", () => this.#shadowRebuild?.());
+    const block = createBlock("v@?@@", () => {
+      this.#shadowRebuild?.();
+      queueMicrotask(() => this.#shadowRebuild?.());
+    });
     this.retainJS(block);
     this.#shadowFrameObserver = objc.NSNotificationCenter.defaultCenter()
       .addObserverForName_object_queue_usingBlock_(
